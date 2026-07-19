@@ -1,0 +1,7 @@
+# Minimal local-dev config. Run `supabase init` from the Supabase CLI to
+# regenerate a full config.toml once the CLI is installed locally — this
+# stub exists so `supabase/` has a valid project root during Phase 1.
+project_id = "niva"
+
+[auth]
+enable_signup = false

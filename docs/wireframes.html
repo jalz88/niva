@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NIVA — Low-fidelity wireframes</title>
+<style>
+  :root{
+    --accent-500:#B5542A; --accent-600:#954423; --accent-50:#FBEEE7;
+    --neutral-50:#FAF8F6; --neutral-100:#F3EFEA; --neutral-200:#E6DFD7;
+    --neutral-300:#D3C8BC; --neutral-400:#A99C8E; --neutral-500:#7D7266;
+    --neutral-700:#453F37; --neutral-900:#1C1916;
+    --positive-600:#2F7D5A; --negative-600:#B3261E;
+    --radius-sm:6px; --radius-md:10px; --radius-lg:16px; --radius-pill:9999px;
+    --shadow-sm:0 1px 2px rgba(28,25,22,0.08); --shadow-md:0 4px 12px rgba(28,25,22,0.12);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:32px; background:#EDE7E0;
+    font-family:-apple-system,"Segoe UI",Roboto,Inter,sans-serif;
+    color:var(--neutral-900);
+  }
+  h1{font-size:20px;margin:0 0 4px;}
+  p.sub{color:var(--neutral-500); font-size:13px; margin:0 0 28px;}
+  .frames{display:flex; flex-wrap:wrap; gap:28px;}
+  .frame-block{width:300px;}
+  .frame-label{font-size:13px; font-weight:600; margin-bottom:8px; color:var(--neutral-700);}
+  .phone{
+    width:300px; height:620px; background:var(--neutral-50);
+    border-radius:28px; border:8px solid var(--neutral-900);
+    overflow:hidden; position:relative; box-shadow:var(--shadow-md);
+    display:flex; flex-direction:column;
+  }
+  .status-bar{height:18px;}
+  .topbar{
+    padding:10px 14px; display:flex; justify-content:space-between; align-items:center;
+    border-bottom:1px solid var(--neutral-200); font-size:12px; color:var(--neutral-700);
+  }
+  .content{flex:1; overflow:hidden; padding:12px; display:flex; flex-direction:column; gap:12px;}
+  .card{
+    background:#fff; border:1px solid var(--neutral-200); border-radius:var(--radius-md);
+    padding:12px; box-shadow:var(--shadow-sm);
+  }
+  .card h3{margin:0 0 8px; font-size:12px; color:var(--neutral-500); font-weight:600; text-transform:uppercase; letter-spacing:.02em;}
+  .summary-row{display:flex; justify-content:space-between; margin-bottom:6px; font-size:13px;}
+  .summary-row .amt{font-weight:600;}
+  .amt.pos{color:var(--positive-600);}
+  .amt.neg{color:var(--negative-600);}
+  .net{font-size:22px; font-weight:700; margin-top:4px;}
+  .bar-row{display:flex; align-items:center; gap:8px; font-size:12px; margin-bottom:6px;}
+  .bar-row .label{width:56px; color:var(--neutral-700);}
+  .bar-track{flex:1; height:8px; background:var(--neutral-100); border-radius:var(--radius-pill); overflow:hidden;}
+  .bar-fill{height:100%; background:var(--accent-500); border-radius:var(--radius-pill);}
+  .bar-row .val{width:54px; text-align:right; color:var(--neutral-700);}
+  .list-row{display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--neutral-100); font-size:12px;}
+  .list-row:last-child{border-bottom:none;}
+  .list-left{display:flex; align-items:center; gap:8px;}
+  .dot{width:26px; height:26px; border-radius:50%; background:var(--neutral-100); display:flex; align-items:center; justify-content:center; font-size:12px;}
+  .meta{color:var(--neutral-500); font-size:11px;}
+  .fab{
+    position:absolute; right:14px; bottom:78px; width:52px; height:52px; border-radius:50%;
+    background:var(--accent-500); color:#fff; display:flex; align-items:center; justify-content:center;
+    font-size:26px; box-shadow:var(--shadow-md);
+  }
+  .bottomnav{
+    height:60px; border-top:1px solid var(--neutral-200); display:flex; background:#fff;
+  }
+  .navitem{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; font-size:10px; color:var(--neutral-500);}
+  .navitem.active{color:var(--accent-600); font-weight:600;}
+  .navdot{width:18px; height:18px; border-radius:5px; background:currentColor; opacity:.18;}
+  .chip{
+    display:inline-flex; align-items:center; padding:4px 10px; border-radius:var(--radius-pill);
+    background:var(--neutral-100); font-size:11px; color:var(--neutral-700); border:1px solid var(--neutral-200);
+  }
+  .chip.accent{background:var(--accent-50); color:var(--accent-600); border-color:var(--accent-100,#F5D6C4);}
+  .toggle{display:flex; border:1px solid var(--neutral-200); border-radius:var(--radius-sm); overflow:hidden;}
+  .toggle div{flex:1; text-align:center; padding:8px; font-size:12px; font-weight:600;}
+  .toggle .on{background:var(--negative-600); color:#fff;}
+  .toggle .off{color:var(--neutral-500);}
+  .field{display:flex; flex-direction:column; gap:4px;}
+  .field label{font-size:11px; color:var(--neutral-500);}
+  .field .box{border:1px solid var(--neutral-200); border-radius:var(--radius-sm); padding:9px; font-size:13px; background:#fff;}
+  .field .box.amount{font-size:20px; font-weight:700; color:var(--neutral-900);}
+  .primary-btn{
+    background:var(--accent-500); color:#fff; text-align:center; padding:12px; border-radius:var(--radius-sm);
+    font-size:14px; font-weight:600; margin-top:auto;
+  }
+  .filterbar{display:flex; gap:6px; flex-wrap:wrap;}
+  .skel{background:var(--neutral-200); border-radius:var(--radius-sm);}
+  footer{margin-top:28px; font-size:12px; color:var(--neutral-500); max-width:640px;}
+</style>
+</head>
+<body>
+
+<h1>NIVA — low-fidelity wireframes</h1>
+<p class="sub">Mobile viewport (375px design width). Companion spec: <code>09-wireframes.md</code>. Colors/type from <code>08-design-system.md</code>.</p>
+
+<div class="frames">
+
+  <div class="frame-block">
+    <div class="frame-label">Dashboard</div>
+    <div class="phone">
+      <div class="topbar"><span>Kandy BnB ▾</span><span>This month ▾</span></div>
+      <div class="content">
+        <div class="card">
+          <h3>Net result</h3>
+          <div class="summary-row"><span>Income</span><span class="amt pos">+ LKR 285,000</span></div>
+          <div class="summary-row"><span>Expenses</span><span class="amt neg">− LKR 96,400</span></div>
+          <div class="net">LKR 188,600</div>
+        </div>
+        <div class="card">
+          <h3>Revenue by platform</h3>
+          <div class="bar-row"><span class="label">Airbnb</span><div class="bar-track"><div class="bar-fill" style="width:78%"></div></div><span class="val">210,000</span></div>
+          <div class="bar-row"><span class="label">Agoda</span><div class="bar-track"><div class="bar-fill" style="width:28%"></div></div><span class="val">75,000</span></div>
+        </div>
+        <div class="card">
+          <h3>Recent transactions</h3>
+          <div class="list-row"><div class="list-left"><div class="dot">🏠</div><div><div>Airbnb payout</div><div class="meta">12 Jul · Kandy BnB</div></div></div><span class="amt pos">+18,500</span></div>
+          <div class="list-row"><div class="list-left"><div class="dot">🧽</div><div><div>Cleaning supplies</div><div class="meta">11 Jul · Kandy BnB</div></div></div><span class="amt neg">−3,200</span></div>
+        </div>
+      </div>
+      <div class="fab">+</div>
+      <div class="bottomnav">
+        <div class="navitem active"><div class="navdot"></div>Dashboard</div>
+        <div class="navitem"><div class="navdot"></div>Transactions</div>
+        <div class="navitem"><div class="navdot"></div>Reports</div>
+        <div class="navitem"><div class="navdot"></div>More</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-block">
+    <div class="frame-label">Quick Add — Expense</div>
+    <div class="phone">
+      <div class="topbar"><span>New transaction</span><span>✕</span></div>
+      <div class="content">
+        <div class="toggle"><div class="off">Income</div><div class="on">Expense</div></div>
+        <div class="field"><label>Amount</label><div class="box amount">LKR 3,200</div></div>
+        <div class="field"><label>Date</label><div class="box">12 Jul 2026</div></div>
+        <div class="field"><label>Property</label><div class="box">Kandy BnB</div></div>
+        <div class="field"><label>Category</label><div class="box">Cleaning &amp; supplies</div></div>
+        <div class="field"><label>Payment method</label><div class="box">Cash</div></div>
+        <div class="field"><label>Supplier (optional)</label><div class="box skel" style="height:34px;"></div></div>
+        <div class="primary-btn">Save expense</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-block">
+    <div class="frame-label">Transactions</div>
+    <div class="phone">
+      <div class="topbar"><span>Transactions</span><span>Filters</span></div>
+      <div class="content">
+        <div class="filterbar">
+          <span class="chip accent">This month</span>
+          <span class="chip">Kandy BnB</span>
+          <span class="chip">+ Add filter</span>
+        </div>
+        <div class="card">
+          <h3>12 Jul</h3>
+          <div class="list-row"><div class="list-left"><div class="dot">🏠</div><div><div>Airbnb payout</div><div class="meta">Income · Airbnb</div></div></div><span class="amt pos">+18,500</span></div>
+          <div class="list-row"><div class="list-left"><div class="dot">🧽</div><div><div>Cleaning supplies</div><div class="meta">Expense · Cash</div></div></div><span class="amt neg">−3,200</span></div>
+        </div>
+        <div class="card">
+          <h3>11 Jul</h3>
+          <div class="list-row"><div class="list-left"><div class="dot">🔌</div><div><div>Electricity bill</div><div class="meta">Expense · Bank transfer</div></div></div><span class="amt neg">−7,400</span></div>
+          <div class="list-row"><div class="list-left"><div class="dot">🛏️</div><div><div>Agoda payout</div><div class="meta">Income · Agoda</div></div></div><span class="amt pos">+22,000</span></div>
+        </div>
+      </div>
+      <div class="fab">+</div>
+      <div class="bottomnav">
+        <div class="navitem"><div class="navdot"></div>Dashboard</div>
+        <div class="navitem active"><div class="navdot"></div>Transactions</div>
+        <div class="navitem"><div class="navdot"></div>Reports</div>
+        <div class="navitem"><div class="navdot"></div>More</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-block">
+    <div class="frame-label">Reports</div>
+    <div class="phone">
+      <div class="topbar"><span>Reports</span><span>Jul 2026 ▾</span></div>
+      <div class="content">
+        <div class="card">
+          <h3>Period totals</h3>
+          <div class="summary-row"><span>Income</span><span class="amt pos">+ LKR 285,000</span></div>
+          <div class="summary-row"><span>Expenses</span><span class="amt neg">− LKR 96,400</span></div>
+          <div class="net">LKR 188,600</div>
+        </div>
+        <div class="card">
+          <h3>Expenses by category</h3>
+          <div class="bar-row"><span class="label">Utilities</span><div class="bar-track"><div class="bar-fill" style="width:60%"></div></div><span class="val">42,000</span></div>
+          <div class="bar-row"><span class="label">Supplies</span><div class="bar-track"><div class="bar-fill" style="width:35%"></div></div><span class="val">24,500</span></div>
+          <div class="bar-row"><span class="label">Repairs</span><div class="bar-track"><div class="bar-fill" style="width:20%"></div></div><span class="val">14,900</span></div>
+        </div>
+        <div class="card">
+          <h3>Revenue by platform</h3>
+          <div class="bar-row"><span class="label">Airbnb</span><div class="bar-track"><div class="bar-fill" style="width:78%"></div></div><span class="val">210,000</span></div>
+          <div class="bar-row"><span class="label">Agoda</span><div class="bar-track"><div class="bar-fill" style="width:28%"></div></div><span class="val">75,000</span></div>
+        </div>
+      </div>
+      <div class="bottomnav">
+        <div class="navitem"><div class="navdot"></div>Dashboard</div>
+        <div class="navitem"><div class="navdot"></div>Transactions</div>
+        <div class="navitem active"><div class="navdot"></div>Reports</div>
+        <div class="navitem"><div class="navdot"></div>More</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  Low-fidelity only — spacing/type/color are illustrative of the design system, not pixel-final. Loading, empty, error, and permission-denied states for each screen are specified in <code>09-wireframes.md</code> and are not drawn here.
+</footer>
+
+</body>
+</html>

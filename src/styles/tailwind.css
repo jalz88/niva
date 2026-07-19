@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+/* Design tokens — mirrors docs/08-design-system.md. Keep these two files in sync. */
+@theme {
+  /* Accent — warm terracotta/clay */
+  --color-accent-50: #FBEEE7;
+  --color-accent-100: #F5D6C4;
+  --color-accent-300: #DC8A60;
+  --color-accent-500: #B5542A;
+  --color-accent-600: #954423;
+  --color-accent-700: #74351C;
+
+  /* Neutral base — warm-tinted, not pure gray */
+  --color-neutral-50: #FAF8F6;
+  --color-neutral-100: #F3EFEA;
+  --color-neutral-200: #E6DFD7;
+  --color-neutral-300: #D3C8BC;
+  --color-neutral-400: #A99C8E;
+  --color-neutral-500: #7D7266;
+  --color-neutral-700: #453F37;
+  --color-neutral-900: #1C1916;
+
+  /* Semantic states — always paired with an icon/label, never color alone */
+  --color-positive-600: #2F7D5A;
+  --color-negative-600: #B3261E;
+  --color-warning-600: #B5720A;
+  --color-info-600: #3D6AA8;
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(28, 25, 22, 0.06);
+  --shadow-md: 0 4px 12px rgba(28, 25, 22, 0.10);
+
+  /* Type scale — docs/08-design-system.md §2 */
+  --text-h1: 24px;
+  --text-h1--line-height: 32px;
+  --text-h2: 20px;
+  --text-h2--line-height: 28px;
+  --text-h3: 17px;
+  --text-h3--line-height: 24px;
+  --text-body: 15px;
+  --text-body--line-height: 22px;
+  --text-body-sm: 13px;
+  --text-body-sm--line-height: 18px;
+  --text-caption: 12px;
+  --text-caption--line-height: 16px;
+  --text-amount: 17px;
+  --text-amount--line-height: 24px;
+  --text-amount-lg: 28px;
+  --text-amount-lg--line-height: 34px;
+
+  /* Font */
+  --font-sans: -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background-color: var(--color-neutral-50);
+    color: var(--color-neutral-900);
+    font-family: var(--font-sans);
+  }
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
