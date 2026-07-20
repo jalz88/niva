@@ -40,11 +40,18 @@ interface ConfigItemBase {
 
 export type Property = ConfigItemBase
 export type Platform = ConfigItemBase
-export type PaymentMethod = ConfigItemBase
 export type Supplier = ConfigItemBase
+
+export interface PaymentMethod extends ConfigItemBase {
+  is_favorite: boolean
+}
 
 export interface Category extends ConfigItemBase {
   type: TransactionType
+  is_favorite: boolean
+  // A category with a parent is a sub-category. Sub-categories can't
+  // themselves have children or be favorited — see migration 0005.
+  parent_category_id: string | null
 }
 
 export interface IsoCurrency {
@@ -71,7 +78,10 @@ export interface Transaction {
   platform_id: string | null
   supplier_id: string | null
   currency_code: string
-  amount: string // numeric(14,2) transported as string — see docs/10-api-data-access-spec.md §2
+  // numeric(14,2). PostgREST actually returns this as a JSON number, not a
+  // string — useTransactions' flatten() normalizes it to string on the way
+  // out so every consumer (esp. the edit form's Zod schema) can rely on it.
+  amount: string
   occurred_on: string
   notes: string | null
   status: TransactionStatus
