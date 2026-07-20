@@ -3,9 +3,11 @@ import { computed } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { LayoutDashboard, Receipt, BarChart3, Settings, Plus } from 'lucide-vue-next'
 import { useAuth } from '@/composables/useAuth'
+import { useQuickAddStore } from '@/stores/quickAddStore'
 
 const route = useRoute()
 const { role } = useAuth()
+const quickAdd = useQuickAddStore()
 
 const navItems = computed(() =>
   [
@@ -46,6 +48,7 @@ const navItems = computed(() =>
         type="button"
         aria-label="Add transaction"
         class="fixed bottom-20 right-4 flex h-14 w-14 items-center justify-center rounded-full bg-accent-500 text-white shadow-md hover:bg-accent-600 md:bottom-8 md:right-8"
+        @click="quickAdd.show()"
       >
         <Plus :size="26" />
       </button>
