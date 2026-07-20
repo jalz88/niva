@@ -1,22 +1,27 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
-import { LayoutDashboard, Receipt, BarChart3, Settings, Plus } from 'lucide-vue-next'
+import { LayoutDashboard, Receipt, BarChart3, User, Settings, Plus } from 'lucide-vue-next'
 import { useAuth } from '@/composables/useAuth'
 import { useQuickAddStore } from '@/stores/quickAddStore'
 
 const route = useRoute()
-const { role } = useAuth()
+const { role, user, displayName } = useAuth()
 const quickAdd = useQuickAddStore()
 
+// Account is reachable by every role, not just administrator — signing out
+// or setting your own name isn't an admin-only capability.
 const navItems = computed(() =>
   [
     { name: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { name: 'transactions', label: 'Transactions', icon: Receipt },
     { name: 'reports', label: 'Reports', icon: BarChart3 },
+    { name: 'account', label: 'Account', icon: User },
     { name: 'administration', label: 'More', icon: Settings, roles: ['administrator'] },
   ].filter((item) => !item.roles || (role.value && item.roles.includes(role.value))),
 )
+
+const identityLabel = computed(() => displayName.value ?? user.value?.email ?? '')
 </script>
 
 <template>
@@ -36,6 +41,7 @@ const navItems = computed(() =>
         <component :is="item.icon" :size="18" />
         {{ item.label }}
       </RouterLink>
+      <p class="mt-auto truncate px-2 pt-4 text-caption text-neutral-500">Signed in as {{ identityLabel }}</p>
     </aside>
 
     <div class="flex flex-1 flex-col">
