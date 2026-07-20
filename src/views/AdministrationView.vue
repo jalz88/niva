@@ -7,6 +7,7 @@ const areas = [
   { name: 'administration-platforms', label: 'Platforms', description: 'Revenue sources such as Airbnb or Agoda' },
   { name: 'administration-categories', label: 'Categories', description: 'Income and expense classifications' },
   { name: 'administration-payment-methods', label: 'Payment methods', description: 'Cash, bank transfer, card, and so on' },
+  { name: 'administration-suppliers', label: 'Suppliers', description: 'Who expenses get paid to' },
   { name: 'administration-currencies', label: 'Currencies', description: 'Which currencies this workspace uses' },
   { name: 'administration-users', label: 'Users', description: 'Who has access, and their role' },
 ]

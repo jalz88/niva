@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Pencil, Check, X, Archive, RotateCcw } from 'lucide-vue-next'
+import { computed, ref } from 'vue'
+import { Pencil, Check, X, Archive, RotateCcw, Star } from 'lucide-vue-next'
 import type { NivaError } from '@/lib/errors'
 
 interface Item {
   id: string
   name: string
   is_active: boolean
+  is_favorite?: boolean
 }
 
 const props = defineProps<{
@@ -28,7 +29,19 @@ const props = defineProps<{
   create: (name: string) => Promise<NivaError | null>
   rename: (id: string, name: string) => Promise<NivaError | null>
   setActive: (id: string, active: boolean) => Promise<NivaError | null>
+  // Omit to hide favorite stars entirely (Properties, Platforms don't use
+  // them). The server enforces the real limit (migration 0005) — this prop
+  // just lets the UI grey out the star before an unnecessary round trip.
+  setFavorite?: (id: string, favorite: boolean) => Promise<NivaError | null>
+  favoriteLimit?: number
+  // Used when nesting a ConfigItemList inside another (e.g. sub-categories
+  // under a category, via the row-extra slot) — drops the card border/
+  // shadow so it reads as "part of" the parent row, not a sibling card.
+  compact?: boolean
 }>()
+
+const favoriteCount = computed(() => props.items.filter((i) => i.is_favorite).length)
+const favoriteLimitReached = computed(() => favoriteCount.value >= (props.favoriteLimit ?? 3))
 
 const newName = ref('')
 const creating = ref(false)
@@ -85,6 +98,23 @@ async function toggleActive(item: Item) {
   savingId.value = null
   if (result) rowError.value = result
 }
+
+async function toggleFavorite(item: Item) {
+  if (!props.setFavorite) return
+  if (!item.is_favorite && favoriteLimitReached.value) {
+    rowError.value = {
+      code: 'validation_error',
+      message: `You can only favorite up to ${props.favoriteLimit ?? 3} — unstar one first.`,
+      retryable: false,
+    }
+    return
+  }
+  savingId.value = item.id
+  rowError.value = null
+  const result = await props.setFavorite(item.id, !item.is_favorite)
+  savingId.value = null
+  if (result) rowError.value = result
+}
 </script>
 
 <template>
@@ -132,14 +162,19 @@ async function toggleActive(item: Item) {
     <!-- Empty -->
     <div
       v-else-if="items.length === 0"
-      class="rounded-md border border-neutral-200 bg-white p-6 text-center shadow-sm"
+      :class="compact ? 'py-2 text-left' : 'rounded-md border border-neutral-200 bg-white p-6 text-center shadow-sm'"
     >
       <p class="text-body-sm text-neutral-500">Nothing here yet. Add your first one above.</p>
     </div>
 
     <!-- List -->
-    <ul v-else class="mb-6 divide-y divide-neutral-200 rounded-md border border-neutral-200 bg-white shadow-sm">
-      <li v-for="item in items" :key="item.id" class="flex items-center gap-2 px-4 py-3">
+    <ul
+      v-else
+      class="mb-6 divide-y"
+      :class="compact ? 'divide-neutral-100' : 'divide-neutral-200 rounded-md border border-neutral-200 bg-white shadow-sm'"
+    >
+      <li v-for="item in items" :key="item.id" class="px-4 py-3">
+      <div class="flex items-center gap-2">
         <template v-if="editingId === item.id">
           <input
             v-model="editingName"
@@ -170,6 +205,17 @@ async function toggleActive(item: Item) {
             Archived
           </span>
           <button
+            v-if="setFavorite"
+            type="button"
+            :aria-label="item.is_favorite ? 'Remove from favorites' : 'Add to favorites'"
+            :disabled="savingId === item.id"
+            class="rounded-sm p-1.5 hover:bg-neutral-100"
+            :class="item.is_favorite ? 'text-warning-600' : 'text-neutral-300'"
+            @click="toggleFavorite(item)"
+          >
+            <Star :size="16" :fill="item.is_favorite ? 'currentColor' : 'none'" />
+          </button>
+          <button
             type="button"
             aria-label="Rename"
             class="rounded-sm p-1.5 text-neutral-500 hover:bg-neutral-100"
@@ -188,6 +234,8 @@ async function toggleActive(item: Item) {
             <RotateCcw v-else :size="16" />
           </button>
         </template>
+      </div>
+      <slot name="row-extra" :item="item" />
       </li>
     </ul>
     <p v-if="rowError" class="mt-2 text-body-sm text-negative-600" role="alert">{{ rowError.message }}</p>

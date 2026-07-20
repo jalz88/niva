@@ -72,6 +72,12 @@ const router = createRouter({
       meta: adminOnly,
     },
     {
+      path: '/administration/suppliers',
+      name: 'administration-suppliers',
+      component: () => import('@/views/administration/SuppliersView.vue'),
+      meta: adminOnly,
+    },
+    {
       path: '/administration/currencies',
       name: 'administration-currencies',
       component: () => import('@/views/administration/CurrenciesView.vue'),
