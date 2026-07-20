@@ -7,7 +7,7 @@ import type { Role } from '@/types/database'
 const session = ref<Session | null>(null)
 const currentRole = ref<Role | null>(null)
 const currentWorkspaceId = ref<string | null>(null)
-const initialized = ref(false)
+const ready = ref(false)
 
 async function loadMembership(user: User) {
   // Release 1 assumes one active workspace per session — see
@@ -29,23 +29,31 @@ async function loadMembership(user: User) {
   currentWorkspaceId.value = data.workspace_id
 }
 
-async function init() {
-  if (initialized.value) return
-  initialized.value = true
+// Shared across every useAuth() call so concurrent callers (the router
+// guard, composables mounting on the same tick) await the same resolution
+// instead of racing separate session lookups.
+let initPromise: Promise<void> | null = null
 
-  const { data } = await supabase.auth.getSession()
-  session.value = data.session
-  if (data.session?.user) await loadMembership(data.session.user)
+function init(): Promise<void> {
+  if (!initPromise) {
+    initPromise = (async () => {
+      const { data } = await supabase.auth.getSession()
+      session.value = data.session
+      if (data.session?.user) await loadMembership(data.session.user)
+      ready.value = true
 
-  supabase.auth.onAuthStateChange(async (_event, newSession) => {
-    session.value = newSession
-    if (newSession?.user) {
-      await loadMembership(newSession.user)
-    } else {
-      currentRole.value = null
-      currentWorkspaceId.value = null
-    }
-  })
+      supabase.auth.onAuthStateChange(async (_event, newSession) => {
+        session.value = newSession
+        if (newSession?.user) {
+          await loadMembership(newSession.user)
+        } else {
+          currentRole.value = null
+          currentWorkspaceId.value = null
+        }
+      })
+    })()
+  }
+  return initPromise
 }
 
 async function signIn(email: string, password: string): Promise<NivaError | null> {
@@ -65,6 +73,11 @@ export function useAuth() {
     isAuthenticated: computed(() => !!session.value),
     role: currentRole,
     workspaceId: currentWorkspaceId,
+    /** True once the initial session + membership lookup has resolved. */
+    ready,
+    /** Resolves once session + membership are loaded — await this before
+     * making a workspace-scoped query, rather than guessing with a timer. */
+    ensureReady: init,
     signIn,
     signOut,
   }

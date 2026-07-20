@@ -1,6 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 
+// Visibility of admin-only routes is also enforced by RLS on every
+// underlying table — this meta flag only controls navigation, per
+// docs/05-information-architecture.md: "Permissions must be enforced in
+// data access, not merely hidden in navigation."
+const adminOnly = { roles: ['administrator'] }
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -29,11 +35,43 @@ const router = createRouter({
       path: '/administration',
       name: 'administration',
       component: () => import('@/views/AdministrationView.vue'),
-      // Visibility is also enforced by RLS on every underlying table — this
-      // meta flag only controls navigation, per
-      // docs/05-information-architecture.md "Permissions must be enforced
-      // in data access, not merely hidden in navigation."
-      meta: { roles: ['administrator'] },
+      meta: adminOnly,
+    },
+    {
+      path: '/administration/properties',
+      name: 'administration-properties',
+      component: () => import('@/views/administration/PropertiesView.vue'),
+      meta: adminOnly,
+    },
+    {
+      path: '/administration/platforms',
+      name: 'administration-platforms',
+      component: () => import('@/views/administration/PlatformsView.vue'),
+      meta: adminOnly,
+    },
+    {
+      path: '/administration/payment-methods',
+      name: 'administration-payment-methods',
+      component: () => import('@/views/administration/PaymentMethodsView.vue'),
+      meta: adminOnly,
+    },
+    {
+      path: '/administration/categories',
+      name: 'administration-categories',
+      component: () => import('@/views/administration/CategoriesView.vue'),
+      meta: adminOnly,
+    },
+    {
+      path: '/administration/currencies',
+      name: 'administration-currencies',
+      component: () => import('@/views/administration/CurrenciesView.vue'),
+      meta: adminOnly,
+    },
+    {
+      path: '/administration/users',
+      name: 'administration-users',
+      component: () => import('@/views/administration/UsersView.vue'),
+      meta: adminOnly,
     },
     {
       path: '/:pathMatch(.*)*',
@@ -45,11 +83,11 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
-  const { isAuthenticated, role } = useAuth()
+  const { isAuthenticated, role, ensureReady } = useAuth()
 
-  // useAuth() calls init() synchronously but session restoration is async;
-  // give it a tick to resolve on first navigation.
-  await new Promise((resolve) => setTimeout(resolve, 0))
+  // Wait for the actual session + membership lookup to resolve, rather
+  // than guessing with a timer.
+  await ensureReady()
 
   if (!to.meta.public && !isAuthenticated.value) {
     return { name: 'sign-in', query: { redirect: to.fullPath } }

@@ -26,6 +26,7 @@ interface PostgrestLikeError {
 /**
  * Maps a Supabase/PostgREST error (or a thrown network error) to a
  * NivaError. Postgres error codes referenced here:
+ * - 23503 foreign_key_violation
  * - 23505 unique_violation
  * - 23514 check_violation
  * - 42501 insufficient_privilege (RLS denial)
@@ -43,6 +44,13 @@ export function toNivaError(error: unknown): NivaError {
   const pgError = error as PostgrestLikeError
   const code = pgError?.code
 
+  if (code === '23503') {
+    return {
+      code: 'validation_error',
+      message: "That reference doesn't exist. Double-check the value and try again.",
+      retryable: false,
+    }
+  }
   if (code === '23505') {
     return { code: 'validation_error', message: 'That value is already in use.', retryable: false }
   }
