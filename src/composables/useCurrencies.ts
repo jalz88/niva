@@ -9,13 +9,22 @@ export interface WorkspaceCurrencyRow {
   isDefault: boolean
 }
 
+// Session-scoped cache — see useConfigItems.ts for why.
+const cache = new Map<string, WorkspaceCurrencyRow[]>()
+
 export function useCurrencies() {
   const rows = ref<WorkspaceCurrencyRow[]>([])
   const loading = ref(false)
   const error = ref<NivaError | null>(null)
 
   async function list(workspaceId: string) {
-    loading.value = true
+    const cached = cache.get(workspaceId)
+    if (cached) {
+      rows.value = cached
+      loading.value = false
+    } else {
+      loading.value = true
+    }
     error.value = null
 
     const [allCurrencies, enabled] = await Promise.all([
@@ -25,11 +34,11 @@ export function useCurrencies() {
 
     loading.value = false
     if (allCurrencies.error) {
-      error.value = toNivaError(allCurrencies.error)
+      if (!cached) error.value = toNivaError(allCurrencies.error)
       return
     }
     if (enabled.error) {
-      error.value = toNivaError(enabled.error)
+      if (!cached) error.value = toNivaError(enabled.error)
       return
     }
 
@@ -43,6 +52,7 @@ export function useCurrencies() {
         isDefault: match?.is_default ?? false,
       }
     })
+    cache.set(workspaceId, rows.value)
   }
 
   async function enable(workspaceId: string, code: string): Promise<NivaError | null> {
@@ -52,6 +62,7 @@ export function useCurrencies() {
 
     if (dbError) return toNivaError(dbError)
     rows.value = rows.value.map((r) => (r.code === code ? { ...r, enabled: true } : r))
+    cache.set(workspaceId, rows.value)
     return null
   }
 
@@ -64,6 +75,7 @@ export function useCurrencies() {
 
     if (dbError) return toNivaError(dbError)
     rows.value = rows.value.map((r) => (r.code === code ? { ...r, enabled: false } : r))
+    cache.set(workspaceId, rows.value)
     return null
   }
 
@@ -77,6 +89,7 @@ export function useCurrencies() {
 
     if (dbError) return toNivaError(dbError)
     rows.value = rows.value.map((r) => ({ ...r, isDefault: r.code === code, enabled: r.enabled || r.code === code }))
+    cache.set(workspaceId, rows.value)
     return null
   }
 

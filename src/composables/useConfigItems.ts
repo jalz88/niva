@@ -10,14 +10,31 @@ import type { Property, Platform, PaymentMethod } from '@/types/database'
 type ConfigTable = 'properties' | 'platforms' | 'payment_methods'
 type ConfigItem = Property | Platform | PaymentMethod
 
+// Session-scoped cache, keyed by `${table}:${workspaceId}`. Without this,
+// every navigation into a screen re-fetches from empty and flashes the
+// loading skeleton, even seconds after the same data was already shown —
+// that's what read as "glitchy" when clicking between admin screens.
+// First visit still shows the skeleton; repeat visits show cached data
+// immediately and revalidate silently in the background.
+const cache = new Map<string, ConfigItem[]>()
+
 export function useConfigItems(table: ConfigTable) {
   const items = ref<ConfigItem[]>([])
   const loading = ref(false)
   const error = ref<NivaError | null>(null)
 
   async function list(workspaceId: string) {
-    loading.value = true
+    const cacheKey = `${table}:${workspaceId}`
+    const cached = cache.get(cacheKey)
+
+    if (cached) {
+      items.value = cached
+      loading.value = false
+    } else {
+      loading.value = true
+    }
     error.value = null
+
     const { data, error: dbError } = await supabase
       .from(table)
       .select('*')
@@ -26,10 +43,14 @@ export function useConfigItems(table: ConfigTable) {
 
     loading.value = false
     if (dbError) {
-      error.value = toNivaError(dbError)
+      // A background revalidation failure shouldn't blank out data the
+      // user can already see — only surface the error if there was
+      // nothing cached to fall back on.
+      if (!cached) error.value = toNivaError(dbError)
       return
     }
     items.value = data
+    cache.set(cacheKey, data)
   }
 
   async function create(workspaceId: string, name: string): Promise<NivaError | null> {
@@ -43,6 +64,7 @@ export function useConfigItems(table: ConfigTable) {
 
     if (dbError) return toNivaError(dbError)
     items.value = [...items.value, data].sort((a, b) => a.name.localeCompare(b.name))
+    cache.set(`${table}:${workspaceId}`, items.value)
     return null
   }
 
@@ -51,6 +73,7 @@ export function useConfigItems(table: ConfigTable) {
 
     if (dbError) return toNivaError(dbError)
     items.value = items.value.map((item) => (item.id === id ? data : item))
+    cache.set(`${table}:${data.workspace_id}`, items.value)
     return null
   }
 
@@ -64,6 +87,7 @@ export function useConfigItems(table: ConfigTable) {
 
     if (dbError) return toNivaError(dbError)
     items.value = items.value.map((item) => (item.id === id ? data : item))
+    cache.set(`${table}:${data.workspace_id}`, items.value)
     return null
   }
 

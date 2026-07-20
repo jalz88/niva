@@ -10,8 +10,12 @@ interface Item {
 }
 
 const props = defineProps<{
-  title: string
-  description: string
+  // Optional section-level heading (h2, no back link) — used when more
+  // than one ConfigItemList appears on the same page, e.g. Categories'
+  // "Income categories" / "Expense categories" split. The page-level
+  // title and back link live in AdminBackHeader instead.
+  sectionTitle?: string
+  sectionDescription?: string
   addLabel: string
   namePlaceholder: string
   items: Item[]
@@ -80,9 +84,11 @@ async function toggleActive(item: Item) {
 </script>
 
 <template>
-  <div class="mx-auto max-w-2xl px-4 pt-6 pb-24 md:pb-8">
-    <h1 class="text-h1 font-semibold text-neutral-900">{{ title }}</h1>
-    <p class="mb-4 text-body-sm text-neutral-500">{{ description }}</p>
+  <div>
+    <template v-if="sectionTitle">
+      <h2 class="text-h3 font-semibold text-neutral-900">{{ sectionTitle }}</h2>
+      <p v-if="sectionDescription" class="mb-3 text-body-sm text-neutral-500">{{ sectionDescription }}</p>
+    </template>
 
     <!-- Add form -->
     <form class="mb-6 flex gap-2" @submit.prevent="onCreate">
@@ -104,7 +110,7 @@ async function toggleActive(item: Item) {
       {{ createError.message }}
     </p>
 
-    <!-- Loading -->
+    <!-- Loading (only shown on a true first load — see the composables' cache, which skips this on repeat visits) -->
     <div v-if="loading" class="space-y-2">
       <div v-for="n in 3" :key="n" class="h-12 rounded-md bg-neutral-200" />
     </div>
@@ -127,7 +133,7 @@ async function toggleActive(item: Item) {
     </div>
 
     <!-- List -->
-    <ul v-else class="divide-y divide-neutral-200 rounded-md border border-neutral-200 bg-white shadow-sm">
+    <ul v-else class="mb-6 divide-y divide-neutral-200 rounded-md border border-neutral-200 bg-white shadow-sm">
       <li v-for="item in items" :key="item.id" class="flex items-center gap-2 px-4 py-3">
         <template v-if="editingId === item.id">
           <input

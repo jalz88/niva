@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { Trash2 } from 'lucide-vue-next'
+import AdminBackHeader from '@/components/admin/AdminBackHeader.vue'
 import { useMembers } from '@/composables/useMembers'
 import { useAuth } from '@/composables/useAuth'
 import type { NivaError } from '@/lib/errors'
@@ -62,11 +63,7 @@ async function onAdd() {
 
 <template>
   <div class="mx-auto max-w-2xl px-4 pt-6 pb-24 md:pb-8">
-    <h1 class="text-h1 font-semibold text-neutral-900">Users</h1>
-    <p class="mb-4 text-body-sm text-neutral-500">
-      Who can access this workspace, and what they're allowed to do. See
-      <code>docs/05-information-architecture.md</code> for what each role can do.
-    </p>
+    <AdminBackHeader title="Users" description="Who can access this workspace, and what they're allowed to do." />
 
     <div class="mb-6 rounded-md border border-neutral-200 bg-white p-4 shadow-sm">
       <h2 class="mb-1 text-h3 font-semibold text-neutral-900">Add a member</h2>

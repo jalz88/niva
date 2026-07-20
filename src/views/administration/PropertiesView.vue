@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { watch } from 'vue'
+import AdminBackHeader from '@/components/admin/AdminBackHeader.vue'
 import ConfigItemList from '@/components/admin/ConfigItemList.vue'
 import { useConfigItems } from '@/composables/useConfigItems'
 import { useAuth } from '@/composables/useAuth'
@@ -17,16 +18,20 @@ watch(
 </script>
 
 <template>
-  <ConfigItemList
-    title="Properties"
-    description="Business locations or accommodation operations, such as Kandy BnB or a future Bali villa."
-    add-label="Add property"
-    name-placeholder="Property name"
-    :items="properties.items.value"
-    :loading="properties.loading.value"
-    :error="properties.error.value"
-    :create="(name) => properties.create(workspaceId!, name)"
-    :rename="properties.rename"
-    :set-active="properties.setActive"
-  />
+  <div class="mx-auto max-w-2xl px-4 pt-6 pb-24 md:pb-8">
+    <AdminBackHeader
+      title="Properties"
+      description="Business locations or accommodation operations, such as Kandy BnB or a future Bali villa."
+    />
+    <ConfigItemList
+      add-label="Add property"
+      name-placeholder="Property name"
+      :items="properties.items.value"
+      :loading="properties.loading.value"
+      :error="properties.error.value"
+      :create="(name) => properties.create(workspaceId!, name)"
+      :rename="properties.rename"
+      :set-active="properties.setActive"
+    />
+  </div>
 </template>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { Star } from 'lucide-vue-next'
+import AdminBackHeader from '@/components/admin/AdminBackHeader.vue'
 import { useCurrencies } from '@/composables/useCurrencies'
 import { useAuth } from '@/composables/useAuth'
 import type { NivaError } from '@/lib/errors'
@@ -39,11 +40,10 @@ async function makeDefault(code: string) {
 
 <template>
   <div class="mx-auto max-w-2xl px-4 pt-6 pb-24 md:pb-8">
-    <h1 class="text-h1 font-semibold text-neutral-900">Currencies</h1>
-    <p class="mb-4 text-body-sm text-neutral-500">
-      Every monetary value keeps its own currency — NIVA never converts or combines currencies into one total
-      without an explicit policy. Enable the currencies this workspace uses and pick one default.
-    </p>
+    <AdminBackHeader
+      title="Currencies"
+      description="Every monetary value keeps its own currency — NIVA never converts or combines currencies into one total without an explicit policy. Enable the currencies this workspace uses and pick one default."
+    />
 
     <div v-if="currencies.loading.value" class="space-y-2">
       <div v-for="n in 4" :key="n" class="h-12 rounded-md bg-neutral-200" />

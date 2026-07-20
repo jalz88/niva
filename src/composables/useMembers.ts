@@ -11,13 +11,22 @@ export interface MemberRow {
   role: Role
 }
 
+// Session-scoped cache — see useConfigItems.ts for why.
+const cache = new Map<string, MemberRow[]>()
+
 export function useMembers() {
   const members = ref<MemberRow[]>([])
   const loading = ref(false)
   const error = ref<NivaError | null>(null)
 
   async function list(workspaceId: string) {
-    loading.value = true
+    const cached = cache.get(workspaceId)
+    if (cached) {
+      members.value = cached
+      loading.value = false
+    } else {
+      loading.value = true
+    }
     error.value = null
 
     // workspace_memberships and profiles both reference auth.users
@@ -31,7 +40,7 @@ export function useMembers() {
 
     if (membershipResult.error) {
       loading.value = false
-      error.value = toNivaError(membershipResult.error)
+      if (!cached) error.value = toNivaError(membershipResult.error)
       return
     }
 
@@ -42,7 +51,7 @@ export function useMembers() {
 
     loading.value = false
     if (profilesResult.error) {
-      error.value = toNivaError(profilesResult.error)
+      if (!cached) error.value = toNivaError(profilesResult.error)
       return
     }
 
@@ -54,6 +63,7 @@ export function useMembers() {
       email: profileById.get(m.user_id)?.email ?? null,
       displayName: profileById.get(m.user_id)?.display_name ?? null,
     }))
+    cache.set(workspaceId, members.value)
   }
 
   async function updateRole(membershipId: string, role: Role): Promise<NivaError | null> {
@@ -61,11 +71,12 @@ export function useMembers() {
       .from('workspace_memberships')
       .update({ role })
       .eq('id', membershipId)
-      .select('id, role')
+      .select('id, role, workspace_id')
       .single()
 
     if (dbError) return toNivaError(dbError)
     members.value = members.value.map((m) => (m.membershipId === membershipId ? { ...m, role: data.role as Role } : m))
+    cache.set(data.workspace_id, members.value)
     return null
   }
 
@@ -87,6 +98,7 @@ export function useMembers() {
 
     if (dbError) return toNivaError(dbError)
     members.value = members.value.filter((m) => m.membershipId !== membershipId)
+    cache.set(workspaceId, members.value)
     return null
   }
 

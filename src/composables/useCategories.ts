@@ -3,14 +3,24 @@ import { supabase } from '@/lib/supabase'
 import { toNivaError, type NivaError } from '@/lib/errors'
 import type { Category, TransactionType } from '@/types/database'
 
+// Session-scoped cache — see useConfigItems.ts for why.
+const cache = new Map<string, Category[]>()
+
 export function useCategories() {
   const items = ref<Category[]>([])
   const loading = ref(false)
   const error = ref<NivaError | null>(null)
 
   async function list(workspaceId: string) {
-    loading.value = true
+    const cached = cache.get(workspaceId)
+    if (cached) {
+      items.value = cached
+      loading.value = false
+    } else {
+      loading.value = true
+    }
     error.value = null
+
     const { data, error: dbError } = await supabase
       .from('categories')
       .select('*')
@@ -19,10 +29,11 @@ export function useCategories() {
 
     loading.value = false
     if (dbError) {
-      error.value = toNivaError(dbError)
+      if (!cached) error.value = toNivaError(dbError)
       return
     }
     items.value = data
+    cache.set(workspaceId, data)
   }
 
   // A category's type is fixed at creation — see
@@ -36,6 +47,7 @@ export function useCategories() {
 
     if (dbError) return toNivaError(dbError)
     items.value = [...items.value, data].sort((a, b) => a.name.localeCompare(b.name))
+    cache.set(workspaceId, items.value)
     return null
   }
 
@@ -44,6 +56,7 @@ export function useCategories() {
 
     if (dbError) return toNivaError(dbError)
     items.value = items.value.map((item) => (item.id === id ? data : item))
+    cache.set(data.workspace_id, items.value)
     return null
   }
 
@@ -57,6 +70,7 @@ export function useCategories() {
 
     if (dbError) return toNivaError(dbError)
     items.value = items.value.map((item) => (item.id === id ? data : item))
+    cache.set(data.workspace_id, items.value)
     return null
   }
 
