@@ -66,11 +66,22 @@ const { defineField, handleSubmit, errors, values, setFieldValue, resetForm } = 
   },
 })
 
-watch(defaultCurrency, (code) => {
-  if (props.mode === 'create' && code && !values.currencyCode) {
-    setFieldValue('currencyCode', code)
-  }
-})
+// immediate: true matters here — useCurrencies() is session-cached (see
+// useCurrencies.ts), so on the second-or-later Quick Add of a session,
+// defaultCurrency is already correct the instant this watcher is created
+// and never "changes" again, meaning a non-immediate watch would never
+// fire and the field would stay blank, forcing an extra manual pick every
+// time. That's the bug real-user testing surfaced as "select the currency
+// again" friction — the whole point of a default is zero clicks.
+watch(
+  defaultCurrency,
+  (code) => {
+    if (props.mode === 'create' && code && !values.currencyCode) {
+      setFieldValue('currencyCode', code)
+    }
+  },
+  { immediate: true },
+)
 
 const [type] = defineField('type')
 const [amount, amountAttrs] = defineField('amount')
