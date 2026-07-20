@@ -41,6 +41,11 @@ function flatten(row: RawJoinedRow): TransactionWithLabels {
   const { properties, categories, payment_methods, platforms, suppliers, ...rest } = row
   return {
     ...rest,
+    // PostgREST actually returns numeric columns as JSON numbers, not
+    // strings — the type comment on Transaction.amount was aspirational,
+    // not accurate. Normalize here so every consumer (the edit form's
+    // Zod schema in particular) can rely on amount always being a string.
+    amount: String(rest.amount),
     property_name: properties?.name ?? '',
     category_name: categories?.name ?? '',
     payment_method_name: payment_methods?.name ?? '',
