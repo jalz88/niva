@@ -87,9 +87,10 @@ async function onAdd() {
         <button
           type="submit"
           :disabled="adding || !newUserId.trim()"
+          :aria-label="adding ? undefined : 'Add member'"
           class="rounded-sm bg-accent-500 px-4 text-body font-semibold text-white hover:bg-accent-600 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500"
         >
-          {{ adding ? 'Adding…' : 'Add member' }}
+          {{ adding ? 'Adding…' : 'Add' }}
         </button>
       </form>
       <p v-if="addError" class="mt-2 text-body-sm text-negative-600" role="alert">{{ addError.message }}</p>

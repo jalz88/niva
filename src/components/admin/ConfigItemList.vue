@@ -16,6 +16,10 @@ const props = defineProps<{
   // title and back link live in AdminBackHeader instead.
   sectionTitle?: string
   sectionDescription?: string
+  // The add button always displays "Add" — the section heading and input
+  // already say what's being added, so repeating it in the button read as
+  // redundant. This stays as the accessible name (aria-label) so screen
+  // reader users still get the full context.
   addLabel: string
   namePlaceholder: string
   items: Item[]
@@ -101,9 +105,10 @@ async function toggleActive(item: Item) {
       <button
         type="submit"
         :disabled="creating || !newName.trim()"
+        :aria-label="creating ? undefined : addLabel"
         class="rounded-sm bg-accent-500 px-4 text-body font-semibold text-white hover:bg-accent-600 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500"
       >
-        {{ creating ? 'Adding…' : addLabel }}
+        {{ creating ? 'Adding…' : 'Add' }}
       </button>
     </form>
     <p v-if="createError" class="-mt-4 mb-4 text-body-sm text-negative-600" role="alert">
