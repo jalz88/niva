@@ -102,5 +102,22 @@ export function useMembers() {
     return null
   }
 
-  return { members, loading, error, list, updateRole, addByUserId, remove }
+  // Relies on the profiles_update_by_admin RLS policy (migration 0006) —
+  // an administrator can set a co-member's display name directly, e.g.
+  // right when adding their account, rather than waiting for that person
+  // to sign in and set it themselves via Account settings.
+  async function updateDisplayName(workspaceId: string, userId: string, name: string): Promise<NivaError | null> {
+    const trimmed = name.trim()
+    const { error: dbError } = await supabase
+      .from('profiles')
+      .update({ display_name: trimmed || null })
+      .eq('id', userId)
+
+    if (dbError) return toNivaError(dbError)
+    members.value = members.value.map((m) => (m.userId === userId ? { ...m, displayName: trimmed || null } : m))
+    cache.set(workspaceId, members.value)
+    return null
+  }
+
+  return { members, loading, error, list, updateRole, addByUserId, remove, updateDisplayName }
 }
