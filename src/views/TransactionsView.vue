@@ -6,7 +6,7 @@ import { ArrowDownLeft, ArrowUpRight, SlidersHorizontal, X } from 'lucide-vue-ne
 import { useAuth } from '@/composables/useAuth'
 import { useTransactions } from '@/composables/useTransactions'
 import { useConfigItems } from '@/composables/useConfigItems'
-import { useCategories } from '@/composables/useCategories'
+import { useCategories, topLevelCategories, subcategoriesOf } from '@/composables/useCategories'
 import type { TransactionType } from '@/types/database'
 
 const { workspaceId } = useAuth()
@@ -91,6 +91,30 @@ const hasActiveFilters = computed(
 const propertyName = (id: string) => properties.items.value.find((p) => p.id === id)?.name ?? ''
 const platformName = (id: string) => platforms.items.value.find((p) => p.id === id)?.name ?? ''
 const categoryName = (id: string) => categories.items.value.find((c) => c.id === id)?.name ?? ''
+
+// Flat, but with sub-categories indented right under their parent — reads
+// as a tree without needing a real nested <select>.
+const categoryFilterOptions = computed(() => {
+  const options: { id: string; label: string }[] = []
+  for (const type of ['income', 'expense'] as const) {
+    for (const top of topLevelCategories(categories.items.value, type)) {
+      options.push({ id: top.id, label: top.name })
+      for (const sub of subcategoriesOf(categories.items.value, top.id)) {
+        options.push({ id: sub.id, label: `— ${sub.name}` })
+      }
+    }
+  }
+  return options
+})
+
+// A transaction's category_id may point at a sub-category directly (see
+// migration 0005) — show it with its parent for context, e.g.
+// "Repairs & maintenance · Plumbing", not just "Plumbing" in isolation.
+function categoryDisplay(tx: { category_id: string; category_name: string }) {
+  const cat = categories.items.value.find((c) => c.id === tx.category_id)
+  const parent = cat?.parent_category_id ? categories.items.value.find((c) => c.id === cat.parent_category_id) : null
+  return parent ? `${parent.name} · ${tx.category_name}` : tx.category_name
+}
 
 const periodLabel = computed(() => (filters.period === 'this_month' ? 'This month' : filters.period === 'last_month' ? 'Last month' : ''))
 
@@ -205,7 +229,7 @@ function loadMore() {
       </select>
       <select v-model="filters.categoryId" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
         <option value="">All categories</option>
-        <option v-for="c in categories.items.value" :key="c.id" :value="c.id">{{ c.name }}</option>
+        <option v-for="c in categoryFilterOptions" :key="c.id" :value="c.id">{{ c.label }}</option>
       </select>
       <select v-model="filters.platformId" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
         <option value="">All platforms</option>
@@ -259,7 +283,7 @@ function loadMore() {
               <ArrowDownLeft v-else :size="18" />
             </span>
             <div class="min-w-0 flex-1">
-              <p class="truncate text-body font-medium text-neutral-900">{{ tx.category_name }}</p>
+              <p class="truncate text-body font-medium text-neutral-900">{{ categoryDisplay(tx) }}</p>
               <p class="truncate text-caption text-neutral-500">{{ tx.property_name }} · {{ tx.payment_method_name }}</p>
             </div>
             <span

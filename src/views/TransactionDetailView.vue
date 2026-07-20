@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowDownLeft, ArrowUpRight } from 'lucide-vue-next'
 import { useAuth } from '@/composables/useAuth'
 import { useTransactions } from '@/composables/useTransactions'
 import { useMembers } from '@/composables/useMembers'
+import { useCategories } from '@/composables/useCategories'
 import { useToastStore } from '@/stores/toastStore'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import type { TransactionWithLabels } from '@/types/database'
@@ -15,6 +16,7 @@ const router = useRouter()
 const { role, workspaceId } = useAuth()
 const { get, archive } = useTransactions()
 const members = useMembers()
+const categories = useCategories()
 const toast = useToastStore()
 
 const transaction = ref<TransactionWithLabels | null>(null)
@@ -37,7 +39,25 @@ async function load() {
 }
 
 watch(() => route.params.id, load, { immediate: true })
-watch(workspaceId, (id) => id && members.list(id), { immediate: true })
+watch(
+  workspaceId,
+  (id) => {
+    if (!id) return
+    members.list(id)
+    categories.list(id)
+  },
+  { immediate: true },
+)
+
+// A transaction's category_id may point at a sub-category directly (see
+// migration 0005) — show it with its parent for context, e.g.
+// "Repairs & maintenance · Plumbing", not just "Plumbing" in isolation.
+const categoryDisplay = computed(() => {
+  if (!transaction.value) return ''
+  const cat = categories.items.value.find((c) => c.id === transaction.value!.category_id)
+  const parent = cat?.parent_category_id ? categories.items.value.find((c) => c.id === cat.parent_category_id) : null
+  return parent ? `${parent.name} · ${transaction.value.category_name}` : transaction.value.category_name
+})
 
 // Corrections are a manager/administrator action — staff and viewer see
 // neither control, per docs/05-information-architecture.md's permissions
@@ -121,7 +141,7 @@ async function confirmDelete() {
           <dd class="text-neutral-900">{{ transaction.property_name }}</dd>
 
           <dt class="text-neutral-500">Category</dt>
-          <dd class="text-neutral-900">{{ transaction.category_name }}</dd>
+          <dd class="text-neutral-900">{{ categoryDisplay }}</dd>
 
           <dt class="text-neutral-500">Payment method</dt>
           <dd class="text-neutral-900">{{ transaction.payment_method_name }}</dd>
