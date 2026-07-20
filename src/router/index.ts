@@ -27,6 +27,16 @@ const router = createRouter({
       component: () => import('@/views/TransactionsView.vue'),
     },
     {
+      path: '/transactions/:id',
+      name: 'transaction-detail',
+      component: () => import('@/views/TransactionDetailView.vue'),
+    },
+    {
+      path: '/transactions/:id/edit',
+      name: 'transaction-edit',
+      component: () => import('@/views/EditTransactionView.vue'),
+    },
+    {
       path: '/reports',
       name: 'reports',
       component: () => import('@/views/ReportsView.vue'),
