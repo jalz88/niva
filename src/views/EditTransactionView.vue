@@ -47,7 +47,6 @@ const initialValues = computed<Partial<TransactionFormValues> | undefined>(() =>
     amount: tx.amount,
     currencyCode: tx.currency_code,
     occurredOn: tx.occurred_on,
-    propertyId: tx.property_id,
     categoryId: tx.category_id,
     paymentMethodId: tx.payment_method_id,
     platformId: tx.platform_id ?? '',

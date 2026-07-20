@@ -3,9 +3,10 @@ import { z } from 'zod'
 // Mirrors the constraints in docs/07-domain-model-and-schema.md §3/§5 so a
 // user never passes client validation only to fail at the database with a
 // confusing error. This is the *form* shape — `supplierName` is free text
-// resolved to a supplierId via useSuppliers().findOrCreate() at submit
-// time (there's no Administration screen for suppliers by design, see
-// 00-project-blueprint.md §5 "Optional in the initial release").
+// (the transaction form's supplier combo box lets you pick an existing
+// name or type a new one) resolved to a supplierId via
+// useSuppliers().findOrCreate() at submit time, whether the name is new or
+// already exists in the Suppliers admin screen.
 const optionalUuid = z
   .union([z.string().uuid(), z.literal('')])
   .optional()
@@ -20,7 +21,10 @@ export const transactionFormSchema = z.object({
     .refine((value) => Number(value) > 0, 'Amount must be greater than zero'),
   currencyCode: z.string().length(3, 'Choose a currency'),
   occurredOn: z.string().date('Choose a date'),
-  propertyId: z.string().uuid('Choose a property'),
+  // No propertyId field — see 2026-07-20 real-user-testing feedback.
+  // While there's exactly one property, TransactionForm assigns it
+  // silently; a header property switcher (not yet built) will take over
+  // this job the day a second property exists, without the form changing.
   categoryId: z.string().uuid('Choose a category'),
   paymentMethodId: z.string().uuid('Choose a payment method'),
   platformId: optionalUuid,

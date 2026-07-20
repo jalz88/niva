@@ -5,7 +5,8 @@ import { toTypedSchema } from '@vee-validate/zod'
 import dayjs from 'dayjs'
 import { transactionFormSchema, type TransactionFormValues, type TransactionPayload } from '@/lib/schemas/transaction'
 import { useConfigItems } from '@/composables/useConfigItems'
-import { useCategories } from '@/composables/useCategories'
+import { useCategories, topLevelCategories, subcategoriesOf } from '@/composables/useCategories'
+import { usePaymentMethods } from '@/composables/usePaymentMethods'
 import { useCurrencies } from '@/composables/useCurrencies'
 import { useSuppliers } from '@/composables/useSuppliers'
 import type { NivaError } from '@/lib/errors'
@@ -21,9 +22,17 @@ const emit = defineEmits<{ success: []; 'reload-requested': [] }>()
 
 const properties = useConfigItems('properties')
 const platforms = useConfigItems('platforms')
-const paymentMethods = useConfigItems('payment_methods')
+const paymentMethods = usePaymentMethods()
 const categories = useCategories()
 const currencies = useCurrencies()
+const suppliers = useConfigItems('suppliers')
+
+// No property field on this form — see 2026-07-20 real-user-testing
+// feedback. Today there's exactly one active property, so it's assigned
+// silently. Once a second property exists, a header property switcher
+// (not built yet) becomes the "which property am I working on" control —
+// this form still won't need a field for it.
+const activePropertyId = computed(() => properties.items.value.find((p) => p.is_active)?.id ?? '')
 
 watch(
   () => props.workspaceId,
@@ -34,6 +43,7 @@ watch(
     paymentMethods.list(id)
     categories.list(id)
     currencies.list(id)
+    suppliers.list(id)
   },
   { immediate: true },
 )
@@ -47,7 +57,6 @@ const { defineField, handleSubmit, errors, values, setFieldValue, resetForm } = 
     amount: '',
     currencyCode: '',
     occurredOn: dayjs().format('YYYY-MM-DD'),
-    propertyId: '',
     categoryId: '',
     paymentMethodId: '',
     platformId: '',
@@ -57,8 +66,6 @@ const { defineField, handleSubmit, errors, values, setFieldValue, resetForm } = 
   },
 })
 
-// Default the currency once it's known, for create only — editing an
-// existing transaction keeps whatever currency it was recorded in.
 watch(defaultCurrency, (code) => {
   if (props.mode === 'create' && code && !values.currencyCode) {
     setFieldValue('currencyCode', code)
@@ -69,30 +76,97 @@ const [type] = defineField('type')
 const [amount, amountAttrs] = defineField('amount')
 const [currencyCode] = defineField('currencyCode')
 const [occurredOn, occurredOnAttrs] = defineField('occurredOn')
-const [propertyId, propertyIdAttrs] = defineField('propertyId')
-const [categoryId, categoryIdAttrs] = defineField('categoryId')
-const [paymentMethodId, paymentMethodIdAttrs] = defineField('paymentMethodId')
+const [categoryId] = defineField('categoryId')
+const [paymentMethodId] = defineField('paymentMethodId')
 const [platformId, platformIdAttrs] = defineField('platformId')
 const [supplierName, supplierNameAttrs] = defineField('supplierName')
 const [notes] = defineField('notes')
 
-// Reset the category when it no longer matches the chosen type, so an
-// invalid income/expense + category combination can never be submitted —
-// see docs/07-domain-model-and-schema.md §5.
-watch(type, () => {
-  const current = categories.items.value.find((c) => c.id === categoryId.value)
-  if (current && current.type !== type.value) setFieldValue('categoryId', '')
+// ---- Category: favorite chips + "more" + optional sub-category --------
+// Everything here derives from categoryId + the loaded category list, so
+// edit-mode prefill (categoryId already pointing at a leaf sub-category)
+// "just works" once categories finish loading — no separate init step.
+
+const currentCategory = computed(() => categories.items.value.find((c) => c.id === categoryId.value) ?? null)
+const currentTopCategoryId = computed(() =>
+  currentCategory.value ? (currentCategory.value.parent_category_id ?? currentCategory.value.id) : '',
+)
+const currentSubcategoryId = computed(() => (currentCategory.value?.parent_category_id ? currentCategory.value.id : ''))
+
+const favoriteCategories = computed(() => topLevelCategories(categories.items.value, type.value).filter((c) => c.is_favorite))
+const moreCategories = computed(() =>
+  topLevelCategories(categories.items.value, type.value).filter(
+    (c) => !c.is_favorite && (c.is_active || c.id === currentTopCategoryId.value),
+  ),
+)
+const subcategoryOptions = computed(() =>
+  currentTopCategoryId.value
+    ? subcategoriesOf(categories.items.value, currentTopCategoryId.value).filter(
+        (c) => c.is_active || c.id === currentSubcategoryId.value,
+      )
+    : [],
+)
+const showSubcategoryRow = computed(() => subcategoryOptions.value.length > 0)
+const noCategoriesAvailable = computed(() => favoriteCategories.value.length === 0 && moreCategories.value.length === 0)
+
+const categoryMoreValue = computed({
+  get: () => (favoriteCategories.value.some((c) => c.id === currentTopCategoryId.value) ? '' : currentTopCategoryId.value),
+  // Picking a different top-level category always clears any sub-category
+  // selection, since categoryId becomes that top-level id directly.
+  set: (id: string) => setFieldValue('categoryId', id),
+})
+const subcategorySelectValue = computed({
+  get: () => currentSubcategoryId.value,
+  set: (id: string) => setFieldValue('categoryId', id || currentTopCategoryId.value),
 })
 
-const propertyOptions = computed(() => properties.items.value.filter((p) => p.is_active || p.id === props.initialValues?.propertyId))
+// Switching Income/Expense invalidates whatever category was selected for
+// the other type.
+watch(type, () => {
+  if (currentCategory.value && currentCategory.value.type !== type.value) {
+    setFieldValue('categoryId', '')
+  }
+})
+
+// ---- Payment method: favorite chips + "more" ----------------------------
+
+const favoritePaymentMethods = computed(() => paymentMethods.items.value.filter((p) => p.is_favorite))
+const morePaymentMethods = computed(() =>
+  paymentMethods.items.value.filter((p) => !p.is_favorite && (p.is_active || p.id === paymentMethodId.value)),
+)
+const paymentMoreValue = computed({
+  get: () => (favoritePaymentMethods.value.some((p) => p.id === paymentMethodId.value) ? '' : paymentMethodId.value),
+  set: (id: string) => setFieldValue('paymentMethodId', id),
+})
+
+// ---- Platform (income) ---------------------------------------------------
+
 const platformOptions = computed(() => platforms.items.value.filter((p) => p.is_active || p.id === props.initialValues?.platformId))
-const paymentMethodOptions = computed(() =>
-  paymentMethods.items.value.filter((p) => p.is_active || p.id === props.initialValues?.paymentMethodId),
-)
-const categoryOptions = computed(() =>
-  categories.items.value.filter((c) => c.type === type.value && (c.is_active || c.id === props.initialValues?.categoryId)),
-)
-const currencyOptions = computed(() => currencies.rows.value.filter((r) => r.enabled))
+
+// ---- Supplier: pick existing or type a new one ---------------------------
+
+const supplierOptions = computed(() => suppliers.items.value.filter((s) => s.is_active || s.name === props.initialValues?.supplierName))
+// Editing a transaction that already has a supplier: show it as free text
+// straight away rather than guessing whether it's still in the active list.
+const supplierMode = ref<'select' | 'new'>(props.initialValues?.supplierName ? 'new' : 'select')
+const supplierSelectValue = ref('')
+
+function onSupplierSelectChange() {
+  if (supplierSelectValue.value === '__new__') {
+    supplierMode.value = 'new'
+    setFieldValue('supplierName', '')
+  } else {
+    setFieldValue('supplierName', supplierSelectValue.value)
+  }
+}
+
+function backToSupplierSelect() {
+  supplierMode.value = 'select'
+  supplierSelectValue.value = ''
+  setFieldValue('supplierName', '')
+}
+
+// ---- Submit ---------------------------------------------------------------
 
 const showNotes = ref(!!props.initialValues?.notes)
 const submitting = ref(false)
@@ -105,6 +179,15 @@ const submitLabel = computed(() => {
 })
 
 const onFormSubmit = handleSubmit(async (formValues) => {
+  if (!activePropertyId.value) {
+    submitError.value = {
+      code: 'validation_error',
+      message: 'No active property found for this workspace. Add one in Administration first.',
+      retryable: false,
+    }
+    return
+  }
+
   submitting.value = true
   submitError.value = null
 
@@ -125,7 +208,7 @@ const onFormSubmit = handleSubmit(async (formValues) => {
     amount: formValues.amount,
     currencyCode: formValues.currencyCode,
     occurredOn: formValues.occurredOn,
-    propertyId: formValues.propertyId,
+    propertyId: activePropertyId.value,
     categoryId: formValues.categoryId,
     paymentMethodId: formValues.paymentMethodId,
     platformId: formValues.platformId,
@@ -143,11 +226,13 @@ const onFormSubmit = handleSubmit(async (formValues) => {
 
   emit('success')
   if (props.mode === 'create') {
-    // Keep last-used property/category/payment method/date/currency —
-    // only clear the fields that are specific to this one entry, per
+    // Keep last-used category/payment method/date/currency — only clear
+    // what's specific to this one entry, per
     // docs/04-ui-ux-principles.md §4 "Default intelligently".
     resetForm({ values: { ...values, amount: '', notes: '', supplierName: '' } })
     showNotes.value = false
+    supplierMode.value = 'select'
+    supplierSelectValue.value = ''
   }
 })
 </script>
@@ -179,11 +264,11 @@ const onFormSubmit = handleSubmit(async (formValues) => {
       <label class="mb-1 block text-body-sm text-neutral-700" for="tx-amount">Amount</label>
       <div class="flex gap-2">
         <select
-          v-if="currencyOptions.length > 1"
+          v-if="currencies.rows.value.filter((r) => r.enabled).length > 1"
           v-model="currencyCode"
           class="rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none"
         >
-          <option v-for="c in currencyOptions" :key="c.code" :value="c.code">{{ c.code }}</option>
+          <option v-for="c in currencies.rows.value.filter((r) => r.enabled)" :key="c.code" :value="c.code">{{ c.code }}</option>
         </select>
         <span v-else class="flex items-center rounded-sm border border-neutral-200 bg-neutral-100 px-3 text-body text-neutral-500">
           {{ currencyCode }}
@@ -214,51 +299,86 @@ const onFormSubmit = handleSubmit(async (formValues) => {
       <p v-if="errors.occurredOn" class="mt-1 text-caption text-negative-600">{{ errors.occurredOn }}</p>
     </div>
 
-    <!-- Property -->
-    <div>
-      <label class="mb-1 block text-body-sm text-neutral-700" for="tx-property">Property</label>
-      <select
-        id="tx-property"
-        v-model="propertyId"
-        v-bind="propertyIdAttrs"
-        class="w-full rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
-      >
-        <option value="" disabled>Choose a property</option>
-        <option v-for="p in propertyOptions" :key="p.id" :value="p.id">{{ p.name }}</option>
-      </select>
-      <p v-if="errors.propertyId" class="mt-1 text-caption text-negative-600">{{ errors.propertyId }}</p>
-    </div>
-
     <!-- Category -->
     <div>
-      <label class="mb-1 block text-body-sm text-neutral-700" for="tx-category">Category</label>
+      <label class="mb-1 block text-body-sm text-neutral-700">Category</label>
+
+      <div v-if="favoriteCategories.length" class="mb-2 grid grid-cols-3 gap-2">
+        <button
+          v-for="c in favoriteCategories"
+          :key="c.id"
+          type="button"
+          :aria-pressed="currentTopCategoryId === c.id"
+          class="rounded-sm border px-2 py-2.5 text-caption font-medium leading-tight"
+          :class="
+            currentTopCategoryId === c.id
+              ? 'border-accent-500 bg-accent-50 text-accent-700'
+              : 'border-neutral-200 text-neutral-700 hover:bg-neutral-100'
+          "
+          @click="setFieldValue('categoryId', c.id)"
+        >
+          {{ c.name }}
+        </button>
+      </div>
+
       <select
-        id="tx-category"
-        v-model="categoryId"
-        v-bind="categoryIdAttrs"
+        v-if="moreCategories.length"
+        v-model="categoryMoreValue"
         class="w-full rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
       >
-        <option value="" disabled>Choose a category</option>
-        <option v-for="c in categoryOptions" :key="c.id" :value="c.id">{{ c.name }}</option>
+        <option value="">More categories…</option>
+        <option v-for="c in moreCategories" :key="c.id" :value="c.id">{{ c.name }}</option>
       </select>
+
       <p v-if="errors.categoryId" class="mt-1 text-caption text-negative-600">{{ errors.categoryId }}</p>
-      <p v-if="categoryOptions.length === 0" class="mt-1 text-caption text-neutral-500">
+      <p v-if="noCategoriesAvailable" class="mt-1 text-caption text-neutral-500">
         No {{ type }} categories yet — add one in Administration → Categories.
       </p>
+
+      <div v-if="showSubcategoryRow" class="mt-2">
+        <label class="mb-1 block text-body-sm text-neutral-700" for="tx-subcategory">Sub-category (optional)</label>
+        <select
+          id="tx-subcategory"
+          v-model="subcategorySelectValue"
+          class="w-full rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
+        >
+          <option value="">None</option>
+          <option v-for="c in subcategoryOptions" :key="c.id" :value="c.id">{{ c.name }}</option>
+        </select>
+      </div>
     </div>
 
     <!-- Payment method -->
     <div>
-      <label class="mb-1 block text-body-sm text-neutral-700" for="tx-payment-method">Payment method</label>
+      <label class="mb-1 block text-body-sm text-neutral-700">Payment method</label>
+
+      <div v-if="favoritePaymentMethods.length" class="mb-2 grid grid-cols-3 gap-2">
+        <button
+          v-for="p in favoritePaymentMethods"
+          :key="p.id"
+          type="button"
+          :aria-pressed="paymentMethodId === p.id"
+          class="rounded-sm border px-2 py-2.5 text-caption font-medium leading-tight"
+          :class="
+            paymentMethodId === p.id
+              ? 'border-accent-500 bg-accent-50 text-accent-700'
+              : 'border-neutral-200 text-neutral-700 hover:bg-neutral-100'
+          "
+          @click="setFieldValue('paymentMethodId', p.id)"
+        >
+          {{ p.name }}
+        </button>
+      </div>
+
       <select
-        id="tx-payment-method"
-        v-model="paymentMethodId"
-        v-bind="paymentMethodIdAttrs"
+        v-if="morePaymentMethods.length"
+        v-model="paymentMoreValue"
         class="w-full rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
       >
-        <option value="" disabled>Choose a payment method</option>
-        <option v-for="p in paymentMethodOptions" :key="p.id" :value="p.id">{{ p.name }}</option>
+        <option value="">More payment methods…</option>
+        <option v-for="p in morePaymentMethods" :key="p.id" :value="p.id">{{ p.name }}</option>
       </select>
+
       <p v-if="errors.paymentMethodId" class="mt-1 text-caption text-negative-600">{{ errors.paymentMethodId }}</p>
     </div>
 
@@ -276,17 +396,38 @@ const onFormSubmit = handleSubmit(async (formValues) => {
       </select>
     </div>
 
-    <!-- Supplier (expense) -->
+    <!-- Supplier (expense) — pick existing or add a new one -->
     <div v-else>
       <label class="mb-1 block text-body-sm text-neutral-700" for="tx-supplier">Supplier (optional)</label>
-      <input
+      <select
+        v-if="supplierMode === 'select'"
         id="tx-supplier"
-        v-model="supplierName"
-        v-bind="supplierNameAttrs"
-        type="text"
-        placeholder="Who was paid"
+        v-model="supplierSelectValue"
         class="w-full rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
-      />
+        @change="onSupplierSelectChange"
+      >
+        <option value="">None</option>
+        <option v-for="s in supplierOptions" :key="s.id" :value="s.name">{{ s.name }}</option>
+        <option value="__new__">+ Add new supplier…</option>
+      </select>
+      <div v-else class="flex flex-col gap-1.5">
+        <input
+          id="tx-supplier"
+          v-model="supplierName"
+          v-bind="supplierNameAttrs"
+          type="text"
+          placeholder="Supplier name"
+          class="w-full rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
+        />
+        <button
+          v-if="supplierOptions.length"
+          type="button"
+          class="self-start text-caption font-medium text-accent-600 hover:text-accent-700"
+          @click="backToSupplierSelect"
+        >
+          Choose an existing supplier instead
+        </button>
+      </div>
     </div>
 
     <!-- Notes -->
