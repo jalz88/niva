@@ -1,14 +1,18 @@
 import { ref } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { toNivaError, type NivaError } from '@/lib/errors'
-import type { Property, Platform, PaymentMethod } from '@/types/database'
+import type { Property, Platform, Supplier } from '@/types/database'
 
-// properties, platforms, and payment_methods share the exact same shape in
-// the schema (docs/07-domain-model-and-schema.md §3 "Configuration
-// tables") — one composable factory covers all three rather than repeating
-// the same list/create/rename/archive logic per entity.
-type ConfigTable = 'properties' | 'platforms' | 'payment_methods'
-type ConfigItem = Property | Platform | PaymentMethod
+// properties, platforms, and suppliers share the exact same shape in the
+// schema (docs/07-domain-model-and-schema.md §3 "Configuration tables") —
+// one composable factory covers all three rather than repeating the same
+// list/create/rename/archive logic per entity. payment_methods used to be
+// here too, but moved to its own usePaymentMethods composable once
+// is_favorite was added (2026-07-20) — that column doesn't exist on
+// properties/platforms/suppliers, so keeping it in this shared factory
+// would mean a union type lying about fields not every member has.
+type ConfigTable = 'properties' | 'platforms' | 'suppliers'
+type ConfigItem = Property | Platform | Supplier
 
 // Session-scoped cache, keyed by `${table}:${workspaceId}`. Without this,
 // every navigation into a screen re-fetches from empty and flashes the
