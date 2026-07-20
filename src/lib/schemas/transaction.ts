@@ -2,28 +2,45 @@ import { z } from 'zod'
 
 // Mirrors the constraints in docs/07-domain-model-and-schema.md §3/§5 so a
 // user never passes client validation only to fail at the database with a
-// confusing error. If a rule changes here, update the migration too.
-export const transactionInputSchema = z
-  .object({
-    type: z.enum(['income', 'expense']),
-    amount: z
-      .string()
-      .regex(/^\d+(\.\d{1,2})?$/, 'Enter an amount like 1500 or 1500.00')
-      .refine((value) => Number(value) > 0, 'Amount must be greater than zero'),
-    currencyCode: z.string().length(3),
-    occurredOn: z.string().date(),
-    propertyId: z.string().uuid('Choose a property'),
-    categoryId: z.string().uuid('Choose a category'),
-    paymentMethodId: z.string().uuid('Choose a payment method'),
-    platformId: z.string().uuid().optional(),
-    supplierId: z.string().uuid().optional(),
-    notes: z.string().max(500).optional(),
-  })
-  .refine((data) => data.type !== 'income' || true, {
-    // Platform is typically set for income, supplier for expense, but
-    // neither is hard-required at the schema level — see
-    // docs/07-domain-model-and-schema.md §3 "typically set for income/expense".
-    message: 'ok',
-  })
+// confusing error. This is the *form* shape — `supplierName` is free text
+// resolved to a supplierId via useSuppliers().findOrCreate() at submit
+// time (there's no Administration screen for suppliers by design, see
+// 00-project-blueprint.md §5 "Optional in the initial release").
+const optionalUuid = z
+  .union([z.string().uuid(), z.literal('')])
+  .optional()
+  .transform((value) => (value ? value : undefined))
 
-export type TransactionInput = z.infer<typeof transactionInputSchema>
+export const transactionFormSchema = z.object({
+  type: z.enum(['income', 'expense']),
+  amount: z
+    .string()
+    .min(1, 'Enter an amount')
+    .regex(/^\d+(\.\d{1,2})?$/, 'Enter an amount like 1500 or 1500.00')
+    .refine((value) => Number(value) > 0, 'Amount must be greater than zero'),
+  currencyCode: z.string().length(3, 'Choose a currency'),
+  occurredOn: z.string().date('Choose a date'),
+  propertyId: z.string().uuid('Choose a property'),
+  categoryId: z.string().uuid('Choose a category'),
+  paymentMethodId: z.string().uuid('Choose a payment method'),
+  platformId: optionalUuid,
+  supplierName: z.string().max(200).optional(),
+  notes: z.string().max(500).optional(),
+})
+
+export type TransactionFormValues = z.infer<typeof transactionFormSchema>
+
+// The resolved payload sent to useTransactions().create()/update() once
+// supplierName has been turned into a supplierId.
+export interface TransactionPayload {
+  type: 'income' | 'expense'
+  amount: string
+  currencyCode: string
+  occurredOn: string
+  propertyId: string
+  categoryId: string
+  paymentMethodId: string
+  platformId?: string
+  supplierId?: string
+  notes?: string
+}
