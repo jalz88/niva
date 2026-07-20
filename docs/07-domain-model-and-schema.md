@@ -43,7 +43,7 @@ iso_currencies (global reference table, not workspace-scoped)
 | Column | Type | Notes |
 | --- | --- | --- |
 | id | uuid, pk | default `gen_random_uuid()` |
-| name | text, not null | e.g. "Kandy BnB Group" |
+| name | text, not null | e.g. "hashtag28" |
 | created_at | timestamptz, not null | default `now()` |
 
 ### `workspace_memberships`
@@ -84,13 +84,23 @@ Mirrors `auth.users` for display purposes only; Supabase Auth remains the identi
 | updated_by | uuid, fk → auth.users.id | |
 | updated_at | timestamptz, not null | default `now()` |
 
-`categories` has one additional column:
+`categories` has three additional columns (added by migration 0005, 2026-07-20, after real-user-testing feedback):
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | type | text, not null | check in (`income`,`expense`) |
+| is_favorite | boolean, not null | default `false`; max 3 favorites per `(workspace_id, type)`, enforced by trigger |
+| parent_category_id | uuid, null, fk → categories.id | a non-null value makes this row a sub-category; one level deep only — a sub-category can't itself have a parent |
 
-A category's `type` is fixed at creation. A transaction's `category_id` must reference a category whose `type` matches the transaction's own `type` (enforced by trigger — see §5).
+`payment_methods` has one additional column, same rule minus the type split (one shared set of 3, not per-type):
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| is_favorite | boolean, not null | default `false`; max 3 favorites per `workspace_id`, enforced by trigger |
+
+Favorites exist to drive one-tap quick-entry chips on the transaction form, configured by an administrator in the Categories/Payment methods admin screens. A category can't be both a favorite and a sub-category (check constraint) — sub-categories are an optional, hidden-unless-used refinement for reporting, not part of the fast-entry path.
+
+A category's `type` is fixed at creation, and a sub-category always inherits its parent's `type`. A transaction's `category_id` must reference a category whose `type` matches the transaction's own `type` (enforced by trigger — see §5); it may point directly at a sub-category, in which case the sub-category *is* the recorded category — there is no separate `subcategory_id` column on `transactions`.
 
 ### `iso_currencies` (global reference)
 
@@ -158,6 +168,12 @@ Two rules can't be expressed as simple foreign keys and need a `BEFORE INSERT OR
 
 Both should raise a clear error the application layer can map to a plain-language message (per the UI/UX validation principles), not a raw constraint-violation string.
 
+Three more rules, added by migration 0005 for the favorites/sub-category columns:
+
+3. **Sub-category depth and consistency.** A `categories` row with `parent_category_id` set must reference a parent in the same `workspace_id`, the same `type`, and that parent must not itself have a parent (max one level deep).
+4. **Favorite limit, categories.** At most 3 rows with `is_favorite = true` per `(workspace_id, type)`.
+5. **Favorite limit, payment methods.** At most 3 rows with `is_favorite = true` per `workspace_id`.
+
 ## 6. Row Level Security
 
 A `SECURITY DEFINER` helper function avoids recursive RLS lookups:
@@ -178,11 +194,14 @@ Policy pattern applied per table (illustrative, not exhaustive):
 | Table group | SELECT | INSERT | UPDATE | DELETE/Archive |
 | --- | --- | --- | --- | --- |
 | `transactions` | any member of the workspace | administrator, manager, staff | administrator, manager | administrator, manager (sets `status='archived'`); hard `DELETE` restricted to administrator |
-| Configuration tables (properties, platforms, categories, payment_methods, suppliers, workspace_currencies) | any member of the workspace | administrator | administrator | administrator (blocked by FK/trigger if referenced by a transaction — see below) |
+| Configuration tables (properties, platforms, categories, payment_methods, workspace_currencies) | any member of the workspace | administrator | administrator | administrator (blocked by FK/trigger if referenced by a transaction — see below) |
+| `suppliers` | any member of the workspace | administrator, manager, staff | administrator | administrator (blocked by FK/trigger if referenced by a transaction) |
 | `workspace_memberships` | any member of the workspace | administrator | administrator | administrator |
 | `profiles` | self, and any workspace co-member | self (own row) | self (own row) | n/a |
 
 Every policy's `USING`/`WITH CHECK` clause is scoped by `workspace_id = <row's workspace> AND current_role_in_workspace(workspace_id) = ANY(<allowed roles>)`. `viewer` never appears in an INSERT/UPDATE/DELETE allow-list.
+
+`suppliers` INSERT is the one configuration table open to staff/manager, not just administrator (fixed 2026-07-20, migration 0005) — the transaction form silently creates a supplier row when a staff member types a new name that isn't in the list yet (`useSuppliers().findOrCreate()`), and that role can already create transactions. Renaming or archiving a supplier is still administrator-only, via the Suppliers admin screen.
 
 Archiving a configuration item that is referenced by an existing transaction is allowed (it just stops appearing as a selectable option); hard-deleting one that is referenced is blocked at the database level, independent of what the UI prevents — this is the "defence in depth" the technology-stack document calls for.
 

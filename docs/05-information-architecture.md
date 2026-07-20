@@ -30,8 +30,9 @@ NIVA
 └── Administration
     ├── Properties
     ├── Platforms
-    ├── Categories
-    ├── Payment methods
+    ├── Categories (favorite up to 3, optional one-level sub-categories)
+    ├── Payment methods (favorite up to 3)
+    ├── Suppliers
     ├── Currencies
     └── Users
 ```

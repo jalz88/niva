@@ -37,7 +37,10 @@ States: loading (skeleton cards, no fake numbers); empty (no transactions yet th
 
 - Opens as a bottom sheet on mobile, a side panel or modal on desktop — never a full navigation away from context.
 - Step 1: Income/Expense toggle (two large pill buttons) — determines every field below.
-- Form (single screen, no wizard): Amount (numeric keypad, currency prefix), Date (defaults to today), Property (defaults to last-used), Category (type-filtered), Payment method, Platform (income only), Supplier (expense only, optional), Notes (optional, collapsed by default).
+- No Property field. The transaction is recorded against whichever property the header property selector is currently set to (see Dashboard, above); with a single property this is invisible — there's simply nothing to choose. Revisit if/when NIVA supports mid-entry property switching from inside Quick Add.
+- Category and Payment method are each entered via up to 3 favorite one-tap chips (administrator-configured in their respective Administration screens), plus a "More…" dropdown for anything not favorited. Category chips are scoped to the current Income/Expense toggle. A Sub-category dropdown appears only when the chosen category actually has sub-categories — most categories don't, and the field is simply absent for them (2026-07-20, real-user-testing feedback: keep the common path exactly as fast as before).
+- Supplier (expense only, optional): a combo box — pick a previously used supplier, or choose "+ Add new supplier…" to type one on the spot. Either way it resolves to a real row in the Suppliers admin list.
+- Form (single screen, no wizard): Amount (numeric keypad, currency prefix), Date (defaults to today), Category, Payment method, Platform (income only), Supplier (expense only), Notes (optional, collapsed by default).
 - Primary action: **Save income** / **Save expense**, label changes with the toggle.
 - States: validating inline per field as the user leaves it; saving (button → spinner + disabled, rest of form remains visible and unchanged); success (sheet closes, toast confirms "Expense saved — LKR 4,500 · Utilities", list/dashboard update without manual refresh); failure (sheet stays open, every value retained, error message near the top, **Try again** on the primary button).
 
