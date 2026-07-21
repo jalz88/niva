@@ -35,15 +35,17 @@ Each business entity exposes the same shape unless noted otherwise. `Entity` sta
 
 ### Reporting
 
-Reports and the dashboard read from Postgres views/RPC functions, not client-side aggregation — the same total must always be reachable two ways (table drill-down and summary) without risking client math diverging from server math.
+**Decided in Phase 4 (2026-07-21), resolving the open item below:** Reports and the dashboard read from Postgres RPC functions (migrations `0007_reporting_rpcs`, `0008_expenses_by_category_ids`), not client-side aggregation — the same total must always be reachable two ways (table drill-down and summary) without risking client math diverging from server math. Each function takes the same four arguments and returns one row *per currency in use for the period* — never a single blended total across currencies (`07-domain-model-and-schema.md` §1, "no cross-currency aggregation"). `useReports()` calls all three in parallel for a given period/property.
 
 | Function | Shape | Notes |
 | --- | --- | --- |
-| `getDashboardSummary(workspaceId, propertyId, periodStart, periodEnd)` | `Promise<{ income: Money; expenses: Money; net: Money }>` | Postgres RPC `dashboard_summary(...)`; single currency at a time, one call per enabled currency if a workspace uses more than one |
-| `getRevenueByPlatform(...)` | `Promise<{ platformId, platformName, total: Money }[]>` | RPC `revenue_by_platform(...)` |
-| `getExpensesByCategory(...)` | `Promise<{ categoryId, categoryName, total: Money }[]>` | RPC `expenses_by_category(...)` |
+| `dashboard_summary(workspaceId, propertyId, periodStart, periodEnd)` | `Promise<{ currencyCode, income, expenses, net }[]>` | RPC `dashboard_summary(p_workspace_id, p_property_id, p_period_start, p_period_end)`; `propertyId` is `null` for "All properties" |
+| `revenue_by_platform(...)` | `Promise<{ currencyCode, platformId, platformName, total }[]>` | RPC `revenue_by_platform(...)`; income transactions only |
+| `expenses_by_category(...)` | `Promise<{ currencyCode, categoryId, categoryName, categoryIds, total }[]>` | RPC `expenses_by_category(...)`; expense transactions only. `categoryId`/`categoryName` are always the **top-level** category — sub-category totals roll up to their parent (`07-domain-model-and-schema.md` §3). `categoryIds` lists every contributing category id (the top-level id plus any sub-categories with activity), which the Transactions drill-down filters with `.in()` rather than an exact match on `categoryId` alone — otherwise a transaction recorded directly against a sub-category would count toward the total but disappear from its own drill-down list. |
 
-`Money` is `{ amount: string; currencyCode: string }` — amounts are transported as strings to avoid floating-point round-tripping through JSON; formatting/display math happens with a decimal-safe library, never native JS arithmetic on the raw number.
+All three are `SECURITY DEFINER` functions guarded by `where is_workspace_member(p_workspace_id)` (same pattern as `current_role_in_workspace`/`set_default_workspace_currency`, not a new one) rather than relying on RLS on the underlying tables directly — a caller for a workspace they don't belong to gets zero rows back, same as a real RLS denial would produce. `EXECUTE` is revoked from `anon`/`PUBLIC` and granted only to `authenticated`.
+
+Amounts come back from Postgres as JSON numbers (same PostgREST behavior noted for `transactions.amount` above) and are converted to strings client-side before display — never summed or averaged again in JavaScript. Formatting uses `formatMoney`/`formatSignedMoney` (`src/lib/money.ts`).
 
 ### Workspace and membership
 
@@ -97,6 +99,6 @@ Not used in Release 1. Lists and totals refresh after the mutation that caused t
 
 ## 7. Open items for Phase 1 implementation
 
-- Write the three reporting RPC functions and decide whether they live as `SECURITY DEFINER` functions (bypassing RLS internally but still workspace-scoped by parameter) or as views with RLS applied — the schema doc's trigger-based validation should inform this once real query performance is measured.
+- ~~Write the three reporting RPC functions and decide whether they live as `SECURITY DEFINER` functions...~~ Resolved in Phase 4 — see §2 "Reporting" above.
 - Confirm the exact Zod schemas per form mirror the database constraints so client and server validation never disagree about what's "invalid."
 - Decide whether `NivaError.message` is ever localized, or English-only for Release 1.

@@ -209,7 +209,17 @@ Archiving a configuration item that is referenced by an existing transaction is 
 
 `created_by`/`created_at`/`updated_by`/`updated_at` on every business table is the Release 1 audit baseline. A dedicated `transaction_history` table (full field-level change log) is deferred — it is not required to meet the blueprint's "financial records deserve care" guardrail at this scale, but is a natural post-release candidate if reviewers need to see who changed what value.
 
-## 8. Open items for Phase 1 implementation
+## 8. Reporting functions (Phase 4, migrations 0007–0008)
+
+Three read-only `SECURITY DEFINER` functions back the Dashboard and Reports screens — see `10-api-data-access-spec.md` §2 "Reporting" for their exact call shape. All three share a signature: `(p_workspace_id uuid, p_property_id uuid, p_period_start date, p_period_end date)`, with `p_property_id` nullable for "all properties," and are guarded by `where is_workspace_member(p_workspace_id)` in the same style as `current_role_in_workspace` — a caller for a workspace they're not a member of gets zero rows, not an error and not another workspace's data.
+
+- `dashboard_summary` — income/expenses/net, grouped by `currency_code`. Never sums across currencies (§1).
+- `revenue_by_platform` — income transactions grouped by `(currency_code, platform_id)`.
+- `expenses_by_category` — expense transactions grouped by `(currency_code, top-level category)`. A transaction's `category_id` may point at a sub-category (§3); this function rolls it up via `coalesce(c.parent_category_id, c.id)` and also returns `category_ids` (every contributing category id, top-level plus subs) so a client drill-down can match the total exactly with `.in()` instead of missing sub-category rows on an exact-match filter.
+
+`EXECUTE` on all three is revoked from `anon`/`PUBLIC` and granted only to `authenticated`, matching `set_default_workspace_currency`'s existing grant pattern.
+
+## 9. Open items for Phase 1 implementation
 
 - Confirm decimal precision `numeric(14,2)` is sufficient for all currencies in scope (2 decimal places covers LKR/USD/EUR; revisit if a zero-decimal or 3-decimal currency is enabled).
 - Decide whether `profiles.email` is synced via a Postgres trigger on `auth.users` or read from the session on the client — either is fine, pick the one that's less fragile to Supabase Auth changes.
