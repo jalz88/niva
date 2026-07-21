@@ -49,6 +49,7 @@ States: loading (skeleton cards, no fake numbers); empty (no transactions yet th
 **Purpose:** "What money moved?" — the full, filterable record.
 
 - Header: active filters as removable chips (period, property, type, category, platform); "Filters" control to add more.
+- Defaults to **This month** (matches the Dashboard's default period, per the Global context section above) rather than lifetime history — "All time" is one filter tap away. Loads 20 transactions at a time, with "Load more" for further back (2026-07-21, agreed with Jalie).
 - List grouped by date, each row: category icon (color-coded by type but paired with a +/− glyph), category + property, payment method icon, amount (right-aligned, `text-amount`, sign-bearing color + glyph).
 - Tapping a row opens Transaction detail.
 - States: loading (skeleton rows); no transactions at all ("No transactions yet. Add your first transaction."); filtered-to-empty ("No transactions match these filters" + "Clear filters") — these two empty states use different copy per `04-ui-ux-principles.md` §5.
