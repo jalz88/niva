@@ -126,4 +126,25 @@ router.beforeEach(async (to) => {
   return true
 })
 
+// Clears the reload guard below once a navigation actually succeeds, so a
+// *future* deploy's chunk errors (not just the first one this tab hits)
+// can still trigger the one-time reload.
+router.afterEach(() => {
+  sessionStorage.removeItem('niva:chunk-reload')
+})
+
+// Defensive fallback alongside the vite:preloadError listener in main.ts —
+// covers dynamic-import failures that event doesn't catch. Guarded by a
+// one-shot sessionStorage flag so a genuinely offline user gets a normal
+// failed-navigation state instead of a reload loop.
+router.onError((error) => {
+  const isChunkLoadError = /failed to fetch dynamically imported module|error loading dynamically imported module|importing a module script failed/i.test(
+    error.message,
+  )
+  if (isChunkLoadError && !sessionStorage.getItem('niva:chunk-reload')) {
+    sessionStorage.setItem('niva:chunk-reload', '1')
+    window.location.reload()
+  }
+})
+
 export default router
