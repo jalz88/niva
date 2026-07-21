@@ -69,22 +69,60 @@ function toDbFields(payload: TransactionPayload) {
   }
 }
 
-// Bumped on every successful create/update/archive/unarchive. Unlike the
-// config-item composables, useTransactions doesn't cache `items` itself
-// (every list() call is a fresh, filtered, paginated query) — but views
-// like TransactionsView still need to know "something changed, refetch,"
-// e.g. after Quick Add creates a transaction while the list is already on
-// screen. Watch this from any view that should auto-refresh.
+// Bumped on every successful create/update/archive/unarchive — also used
+// below to invalidate the list cache, since a mutation can change which
+// rows any given filter/page combination should return.
 const revision = ref(0)
+
+// Session-scoped cache, same pattern as useConfigItems.ts — but keyed by
+// the full filter+page combination, since "the transactions list" isn't
+// one thing, it's one thing per filter state. Without this, every visit
+// to the Transactions screen re-fetched from empty and showed the full
+// skeleton, even revisiting the exact same unfiltered page 1 seconds
+// later — that's what read as "always loading from the server."
+interface CachedPage {
+  items: TransactionWithLabels[]
+  total: number
+}
+const cache = new Map<string, CachedPage>()
+
+function cacheKey(filters: TransactionFilters): string {
+  return JSON.stringify([
+    filters.workspaceId,
+    filters.propertyId ?? '',
+    filters.type ?? '',
+    filters.categoryId ?? '',
+    filters.platformId ?? '',
+    filters.dateFrom ?? '',
+    filters.dateTo ?? '',
+    filters.page ?? 1,
+    filters.pageSize ?? 50,
+  ])
+}
 
 export function useTransactions() {
   const items = ref<TransactionWithLabels[]>([])
   const total = ref(0)
   const loading = ref(false)
+  // True while revalidating in the background after already showing
+  // cached data — distinct from `loading`, which is the "nothing to show
+  // yet, render the skeleton" case. A view can show a subtle indicator for
+  // this without blanking the list the way the skeleton does.
+  const refreshing = ref(false)
   const error = ref<NivaError | null>(null)
 
   async function list(filters: TransactionFilters) {
-    loading.value = true
+    const key = cacheKey(filters)
+    const cached = cache.get(key)
+
+    if (cached) {
+      items.value = cached.items
+      total.value = cached.total
+      loading.value = false
+      refreshing.value = true
+    } else {
+      loading.value = true
+    }
     error.value = null
 
     const page = filters.page ?? 1
@@ -111,12 +149,17 @@ export function useTransactions() {
     const { data, error: dbError, count } = await query
 
     loading.value = false
+    refreshing.value = false
     if (dbError) {
-      error.value = toNivaError(dbError)
+      // A background revalidation failure shouldn't blank out data the
+      // user can already see — only surface the error if there was
+      // nothing cached to fall back on.
+      if (!cached) error.value = toNivaError(dbError)
       return
     }
     items.value = (data as unknown as RawJoinedRow[]).map(flatten)
     total.value = count ?? items.value.length
+    cache.set(key, { items: items.value, total: total.value })
   }
 
   async function get(id: string): Promise<{ data: TransactionWithLabels | null; error: NivaError | null }> {
@@ -137,6 +180,7 @@ export function useTransactions() {
       .single()
 
     if (dbError) return { data: null, error: toNivaError(dbError) }
+    cache.clear()
     revision.value++
     return { data, error: null }
   }
@@ -159,6 +203,7 @@ export function useTransactions() {
 
     if (dbError) return { data: null, error: toNivaError(dbError) }
     if (!data) return { data: null, error: conflictError() }
+    cache.clear()
     revision.value++
     return { data, error: null }
   }
@@ -170,6 +215,7 @@ export function useTransactions() {
     const { data, error: dbError } = await supabase.from('transactions').update({ status }).eq('id', id).select().single()
 
     if (dbError) return { data: null, error: toNivaError(dbError) }
+    cache.clear()
     revision.value++
     return { data, error: null }
   }
@@ -178,6 +224,7 @@ export function useTransactions() {
     items,
     total,
     loading,
+    refreshing,
     error,
     /** Bumps on every successful mutation from *any* useTransactions()
      * caller — watch it to know when to refetch a list on screen. */

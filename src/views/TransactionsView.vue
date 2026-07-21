@@ -10,15 +10,24 @@ import { useCategories, topLevelCategories, subcategoriesOf } from '@/composable
 import type { TransactionType } from '@/types/database'
 
 const { workspaceId } = useAuth()
-const { items, total, loading, error, list, revision } = useTransactions()
+const { items, total, loading, refreshing, error, list, revision } = useTransactions()
 
-// useTransactions().list() replaces `items` with whatever page it just
-// fetched (no cross-page caching, unlike the config-item composables — see
-// useTransactions.ts). "Load more" appends pages locally instead.
-const displayedItems = ref<typeof items.value>([])
+// useTransactions() now caches per filter+page combination and can update
+// `items` twice for one logical fetch — instantly from cache, then again
+// once the background revalidation resolves (see useTransactions.ts). A
+// naive "append whatever just arrived" accumulator would double up a
+// page's rows when both firings happen. Keeping one bucket per page number
+// and rebuilding the flat list from it makes a repeat firing for the same
+// page overwrite instead of duplicate.
+const pagesById = ref(new Map<number, typeof items.value>())
 watch(items, (newItems) => {
-  displayedItems.value = page.value === 1 ? newItems : [...displayedItems.value, ...newItems]
+  pagesById.value.set(page.value, newItems)
 })
+const displayedItems = computed(() => {
+  const pageNumbers = Array.from(pagesById.value.keys()).sort((a, b) => a - b)
+  return pageNumbers.flatMap((p) => pagesById.value.get(p) ?? [])
+})
+
 const properties = useConfigItems('properties')
 const platforms = useConfigItems('platforms')
 const categories = useCategories()
@@ -26,7 +35,11 @@ const categories = useCategories()
 type Period = 'all' | 'this_month' | 'last_month'
 
 const filters = reactive({
-  period: 'all' as Period,
+  // Defaults to the current month — matches the Dashboard's default
+  // period (docs/05-information-architecture.md "Global context") and
+  // keeps the common case scoped rather than querying the whole lifetime
+  // history every time. "All time" is one filter-tap away.
+  period: 'this_month' as Period,
   propertyId: '',
   type: '' as '' | TransactionType,
   categoryId: '',
@@ -35,7 +48,7 @@ const filters = reactive({
 
 const showFilters = ref(false)
 const page = ref(1)
-const pageSize = 50
+const pageSize = 20
 
 function periodRange(period: Period): { dateFrom?: string; dateTo?: string } {
   if (period === 'this_month') {
@@ -50,6 +63,10 @@ function periodRange(period: Period): { dateFrom?: string; dateTo?: string } {
 
 function fetchTransactions() {
   if (!workspaceId.value) return
+  // Always called with page reset to 1 (filters changed, a mutation
+  // happened, or first load) — drop any pages accumulated under whatever
+  // filter/page state was previously on screen.
+  pagesById.value.clear()
   const { dateFrom, dateTo } = periodRange(filters.period)
   list({
     workspaceId: workspaceId.value,
@@ -190,6 +207,17 @@ function loadMore() {
 
 <template>
   <div class="mx-auto max-w-3xl px-4 pt-6 pb-24 md:pb-8">
+    <!-- Thin top-of-list indicator for a background revalidation — the
+         list itself already has cached data on screen, so this stays out
+         of its way rather than replacing it with a skeleton. -->
+    <div
+      class="fixed inset-x-0 top-0 z-10 h-0.5 overflow-hidden bg-accent-100 transition-opacity"
+      :class="refreshing ? 'opacity-100' : 'opacity-0'"
+      aria-hidden="true"
+    >
+      <div class="h-full w-1/3 animate-[refresh-bar_1.1s_ease-in-out_infinite] bg-accent-500" />
+    </div>
+
     <div class="mb-4 flex items-center justify-between">
       <h1 class="text-h1 font-semibold text-neutral-900">Transactions</h1>
       <button
