@@ -20,7 +20,7 @@ Every screen below is defined by purpose, layout regions, key elements, and requ
 
 Mobile layout, top to bottom:
 
-1. Header: property selector (defaults to owner's default property or "All properties"), reporting period ("This month ▾").
+1. Header: property selector (defaults to owner's default property or "All properties") — only rendered once a workspace has more than one active property, otherwise there's nothing to choose (2026-07-21, agreed with Jalie); reporting period ("This month ▾"/"Last month ▾" — Release 1 offers only these two, no custom range).
 2. Summary card: Income, Expenses, Net result — each with amount, currency, and a sign-bearing icon (never color alone).
 3. Revenue by platform: small horizontal bar list (Airbnb, Agoda, ...), tied to the same period/property.
 4. Recent transactions: last 5, "View all" link to Transactions.
@@ -77,12 +77,12 @@ States: loading (skeleton cards, no fake numbers); empty (no transactions yet th
 
 **Purpose:** "Where did money come from and go?"
 
-- Period and property selectors at the top, persistent while scrolling.
-- Totals card (same shape as Dashboard's, for consistency).
-- Revenue by platform: bar or donut plus an authoritative table underneath — chart is never the only way to read a value (`04-ui-ux-principles.md` §6).
-- Expenses by category: same pattern.
-- Every row/segment is tappable and drills into the filtered Transactions list.
-- States: loading skeleton; no data for the selected period ("No transactions in [period]. Try a different period."); explicit "mixed currency" notice suppressed entirely in Release 1 since cross-currency totals are not shown.
+- Period and property selectors at the top, persistent while scrolling (same This month/Last month period options and single-property-hides-the-picker rule as the Dashboard, above).
+- Totals card (same shape as Dashboard's, for consistency) — one section per currency in use, never a blended total.
+- Revenue by platform: bar plus an authoritative table underneath — chart is never the only way to read a value (`04-ui-ux-principles.md` §6).
+- Expenses by category: same pattern, rolled up to top-level categories (a sub-category's activity counts toward its parent's total here — `07-domain-model-and-schema.md` §3).
+- Every row is tappable and drills into the filtered Transactions list — for a category row this filters by every sub-category id rolled into that total, not just the top-level id, so the drill-down always reconciles with the number shown (2026-07-21, migration 0008).
+- States: loading skeleton; no data for the selected period ("No transactions in [period]. Try a different period."); explicit "mixed currency" notice suppressed entirely in Release 1 since cross-currency totals are not shown — see the currency-reporting decision in `00-project-blueprint.md` §10 (2026-07-21).
 
 ## Administration
 
