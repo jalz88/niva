@@ -10,7 +10,7 @@ import { useCategories, topLevelCategories, subcategoriesOf } from '@/composable
 import type { TransactionType } from '@/types/database'
 
 const { workspaceId } = useAuth()
-const { items, total, loading, error, list } = useTransactions()
+const { items, total, loading, error, list, revision } = useTransactions()
 
 // useTransactions().list() replaces `items` with whatever page it just
 // fetched (no cross-page caching, unlike the config-item composables — see
@@ -83,6 +83,14 @@ watch(
     fetchTransactions()
   },
 )
+
+// Something was created/edited/archived elsewhere (most commonly: Quick
+// Add, while this list is already on screen) — refetch page 1 so it shows
+// up without the user having to manually reload.
+watch(revision, () => {
+  page.value = 1
+  fetchTransactions()
+})
 
 const hasActiveFilters = computed(
   () => filters.period !== 'all' || !!filters.propertyId || !!filters.type || !!filters.categoryId || !!filters.platformId,

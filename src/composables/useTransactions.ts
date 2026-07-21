@@ -69,6 +69,14 @@ function toDbFields(payload: TransactionPayload) {
   }
 }
 
+// Bumped on every successful create/update/archive/unarchive. Unlike the
+// config-item composables, useTransactions doesn't cache `items` itself
+// (every list() call is a fresh, filtered, paginated query) — but views
+// like TransactionsView still need to know "something changed, refetch,"
+// e.g. after Quick Add creates a transaction while the list is already on
+// screen. Watch this from any view that should auto-refresh.
+const revision = ref(0)
+
 export function useTransactions() {
   const items = ref<TransactionWithLabels[]>([])
   const total = ref(0)
@@ -129,6 +137,7 @@ export function useTransactions() {
       .single()
 
     if (dbError) return { data: null, error: toNivaError(dbError) }
+    revision.value++
     return { data, error: null }
   }
 
@@ -150,6 +159,7 @@ export function useTransactions() {
 
     if (dbError) return { data: null, error: toNivaError(dbError) }
     if (!data) return { data: null, error: conflictError() }
+    revision.value++
     return { data, error: null }
   }
 
@@ -160,6 +170,7 @@ export function useTransactions() {
     const { data, error: dbError } = await supabase.from('transactions').update({ status }).eq('id', id).select().single()
 
     if (dbError) return { data: null, error: toNivaError(dbError) }
+    revision.value++
     return { data, error: null }
   }
 
@@ -168,6 +179,9 @@ export function useTransactions() {
     total,
     loading,
     error,
+    /** Bumps on every successful mutation from *any* useTransactions()
+     * caller — watch it to know when to refetch a list on screen. */
+    revision,
     list,
     get,
     create,
