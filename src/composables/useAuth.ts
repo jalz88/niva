@@ -69,12 +69,35 @@ function init(): Promise<void> {
 }
 
 async function signIn(email: string, password: string): Promise<NivaError | null> {
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
-  return error ? toNivaError(error) : null
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+  if (error) return toNivaError(error)
+
+  // Set state directly from this call's own result rather than waiting on
+  // the onAuthStateChange listener below. That listener fires
+  // asynchronously and isn't guaranteed to land before SignInView's
+  // router.push({ name: 'dashboard' }) runs right after signIn() resolves.
+  // When it lost that race, the router guard read a still-stale
+  // isAuthenticated === false and silently bounced back to sign-in with no
+  // error — fixed by a manual refresh only because a full reload re-reads
+  // the real persisted session from scratch instead of trusting reactive
+  // state that hadn't caught up yet. Setting it here makes signIn() always
+  // resolve with fully-correct state, so the guard can never lose that race.
+  session.value = data.session
+  if (data.session?.user) {
+    await Promise.all([loadMembership(data.session.user), loadProfile(data.session.user)])
+  }
+  return null
 }
 
 async function signOut() {
   await supabase.auth.signOut()
+  // Same reasoning as signIn() above, in reverse: clear state directly
+  // instead of only waiting on the listener, so a navigation immediately
+  // after signOut() can't read a stale isAuthenticated === true.
+  session.value = null
+  currentRole.value = null
+  currentWorkspaceId.value = null
+  currentDisplayName.value = null
 }
 
 // Self-service rename — profiles_update RLS allows updating your own row
