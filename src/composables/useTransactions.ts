@@ -9,6 +9,12 @@ export interface TransactionFilters {
   propertyId?: string
   type?: TransactionType
   categoryId?: string
+  // Set instead of categoryId when drilling in from a Reports total that
+  // rolls sub-categories up into a parent (see useReports' CategoryExpenseRow)
+  // — filters with .in() across every contributing category id rather than
+  // an exact match on just the top-level one. Takes precedence over
+  // categoryId when both are present.
+  categoryIds?: string[]
   platformId?: string
   dateFrom?: string
   dateTo?: string
@@ -92,6 +98,7 @@ function cacheKey(filters: TransactionFilters): string {
     filters.propertyId ?? '',
     filters.type ?? '',
     filters.categoryId ?? '',
+    filters.categoryIds ? [...filters.categoryIds].sort() : '',
     filters.platformId ?? '',
     filters.dateFrom ?? '',
     filters.dateTo ?? '',
@@ -141,7 +148,8 @@ export function useTransactions() {
 
     if (filters.propertyId) query = query.eq('property_id', filters.propertyId)
     if (filters.type) query = query.eq('type', filters.type)
-    if (filters.categoryId) query = query.eq('category_id', filters.categoryId)
+    if (filters.categoryIds?.length) query = query.in('category_id', filters.categoryIds)
+    else if (filters.categoryId) query = query.eq('category_id', filters.categoryId)
     if (filters.platformId) query = query.eq('platform_id', filters.platformId)
     if (filters.dateFrom) query = query.gte('occurred_on', filters.dateFrom)
     if (filters.dateTo) query = query.lte('occurred_on', filters.dateTo)

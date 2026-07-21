@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 import dayjs from 'dayjs'
 import { ArrowDownLeft, ArrowUpRight, SlidersHorizontal, X } from 'lucide-vue-next'
 import { useAuth } from '@/composables/useAuth'
@@ -34,17 +34,50 @@ const categories = useCategories()
 
 type Period = 'all' | 'this_month' | 'last_month'
 
+// Reports drills into this screen with query params (period/type/
+// categoryId/platformId/propertyId) so a platform-revenue or
+// category-expense row lands here pre-filtered instead of just linking to
+// the unfiltered list. Read once on mount; a plain in-app navigation with
+// no query keeps the usual "This month" default.
+const route = useRoute()
+function queryString(key: string): string {
+  const value = route.query[key]
+  return typeof value === 'string' ? value : ''
+}
+
 const filters = reactive({
   // Defaults to the current month — matches the Dashboard's default
   // period (docs/05-information-architecture.md "Global context") and
   // keeps the common case scoped rather than querying the whole lifetime
   // history every time. "All time" is one filter-tap away.
-  period: 'this_month' as Period,
-  propertyId: '',
-  type: '' as '' | TransactionType,
-  categoryId: '',
-  platformId: '',
+  period: (['all', 'this_month', 'last_month'].includes(queryString('period')) ? queryString('period') : 'this_month') as Period,
+  propertyId: queryString('propertyId'),
+  type: (queryString('type') === 'income' || queryString('type') === 'expense' ? queryString('type') : '') as '' | TransactionType,
+  categoryId: queryString('categoryId'),
+  platformId: queryString('platformId'),
 })
+
+// A "Expenses by category" row in Reports rolls sub-category totals into
+// their top-level parent — landing here with just categoryId set to that
+// parent would silently exclude any transaction recorded directly against
+// a sub-category (the summary total includes it, the drill-down wouldn't).
+// Reports passes every contributing id via categoryIds too; when present it
+// takes over from the exact-match categoryId filter. Cleared the moment the
+// user touches the category dropdown themselves, so a manual re-filter goes
+// back to normal exact-match behaviour.
+const categoryIdsOverride = ref<string[]>(
+  queryString('categoryIds')
+    ? queryString('categoryIds')
+        .split(',')
+        .filter(Boolean)
+    : [],
+)
+watch(
+  () => filters.categoryId,
+  () => {
+    categoryIdsOverride.value = []
+  },
+)
 
 const showFilters = ref(false)
 const page = ref(1)
@@ -72,7 +105,8 @@ function fetchTransactions() {
     workspaceId: workspaceId.value,
     propertyId: filters.propertyId || undefined,
     type: filters.type || undefined,
-    categoryId: filters.categoryId || undefined,
+    categoryId: categoryIdsOverride.value.length ? undefined : filters.categoryId || undefined,
+    categoryIds: categoryIdsOverride.value.length ? categoryIdsOverride.value : undefined,
     platformId: filters.platformId || undefined,
     dateFrom,
     dateTo,
@@ -195,7 +229,8 @@ function loadMore() {
     workspaceId: workspaceId.value,
     propertyId: filters.propertyId || undefined,
     type: filters.type || undefined,
-    categoryId: filters.categoryId || undefined,
+    categoryId: categoryIdsOverride.value.length ? undefined : filters.categoryId || undefined,
+    categoryIds: categoryIdsOverride.value.length ? categoryIdsOverride.value : undefined,
     platformId: filters.platformId || undefined,
     dateFrom,
     dateTo,
