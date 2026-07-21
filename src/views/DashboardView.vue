@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useAuth } from '@/composables/useAuth'
 
-const { user } = useAuth()
+const { user, displayName } = useAuth()
 </script>
 
 <template>
@@ -9,7 +9,7 @@ const { user } = useAuth()
     <header class="mb-4 flex items-center justify-between">
       <div>
         <h1 class="text-h1 font-semibold text-neutral-900">Dashboard</h1>
-        <p class="text-body-sm text-neutral-500">Signed in as {{ user?.email }}</p>
+        <p class="text-body-sm text-neutral-500">Signed in as {{ displayName ?? user?.email }}</p>
       </div>
     </header>
 
