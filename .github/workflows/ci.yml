@@ -33,21 +33,36 @@ jobs:
         run: npm run build-only
 
   # Playwright critical-flow suite — see docs/11-coding-standards-and-test-strategy.md §7.
-  # Runs against a Supabase branch/local instance seeded from supabase/seed/seed.sql.
-  # Disabled until a test Supabase project exists; enable by uncommenting once
-  # SUPABASE_TEST_URL / SUPABASE_TEST_ANON_KEY secrets are configured.
-  # e2e:
-  #   runs-on: ubuntu-latest
-  #   needs: lint-typecheck-test-build
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-node@v4
-  #       with:
-  #         node-version: 22
-  #         cache: npm
-  #     - run: npm ci
-  #     - run: npx playwright install --with-deps chromium
-  #     - run: npm run test:e2e
-  #       env:
-  #         VITE_SUPABASE_URL: ${{ secrets.SUPABASE_TEST_URL }}
-  #         VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_TEST_ANON_KEY }}
+  # Runs against the real Supabase project, but against a dedicated
+  # "NIVA E2E Test" workspace + test account, isolated from Jalie's real
+  # business data by the same RLS that scopes every table by workspace_id
+  # (no separate Supabase branch/project needed for this). Decided
+  # 2026-07-22: runs on every push/PR, not nightly — catches exactly this
+  # class of "silent until you refresh" bug before it reaches a real user.
+  e2e:
+    runs-on: ubuntu-latest
+    needs: lint-typecheck-test-build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test --project=chromium
+        env:
+          # The anon key is safe client-side (RLS is the real boundary —
+          # see docs/10-api-data-access-spec.md §1), so this doesn't need
+          # to be a secret, but it's stored as one anyway since it's already
+          # set up that way for the Cloudflare Pages build.
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14

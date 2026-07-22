@@ -79,7 +79,7 @@ No hard code-coverage percentage gate — chasing a number contradicts "clarity 
 2. Lint + type check.
 3. Vitest unit tests.
 4. Build (`vite build`) — catches type/import errors a linter might miss.
-5. Playwright critical-flow suite against the build, using a disposable Supabase branch/local instance seeded per `supabase/seed/`.
+5. Playwright critical-flow suite against the build, on every push/PR (decided 2026-07-22 — this class of bug, silent-until-refresh, is exactly what a nightly-only run would leave live in production for up to a day). Runs against the real Supabase project, scoped to a dedicated, RLS-isolated **"NIVA E2E Test"** workspace and test account — never against Jalie's real data, and no separate Supabase branch/project required, since workspace-scoped RLS already makes the isolation real. First test covers sign-in (`e2e/sign-in.spec.ts`), added directly in response to the async auth-state race bug (`00-project-blueprint.md` §10); the rest of the critical-flow list above is added incrementally, one PR at a time, alongside the feature it covers.
 6. Cloudflare Pages Git integration builds its own preview deployment per PR independent of the above — CI gates the merge; Pages provides the reviewable preview URL.
 
 ## 9. Deployment runbook
@@ -110,4 +110,4 @@ Written for any AI assistant (this one included) working in this repository:
 
 - Stand up the GitHub repo, branch protection rules, and the Actions workflow file matching §8.
 - Decide the exact pgTAP/RLS-test tooling and get the first policy test running against a local Supabase instance before the first real migration ships.
-- Confirm whether Playwright's critical-flow suite runs on every PR or nightly, based on how long the suite ends up taking.
+- ~~Confirm whether Playwright's critical-flow suite runs on every PR or nightly~~ Resolved 2026-07-22: every push/PR — see §8.

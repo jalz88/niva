@@ -100,11 +100,15 @@ export default defineConfig({
   webServer: {
     /**
      * Use the dev server by default for faster feedback loop.
-     * Use the preview server on CI for more realistic testing.
+     * On CI, build first — `vite preview` only serves an existing `dist/`,
+     * it doesn't build one, and VITE_SUPABASE_URL/VITE_SUPABASE_ANON_KEY
+     * (see e2e/sign-in.spec.ts) have to be present in the environment at
+     * build time to end up in the served bundle at all.
      * Playwright will re-use the local server if there is already a dev-server running.
      */
-    command: process.env.CI ? 'npm run preview' : 'npm run dev',
+    command: process.env.CI ? 'npm run build-only && npm run preview' : 'npm run dev',
     port: process.env.CI ? 4173 : 5173,
     reuseExistingServer: !process.env.CI,
+    timeout: process.env.CI ? 120 * 1000 : 60 * 1000,
   },
 })
