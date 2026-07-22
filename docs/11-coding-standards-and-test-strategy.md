@@ -68,7 +68,7 @@ tests/
 | --- | --- | --- |
 | Unit | Vitest | Money/date formatting, Zod schema validation, the `NivaError` mapper, composable logic against a mocked Supabase client |
 | RLS/database | Supabase CLI local instance + pgTAP (or equivalent SQL test harness) | Every policy in `07-domain-model-and-schema.md` §6, tested per role — this is the real security boundary and the layer most dangerous to leave untested |
-| Browser (critical flows) | Playwright | Sign in; Quick Add income and expense (save → appears in list and dashboard without refresh); edit including a forced concurrency conflict; archive + Undo; report totals reconcile with transaction drill-down; Quick Add reachable and usable on a 375px mobile viewport |
+| Browser (critical flows) | Playwright | Sign in (done, `e2e/sign-in.spec.ts`); Quick Add income and expense — save → appears in list and dashboard without refresh (done, `e2e/transactions.spec.ts`); edit (done — a plain edit; a *forced concurrency conflict* specifically is still open); archive + Undo (done); report totals reconcile with transaction drill-down (open); Quick Add reachable and usable on a 375px mobile viewport (open) |
 | Accessibility | axe-core within Playwright + a manual keyboard-only pass | WCAG 2.2 AA target from `04-ui-ux-principles.md` §7 |
 
 No hard code-coverage percentage gate — chasing a number contradicts "clarity over cleverness." Instead: every PR touching authentication, transaction create/edit/archive, or a report calculation must include or update a test for that behavior. A coverage report on `lib/` and `composables/` is tracked as a smell-detector, not a merge blocker.

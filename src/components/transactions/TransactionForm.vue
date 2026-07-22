@@ -312,7 +312,7 @@ const onFormSubmit = handleSubmit(async (formValues) => {
 
     <!-- Category -->
     <div>
-      <label class="mb-1 block text-body-sm text-neutral-700">Category</label>
+      <label class="mb-1 block text-body-sm text-neutral-700" for="tx-category-more">Category</label>
 
       <div v-if="favoriteCategories.length" class="mb-2 grid grid-cols-3 gap-2">
         <button
@@ -334,6 +334,7 @@ const onFormSubmit = handleSubmit(async (formValues) => {
 
       <select
         v-if="moreCategories.length"
+        id="tx-category-more"
         v-model="categoryMoreValue"
         class="w-full rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
       >
@@ -361,7 +362,7 @@ const onFormSubmit = handleSubmit(async (formValues) => {
 
     <!-- Payment method -->
     <div>
-      <label class="mb-1 block text-body-sm text-neutral-700">Payment method</label>
+      <label class="mb-1 block text-body-sm text-neutral-700" for="tx-payment-more">Payment method</label>
 
       <div v-if="favoritePaymentMethods.length" class="mb-2 grid grid-cols-3 gap-2">
         <button
@@ -383,6 +384,7 @@ const onFormSubmit = handleSubmit(async (formValues) => {
 
       <select
         v-if="morePaymentMethods.length"
+        id="tx-payment-more"
         v-model="paymentMoreValue"
         class="w-full rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
       >
