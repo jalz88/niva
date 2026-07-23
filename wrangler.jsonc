@@ -5,5 +5,17 @@
   "assets": {
     "directory": "./dist",
     "not_found_handling": "single-page-application"
-  }
+  },
+  // custom_domain: true provisions the DNS record + SSL certificate
+  // automatically on deploy — no manual dashboard step needed, since
+  // h28ha.uk is already an active zone in the same Cloudflare account.
+  // niva.h28ha.uk is a fresh subdomain (distinct from home.h28ha.uk, which
+  // stays on Home Assistant) so there's no existing DNS record to conflict
+  // with. The workers.dev URL keeps working alongside this, unchanged.
+  "routes": [
+    {
+      "pattern": "niva.h28ha.uk",
+      "custom_domain": true
+    }
+  ]
 }
