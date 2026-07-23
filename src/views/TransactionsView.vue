@@ -271,6 +271,7 @@ function loadMore() {
         v-for="chip in chips"
         :key="chip.key"
         type="button"
+        :aria-label="`Remove filter: ${chip.label}`"
         class="flex items-center gap-1 rounded-full border border-accent-200 bg-accent-50 px-3 py-1 text-caption font-medium text-accent-700"
         @click="chip.clear()"
       >
@@ -284,25 +285,25 @@ function loadMore() {
 
     <!-- Filter panel -->
     <div v-if="showFilters" class="mb-4 grid grid-cols-2 gap-2 rounded-md border border-neutral-200 bg-white p-3 sm:grid-cols-3">
-      <select v-model="filters.period" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
+      <select v-model="filters.period" aria-label="Period" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
         <option value="all">All time</option>
         <option value="this_month">This month</option>
         <option value="last_month">Last month</option>
       </select>
-      <select v-model="filters.type" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
+      <select v-model="filters.type" aria-label="Type" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
         <option value="">All types</option>
         <option value="income">Income</option>
         <option value="expense">Expense</option>
       </select>
-      <select v-model="filters.propertyId" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
+      <select v-model="filters.propertyId" aria-label="Property" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
         <option value="">All properties</option>
         <option v-for="p in properties.items.value" :key="p.id" :value="p.id">{{ p.name }}</option>
       </select>
-      <select v-model="filters.categoryId" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
+      <select v-model="filters.categoryId" aria-label="Category" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
         <option value="">All categories</option>
         <option v-for="c in categoryFilterOptions" :key="c.id" :value="c.id">{{ c.label }}</option>
       </select>
-      <select v-model="filters.platformId" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
+      <select v-model="filters.platformId" aria-label="Platform" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
         <option value="">All platforms</option>
         <option v-for="p in platforms.items.value" :key="p.id" :value="p.id">{{ p.name }}</option>
       </select>

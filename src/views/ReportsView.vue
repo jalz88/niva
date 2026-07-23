@@ -71,12 +71,13 @@ const categoryGroups = computed(() => withBarPct(categoryExpenses.value))
         <select
           v-if="activeProperties.length > 1"
           v-model="propertyId"
+          aria-label="Property"
           class="rounded-sm border border-neutral-200 bg-white p-2 text-body-sm"
         >
           <option value="">All properties</option>
           <option v-for="p in activeProperties" :key="p.id" :value="p.id">{{ p.name }}</option>
         </select>
-        <select v-model="period" class="rounded-sm border border-neutral-200 bg-white p-2 text-body-sm">
+        <select v-model="period" aria-label="Period" class="rounded-sm border border-neutral-200 bg-white p-2 text-body-sm">
           <option value="this_month">This month</option>
           <option value="last_month">Last month</option>
         </select>
