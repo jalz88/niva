@@ -30,7 +30,10 @@ const identityLabel = computed(() => displayName.value ?? user.value?.email ?? '
     <aside
       class="hidden w-56 shrink-0 border-r border-neutral-200 bg-white p-4 md:flex md:flex-col md:gap-1"
     >
-      <div class="mb-4 px-2 text-h3 font-semibold text-neutral-900">NIVA</div>
+      <div class="mb-4 flex items-center gap-2 px-2">
+        <img src="/branding/niva-mark.svg" alt="" width="24" height="24" class="rounded-sm" />
+        <span class="text-h3 font-semibold text-neutral-900">NIVA</span>
+      </div>
       <RouterLink
         v-for="item in navItems"
         :key="item.name"

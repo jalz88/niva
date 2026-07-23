@@ -29,8 +29,15 @@ export default defineConfig({
         display: 'standalone',
         start_url: '/',
         icons: [
+          // These previously pointed at pwa-192x192.png/pwa-512x512.png,
+          // which never actually existed in public/ — the PWA install icon
+          // was broken from Phase 1 until now (2026-07-23, branding pass).
           { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
           { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+          // "maskable" lets Android crop this to a circle/squircle/etc.
+          // without clipping the mark — needs its own safe-zone-padded
+          // source image, not just a purpose flag on the regular icon.
+          { src: '/pwa-maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
     }),

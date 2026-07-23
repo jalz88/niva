@@ -27,7 +27,8 @@ async function onSubmit() {
 </script>
 
 <template>
-  <div class="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
+  <div class="flex min-h-screen flex-col items-center justify-center bg-neutral-50 px-4">
+    <img src="/branding/niva-mark.svg" alt="" width="56" height="56" class="mb-4 rounded-md" />
     <form
       class="w-full max-w-sm rounded-lg border border-neutral-200 bg-white p-6 shadow-sm"
       @submit.prevent="onSubmit"
