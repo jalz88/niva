@@ -8,8 +8,9 @@ import { useCategories } from '@/composables/useCategories'
 import { useReports } from '@/composables/useReports'
 import { useTransactions } from '@/composables/useTransactions'
 import { useQuickAddStore } from '@/stores/quickAddStore'
-import { periodRange, periodLabel, type ReportPeriod } from '@/lib/period'
+import { periodRange, periodLabel, periodQueryParams, type PeriodSelection } from '@/lib/period'
 import { formatMoney, formatSignedMoney } from '@/lib/money'
+import PeriodPicker from '@/components/shared/PeriodPicker.vue'
 
 const { workspaceId, user, displayName } = useAuth()
 const quickAdd = useQuickAddStore()
@@ -25,7 +26,7 @@ const {
 } = useReports()
 const { items: recentItems, loading: transactionsLoading, revision, list: listTransactions } = useTransactions()
 
-const period = ref<ReportPeriod>('this_month')
+const period = ref<PeriodSelection>({ period: 'this_month' })
 // Empty string = "All properties". The picker itself only renders once more
 // than one active property exists — with a single property (today's
 // reality) there's simply nothing to choose, same reasoning as the Quick
@@ -36,6 +37,10 @@ const activeProperties = computed(() => properties.items.value.filter((p) => p.i
 async function fetchAll() {
   if (!workspaceId.value) return
   const { dateFrom, dateTo } = periodRange(period.value)
+  // Dashboard never offers 'all' (see PeriodPicker's allowAllTime), so this
+  // is always true in practice — the guard exists because periodRange()'s
+  // return type is shared with Transactions, which does need it.
+  if (!dateFrom || !dateTo) return
   await Promise.all([
     loadReports({ workspaceId: workspaceId.value, propertyId: propertyId.value || undefined, dateFrom, dateTo }),
     listTransactions({
@@ -111,10 +116,7 @@ function categoryDisplay(tx: { category_id: string; category_name: string }) {
           <option value="">All properties</option>
           <option v-for="p in activeProperties" :key="p.id" :value="p.id">{{ p.name }}</option>
         </select>
-        <select v-model="period" aria-label="Period" class="rounded-sm border border-neutral-200 bg-white p-2 text-body-sm">
-          <option value="this_month">This month</option>
-          <option value="last_month">Last month</option>
-        </select>
+        <PeriodPicker v-model="period" />
       </div>
     </header>
 
@@ -196,7 +198,7 @@ function categoryDisplay(tx: { category_id: string; category_name: string }) {
             <RouterLink
               v-for="row in group.rows"
               :key="row.platformId"
-              :to="{ name: 'transactions', query: { period, type: 'income', platformId: row.platformId } }"
+              :to="{ name: 'transactions', query: { ...periodQueryParams(period), type: 'income', platformId: row.platformId } }"
               class="mb-2 flex items-center gap-2 last:mb-0"
             >
               <span class="w-24 shrink-0 truncate text-body-sm text-neutral-700">{{ row.platformName }}</span>

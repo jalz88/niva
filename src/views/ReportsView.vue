@@ -5,14 +5,15 @@ import { TrendingUp, TrendingDown, Minus } from 'lucide-vue-next'
 import { useAuth } from '@/composables/useAuth'
 import { useConfigItems } from '@/composables/useConfigItems'
 import { useReports } from '@/composables/useReports'
-import { periodRange, periodLabel, type ReportPeriod } from '@/lib/period'
+import { periodRange, periodLabel, periodQueryParams, type PeriodSelection } from '@/lib/period'
 import { formatMoney } from '@/lib/money'
+import PeriodPicker from '@/components/shared/PeriodPicker.vue'
 
 const { workspaceId } = useAuth()
 const properties = useConfigItems('properties')
 const { summary, platformRevenue, categoryExpenses, loading, error, load } = useReports()
 
-const period = ref<ReportPeriod>('this_month')
+const period = ref<PeriodSelection>({ period: 'this_month' })
 // Same reasoning as the Dashboard: the property picker only appears once
 // more than one active property exists.
 const propertyId = ref('')
@@ -21,6 +22,10 @@ const activeProperties = computed(() => properties.items.value.filter((p) => p.i
 function fetchReports() {
   if (!workspaceId.value) return
   const { dateFrom, dateTo } = periodRange(period.value)
+  // Reports never offers 'all' (see PeriodPicker's allowAllTime), so this is
+  // always true in practice — the guard exists because periodRange()'s
+  // return type is shared with Transactions, which does need it.
+  if (!dateFrom || !dateTo) return
   load({ workspaceId: workspaceId.value, propertyId: propertyId.value || undefined, dateFrom, dateTo })
 }
 
@@ -77,10 +82,7 @@ const categoryGroups = computed(() => withBarPct(categoryExpenses.value))
           <option value="">All properties</option>
           <option v-for="p in activeProperties" :key="p.id" :value="p.id">{{ p.name }}</option>
         </select>
-        <select v-model="period" aria-label="Period" class="rounded-sm border border-neutral-200 bg-white p-2 text-body-sm">
-          <option value="this_month">This month</option>
-          <option value="last_month">Last month</option>
-        </select>
+        <PeriodPicker v-model="period" />
       </div>
     </header>
 
@@ -153,7 +155,7 @@ const categoryGroups = computed(() => withBarPct(categoryExpenses.value))
                 <tr v-for="row in group.rows" :key="row.platformId">
                   <td class="py-1.5">
                     <RouterLink
-                      :to="{ name: 'transactions', query: { period, type: 'income', platformId: row.platformId } }"
+                      :to="{ name: 'transactions', query: { ...periodQueryParams(period), type: 'income', platformId: row.platformId } }"
                       class="block"
                     >
                       <span class="mb-1 flex items-center justify-between gap-2 text-body-sm text-neutral-700">
@@ -189,7 +191,7 @@ const categoryGroups = computed(() => withBarPct(categoryExpenses.value))
                       :to="{
                         name: 'transactions',
                         query: {
-                          period,
+                          ...periodQueryParams(period),
                           type: 'expense',
                           categoryId: row.categoryId,
                           categoryIds: row.categoryIds.join(','),

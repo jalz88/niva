@@ -7,6 +7,8 @@ import { useAuth } from '@/composables/useAuth'
 import { useTransactions } from '@/composables/useTransactions'
 import { useConfigItems } from '@/composables/useConfigItems'
 import { useCategories, topLevelCategories, subcategoriesOf } from '@/composables/useCategories'
+import { periodRange, periodLabel, parsePeriodFromQuery, type PeriodSelection } from '@/lib/period'
+import PeriodPicker from '@/components/shared/PeriodPicker.vue'
 import type { TransactionType } from '@/types/database'
 
 const { workspaceId } = useAuth()
@@ -32,25 +34,33 @@ const properties = useConfigItems('properties')
 const platforms = useConfigItems('platforms')
 const categories = useCategories()
 
-type Period = 'all' | 'this_month' | 'last_month'
-
-// Reports drills into this screen with query params (period/type/
-// categoryId/platformId/propertyId) so a platform-revenue or
-// category-expense row lands here pre-filtered instead of just linking to
-// the unfiltered list. Read once on mount; a plain in-app navigation with
-// no query keeps the usual "This month" default.
+// Reports drills into this screen with query params (period/month/
+// rangeFrom/rangeTo/type/categoryId/platformId/propertyId) so a
+// platform-revenue or category-expense row lands here pre-filtered instead
+// of just linking to the unfiltered list. Read once on mount; a plain
+// in-app navigation with no query keeps the usual "This month" default.
 const route = useRoute()
 function queryString(key: string): string {
   const value = route.query[key]
   return typeof value === 'string' ? value : ''
 }
 
-const filters = reactive({
+interface TransactionFiltersState {
   // Defaults to the current month — matches the Dashboard's default
   // period (docs/05-information-architecture.md "Global context") and
   // keeps the common case scoped rather than querying the whole lifetime
-  // history every time. "All time" is one filter-tap away.
-  period: (['all', 'this_month', 'last_month'].includes(queryString('period')) ? queryString('period') : 'this_month') as Period,
+  // history every time. "All time" is one filter-tap away. Transactions is
+  // the only screen that offers 'all' (see PeriodPicker's allowAllTime) —
+  // Dashboard/Reports always show a bounded period.
+  period: PeriodSelection
+  propertyId: string
+  type: '' | TransactionType
+  categoryId: string
+  platformId: string
+}
+
+const filters = reactive<TransactionFiltersState>({
+  period: parsePeriodFromQuery(route.query as Record<string, unknown>, { allowAll: true }),
   propertyId: queryString('propertyId'),
   type: (queryString('type') === 'income' || queryString('type') === 'expense' ? queryString('type') : '') as '' | TransactionType,
   categoryId: queryString('categoryId'),
@@ -82,17 +92,6 @@ watch(
 const showFilters = ref(false)
 const page = ref(1)
 const pageSize = 20
-
-function periodRange(period: Period): { dateFrom?: string; dateTo?: string } {
-  if (period === 'this_month') {
-    return { dateFrom: dayjs().startOf('month').format('YYYY-MM-DD'), dateTo: dayjs().endOf('month').format('YYYY-MM-DD') }
-  }
-  if (period === 'last_month') {
-    const lastMonth = dayjs().subtract(1, 'month')
-    return { dateFrom: lastMonth.startOf('month').format('YYYY-MM-DD'), dateTo: lastMonth.endOf('month').format('YYYY-MM-DD') }
-  }
-  return {}
-}
 
 function fetchTransactions() {
   if (!workspaceId.value) return
@@ -144,7 +143,7 @@ watch(revision, () => {
 })
 
 const hasActiveFilters = computed(
-  () => filters.period !== 'all' || !!filters.propertyId || !!filters.type || !!filters.categoryId || !!filters.platformId,
+  () => filters.period.period !== 'all' || !!filters.propertyId || !!filters.type || !!filters.categoryId || !!filters.platformId,
 )
 
 const propertyName = (id: string) => properties.items.value.find((p) => p.id === id)?.name ?? ''
@@ -175,11 +174,10 @@ function categoryDisplay(tx: { category_id: string; category_name: string }) {
   return parent ? `${parent.name} · ${tx.category_name}` : tx.category_name
 }
 
-const periodLabel = computed(() => (filters.period === 'this_month' ? 'This month' : filters.period === 'last_month' ? 'Last month' : ''))
-
 const chips = computed(() => {
   const list: { key: string; label: string; clear: () => void }[] = []
-  if (filters.period !== 'all') list.push({ key: 'period', label: periodLabel.value, clear: () => (filters.period = 'all') })
+  if (filters.period.period !== 'all')
+    list.push({ key: 'period', label: periodLabel(filters.period), clear: () => (filters.period = { period: 'all' }) })
   if (filters.propertyId)
     list.push({ key: 'property', label: propertyName(filters.propertyId), clear: () => (filters.propertyId = '') })
   if (filters.type) list.push({ key: 'type', label: filters.type === 'income' ? 'Income' : 'Expense', clear: () => (filters.type = '') })
@@ -191,7 +189,7 @@ const chips = computed(() => {
 })
 
 function clearAllFilters() {
-  filters.period = 'all'
+  filters.period = { period: 'all' }
   filters.propertyId = ''
   filters.type = ''
   filters.categoryId = ''
@@ -284,29 +282,27 @@ function loadMore() {
     </div>
 
     <!-- Filter panel -->
-    <div v-if="showFilters" class="mb-4 grid grid-cols-2 gap-2 rounded-md border border-neutral-200 bg-white p-3 sm:grid-cols-3">
-      <select v-model="filters.period" aria-label="Period" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
-        <option value="all">All time</option>
-        <option value="this_month">This month</option>
-        <option value="last_month">Last month</option>
-      </select>
-      <select v-model="filters.type" aria-label="Type" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
-        <option value="">All types</option>
-        <option value="income">Income</option>
-        <option value="expense">Expense</option>
-      </select>
-      <select v-model="filters.propertyId" aria-label="Property" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
-        <option value="">All properties</option>
-        <option v-for="p in properties.items.value" :key="p.id" :value="p.id">{{ p.name }}</option>
-      </select>
-      <select v-model="filters.categoryId" aria-label="Category" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
-        <option value="">All categories</option>
-        <option v-for="c in categoryFilterOptions" :key="c.id" :value="c.id">{{ c.label }}</option>
-      </select>
-      <select v-model="filters.platformId" aria-label="Platform" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
-        <option value="">All platforms</option>
-        <option v-for="p in platforms.items.value" :key="p.id" :value="p.id">{{ p.name }}</option>
-      </select>
+    <div v-if="showFilters" class="mb-4 flex flex-col gap-2 rounded-md border border-neutral-200 bg-white p-3">
+      <PeriodPicker v-model="filters.period" :allow-all-time="true" />
+      <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <select v-model="filters.type" aria-label="Type" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
+          <option value="">All types</option>
+          <option value="income">Income</option>
+          <option value="expense">Expense</option>
+        </select>
+        <select v-model="filters.propertyId" aria-label="Property" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
+          <option value="">All properties</option>
+          <option v-for="p in properties.items.value" :key="p.id" :value="p.id">{{ p.name }}</option>
+        </select>
+        <select v-model="filters.categoryId" aria-label="Category" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
+          <option value="">All categories</option>
+          <option v-for="c in categoryFilterOptions" :key="c.id" :value="c.id">{{ c.label }}</option>
+        </select>
+        <select v-model="filters.platformId" aria-label="Platform" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
+          <option value="">All platforms</option>
+          <option v-for="p in platforms.items.value" :key="p.id" :value="p.id">{{ p.name }}</option>
+        </select>
+      </div>
     </div>
 
     <!-- Loading skeleton (first load only) -->

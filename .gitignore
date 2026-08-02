@@ -44,3 +44,7 @@ playwright-report/
 # Wrangler / Cloudflare Workers
 .wrangler
 .dev.vars*
+
+# Weekly Supabase data export (scheduled task) — real workspace data,
+# regenerated automatically, not something to keep in git history.
+backups/
