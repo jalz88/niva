@@ -43,7 +43,7 @@ After sign-in, NIVA provides a clear active context:
 
 - **Property selector:** defaults to an owner-selected property or “All properties” when multi-property reporting is available.
 - **Reporting period:** defaults to the current calendar month and remains visible on dashboard and reports.
-- **Currency:** every monetary value retains its own currency. Cross-currency aggregation is unavailable until a documented conversion model exists.
+- **Currency:** every monetary value retains its own currency everywhere. Dashboard/Reports additionally show one approximate combined total (in the workspace default currency) when a period spans more than one currency, using an administrator-maintained reference rate set in Currencies admin — see the conversion policy decision in `06-development-roadmap.md`. It's explicitly labeled as an estimate, not a real aggregation.
 
 Do not put these controls in every transaction form unless the choice is required there; a form must visibly show its selected property and currency.
 

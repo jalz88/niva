@@ -72,7 +72,7 @@ Quick Add is an action, not a destination. Administration groups configurable bu
 
 - Make amount, transaction type, date, and category scannable in lists.
 - Never rely on red/green alone to indicate expense/income; pair colour with sign, text, icon, or label.
-- Display the active currency beside totals and amounts. Never combine different currencies into one total without an explicit conversion policy.
+- Display the active currency beside totals and amounts. Every per-currency total (dashboard cards, report totals, transaction amounts) stays exact and unconverted. The one exception is a clearly-labeled "approximate combined total" on Dashboard/Reports (2026-08-02 decision, see `06-development-roadmap.md`), built from an administrator-maintained reference rate and computed only at display time — visually distinct from the real totals (dashed border, "≈" prefix) and never used anywhere else (transaction amounts, drill-downs, exports).
 - Label the date basis and selected period on every report.
 - Treat tables/totals as the authoritative report; charts help pattern recognition but must not be the only way to access a value.
 - Use “Net result” in the product unless a later accounting decision explicitly defines “profit.”

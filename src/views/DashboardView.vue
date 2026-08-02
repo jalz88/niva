@@ -5,18 +5,22 @@ import { ArrowDownLeft, ArrowUpRight, TrendingUp, TrendingDown, Minus } from 'lu
 import { useAuth } from '@/composables/useAuth'
 import { useConfigItems } from '@/composables/useConfigItems'
 import { useCategories } from '@/composables/useCategories'
+import { useCurrencies } from '@/composables/useCurrencies'
 import { useReports } from '@/composables/useReports'
 import { useTransactions } from '@/composables/useTransactions'
 import { useQuickAddStore } from '@/stores/quickAddStore'
 import { periodRange, periodLabel, periodQueryParams, type PeriodSelection } from '@/lib/period'
 import { formatMoney, formatSignedMoney } from '@/lib/money'
+import { approxCombinedTotal } from '@/lib/currencyApprox'
 import PeriodPicker from '@/components/shared/PeriodPicker.vue'
+import ApproxTotalCard from '@/components/shared/ApproxTotalCard.vue'
 
 const { workspaceId, user, displayName } = useAuth()
 const quickAdd = useQuickAddStore()
 
 const properties = useConfigItems('properties')
 const categories = useCategories()
+const currencies = useCurrencies()
 const {
   summary,
   platformRevenue,
@@ -60,11 +64,14 @@ watch(
     if (!id) return
     properties.list(id)
     categories.list(id)
+    currencies.list(id)
     fetchAll()
   },
   { immediate: true },
 )
 watch([period, propertyId], fetchAll)
+
+const approxTotal = computed(() => approxCombinedTotal(summary.value, currencies.rows.value))
 // A Quick Add (or edit/delete) elsewhere bumps this — refetch so totals
 // update without the user having to manually reload, per
 // docs/04-ui-ux-principles.md §5.
@@ -187,6 +194,12 @@ function categoryDisplay(tx: { category_id: string; category_name: string }) {
             </div>
           </div>
         </section>
+
+        <!-- Approximate combined total — only appears once the period has
+             activity in more than one currency, and is visually distinct
+             (dashed border, muted) from the exact per-currency cards above
+             so it never reads as an authoritative total. -->
+        <ApproxTotalCard v-if="approxTotal" :approx="approxTotal" class="mb-4" />
 
         <!-- Revenue by platform -->
         <section v-if="platformGroups.length" class="mb-4 rounded-md border border-neutral-200 bg-white p-4 shadow-sm">

@@ -85,10 +85,18 @@ Prioritise using observed pain points, not a feature wish list. Likely candidate
 1. Export of selected reports/transactions.
 2. Recurring bills and due-date reminders.
 3. Receipt uploads and OCR only after storage/privacy/retention choices are made.
-4. Multi-property operational refinements and currency conversion policy.
+4. Multi-property operational refinements.
 5. Assets, maintenance, housekeeping, inventory, and staff workflows.
 6. Booking platform, calendar, Home Assistant, and notification integrations.
 7. Reliable offline transaction queueing only with a complete conflict-resolution design.
+8. Visible app version (e.g. near "Signed in as" in the sidebar or on Account) — raised by Jalie 2026-08-02, small/low-risk, not yet scheduled.
+9. If the approximate combined total (see "Currency conversion policy" below) ever needs to hold up for tax/accounting purposes rather than a quick gut-check, upgrade to a per-transaction locked-in exchange rate (or an automated live-FX-rate lookup by transaction date) instead of the current admin-maintained report-time rate.
+
+### Currency conversion policy (decided 2026-08-02)
+
+Real per-currency totals never blend — that principle from Phase 4 stands everywhere. What changed: Dashboard and Reports now show one extra, clearly-labeled **approximate combined total** (in the workspace default currency) whenever a period has activity in more than one currency. It's built from a reference rate an administrator sets per currency in Currencies admin (migration `0010`), applied only at report display time — never stored against a transaction, never used in exports or drill-downs, and visually distinct (dashed border, "≈" prefix, "using rates set on [date]") so it can't be mistaken for a real total. A currency with no rate set is called out by name rather than silently excluded from the number. See `src/lib/currencyApprox.ts` for the computation and `docs/04-ui-ux-principles.md` / `05-information-architecture.md` for the presentation rule.
+
+Options considered and not chosen for now: no in-app conversion at all (too little help for a genuine "how are we doing" question); a rate locked in per transaction at entry time (more historically accurate, but adds a field to the fastest/most-used screen in the app); a live FX API looked up automatically by transaction date (most accurate and zero upkeep, but a new external dependency and materially more build work). Either of the latter two is the natural upgrade path if this ever needs to be accounting- or tax-grade rather than a quick pulse-check.
 
 ## Quality gates for every change
 

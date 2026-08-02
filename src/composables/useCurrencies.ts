@@ -7,6 +7,12 @@ export interface WorkspaceCurrencyRow {
   name: string
   enabled: boolean
   isDefault: boolean
+  // Manually maintained, used only for the Dashboard/Reports "approximate
+  // combined total" line — see migration 0010. Always null for the default
+  // currency itself (it doesn't need converting into itself) and for any
+  // currency an administrator hasn't set a rate for yet.
+  referenceRateToDefault: number | null
+  referenceRateUpdatedAt: string | null
 }
 
 // Session-scoped cache — see useConfigItems.ts for why.
@@ -29,7 +35,10 @@ export function useCurrencies() {
 
     const [allCurrencies, enabled] = await Promise.all([
       supabase.from('iso_currencies').select('code, name').order('code'),
-      supabase.from('workspace_currencies').select('currency_code, is_active, is_default').eq('workspace_id', workspaceId),
+      supabase
+        .from('workspace_currencies')
+        .select('currency_code, is_active, is_default, reference_rate_to_default, reference_rate_updated_at')
+        .eq('workspace_id', workspaceId),
     ])
 
     loading.value = false
@@ -50,6 +59,8 @@ export function useCurrencies() {
         name: c.name,
         enabled: match?.is_active ?? false,
         isDefault: match?.is_default ?? false,
+        referenceRateToDefault: match?.reference_rate_to_default != null ? Number(match.reference_rate_to_default) : null,
+        referenceRateUpdatedAt: match?.reference_rate_updated_at ?? null,
       }
     })
     cache.set(workspaceId, rows.value)
@@ -93,5 +104,25 @@ export function useCurrencies() {
     return null
   }
 
-  return { rows, loading, error, list, enable, disable, setDefault }
+  // rate is "1 unit of `code` equals `rate` units of the workspace default
+  // currency" — e.g. if LKR is default and USD is 300, USD 10 ≈ LKR 3,000.
+  // Only meaningful for non-default currencies; the caller (Currencies
+  // admin screen) doesn't offer this field for the default row.
+  async function setReferenceRate(workspaceId: string, code: string, rate: number): Promise<NivaError | null> {
+    const now = new Date().toISOString()
+    const { error: dbError } = await supabase
+      .from('workspace_currencies')
+      .update({ reference_rate_to_default: rate, reference_rate_updated_at: now })
+      .eq('workspace_id', workspaceId)
+      .eq('currency_code', code)
+
+    if (dbError) return toNivaError(dbError)
+    rows.value = rows.value.map((r) =>
+      r.code === code ? { ...r, referenceRateToDefault: rate, referenceRateUpdatedAt: now } : r,
+    )
+    cache.set(workspaceId, rows.value)
+    return null
+  }
+
+  return { rows, loading, error, list, enable, disable, setDefault, setReferenceRate }
 }

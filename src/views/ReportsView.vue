@@ -4,13 +4,17 @@ import { RouterLink } from 'vue-router'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-vue-next'
 import { useAuth } from '@/composables/useAuth'
 import { useConfigItems } from '@/composables/useConfigItems'
+import { useCurrencies } from '@/composables/useCurrencies'
 import { useReports } from '@/composables/useReports'
 import { periodRange, periodLabel, periodQueryParams, type PeriodSelection } from '@/lib/period'
 import { formatMoney } from '@/lib/money'
+import { approxCombinedTotal } from '@/lib/currencyApprox'
 import PeriodPicker from '@/components/shared/PeriodPicker.vue'
+import ApproxTotalCard from '@/components/shared/ApproxTotalCard.vue'
 
 const { workspaceId } = useAuth()
 const properties = useConfigItems('properties')
+const currencies = useCurrencies()
 const { summary, platformRevenue, categoryExpenses, loading, error, load } = useReports()
 
 const period = ref<PeriodSelection>({ period: 'this_month' })
@@ -34,10 +38,13 @@ watch(
   (id) => {
     if (!id) return
     properties.list(id)
+    currencies.list(id)
     fetchReports()
   },
   { immediate: true },
 )
+
+const approxTotal = computed(() => approxCombinedTotal(summary.value, currencies.rows.value))
 watch([period, propertyId], fetchReports)
 
 const hasAnyData = computed(
@@ -140,6 +147,12 @@ const categoryGroups = computed(() => withBarPct(categoryExpenses.value))
             </div>
           </div>
         </section>
+
+        <!-- Approximate combined total — only appears once the period has
+             activity in more than one currency, and is visually distinct
+             (dashed border, muted) from the exact per-currency cards above
+             so it never reads as an authoritative total. -->
+        <ApproxTotalCard v-if="approxTotal" :approx="approxTotal" class="mb-4" />
 
         <!-- Revenue by platform: bar + authoritative table underneath, per
              docs/09-wireframes.md — "chart is never the only way to read a

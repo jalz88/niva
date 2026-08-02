@@ -123,6 +123,8 @@ Which currencies a given workspace has enabled.
 | currency_code | text, not null, fk → iso_currencies.code | |
 | is_active | boolean, not null | default `true` |
 | is_default | boolean, not null | default `false`; exactly one default per workspace (enforced by partial unique index) |
+| reference_rate_to_default | numeric, nullable | migration 0010. Administrator-maintained: "1 unit of this currency ≈ this many units of the default currency." Never set for the default row itself. Used only for Dashboard/Reports' approximate combined total, computed at report display time — see "Currency conversion policy" in `06-development-roadmap.md`. |
+| reference_rate_updated_at | timestamptz, nullable | migration 0010. When the rate above was last set — shown in reports so the approximation is never presented as more current than it is. |
 
 Unique on `(workspace_id, currency_code)`.
 
