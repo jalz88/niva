@@ -89,7 +89,7 @@ Prioritise using observed pain points, not a feature wish list. Likely candidate
 5. Assets, maintenance, housekeeping, inventory, and staff workflows.
 6. Booking platform, calendar, Home Assistant, and notification integrations.
 7. Reliable offline transaction queueing only with a complete conflict-resolution design.
-8. Visible app version (e.g. near "Signed in as" in the sidebar or on Account) — raised by Jalie 2026-08-02, small/low-risk, not yet scheduled.
+8. ~~Visible app version.~~ Done 2026-08-02 — shown on Account (`v{{ __APP_VERSION__ }}`, injected from `package.json` at build time via `vite.config.ts`'s `define`). `package.json`'s version is now the source of truth and should stay in sync with the latest git tag.
 9. If the approximate combined total (see "Currency conversion policy" below) ever needs to hold up for tax/accounting purposes rather than a quick gut-check, upgrade to a per-transaction locked-in exchange rate (or an automated live-FX-rate lookup by transaction date) instead of the current admin-maintained report-time rate.
 
 ### Currency conversion policy (decided 2026-08-02)
