@@ -9,6 +9,9 @@ const router = useRouter()
 const { user, role, displayName, updateDisplayName, signOut } = useAuth()
 const toast = useToastStore()
 
+// Build-time constant from package.json's version — see vite.config.ts.
+const appVersion = __APP_VERSION__
+
 const nameInput = ref('')
 const saving = ref(false)
 const saveError = ref<NivaError | null>(null)
@@ -90,5 +93,7 @@ async function onSignOut() {
     >
       {{ signingOut ? 'Signing out…' : 'Sign out' }}
     </button>
+
+    <p class="mt-4 text-center text-caption text-neutral-400">NIVA v{{ appVersion }}</p>
   </div>
 </template>

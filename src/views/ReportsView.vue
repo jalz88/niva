@@ -180,24 +180,31 @@ const categoryGroups = computed(() => withBarPct(categoryExpenses.value))
         <!-- Totals — same card shape as Dashboard, for consistency -->
         <section v-for="row in summary" :key="row.currencyCode" class="mb-4">
           <p v-if="summary.length > 1" class="mb-1.5 text-caption font-medium text-neutral-500">{{ row.currencyCode }}</p>
+          <!-- min-w-0 on each cell: CSS Grid columns default to
+               min-width:auto, which respects an unbreakable token like
+               "28,389.12" and blows the column out past its intended
+               third — that's what was clipping/overlapping amounts into
+               the neighboring card (2026-08-02, Jalie's wife's feedback).
+               min-w-0 lets the grid actually hold to equal thirds; the
+               amount then wraps (break-words) instead of overflowing. -->
           <div class="grid grid-cols-3 gap-2">
-            <div class="rounded-md border border-neutral-200 bg-white p-3">
+            <div class="min-w-0 rounded-md border border-neutral-200 bg-white p-3">
               <p class="mb-1 flex items-center gap-1 text-caption text-neutral-500">
-                <TrendingUp :size="14" class="text-positive-600" /> Income
+                <TrendingUp :size="14" class="shrink-0 text-positive-600" /> Income
               </p>
-              <p class="text-amount font-semibold text-positive-600">{{ formatMoney(row.income, row.currencyCode) }}</p>
+              <p class="break-words text-amount font-semibold text-positive-600">{{ formatMoney(row.income, row.currencyCode) }}</p>
             </div>
-            <div class="rounded-md border border-neutral-200 bg-white p-3">
+            <div class="min-w-0 rounded-md border border-neutral-200 bg-white p-3">
               <p class="mb-1 flex items-center gap-1 text-caption text-neutral-500">
-                <TrendingDown :size="14" class="text-negative-600" /> Expenses
+                <TrendingDown :size="14" class="shrink-0 text-negative-600" /> Expenses
               </p>
-              <p class="text-amount font-semibold text-negative-600">{{ formatMoney(row.expenses, row.currencyCode) }}</p>
+              <p class="break-words text-amount font-semibold text-negative-600">{{ formatMoney(row.expenses, row.currencyCode) }}</p>
             </div>
-            <div class="rounded-md border border-neutral-200 bg-white p-3">
+            <div class="min-w-0 rounded-md border border-neutral-200 bg-white p-3">
               <p class="mb-1 flex items-center gap-1 text-caption text-neutral-500">
-                <Minus :size="14" :class="Number(row.net) >= 0 ? 'text-positive-600' : 'text-negative-600'" /> Net
+                <Minus :size="14" class="shrink-0" :class="Number(row.net) >= 0 ? 'text-positive-600' : 'text-negative-600'" /> Net
               </p>
-              <p class="text-amount font-semibold" :class="Number(row.net) >= 0 ? 'text-positive-600' : 'text-negative-600'">
+              <p class="break-words text-amount font-semibold" :class="Number(row.net) >= 0 ? 'text-positive-600' : 'text-negative-600'">
                 {{ formatMoney(row.net, row.currencyCode) }}
               </p>
             </div>

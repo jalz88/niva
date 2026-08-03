@@ -1,4 +1,5 @@
 import { fileURLToPath, URL } from 'node:url'
+import { readFileSync } from 'node:fs'
 
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
@@ -6,8 +7,21 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Read directly from package.json rather than `import pkg from
+// './package.json'` — that would need `resolveJsonModule` added to
+// tsconfig (a broader change than this needs) and would let the whole
+// package.json (scripts, devDependencies, ...) get pulled into type
+// inference for no reason. __APP_VERSION__ is a standard Vite pattern
+// (see the Vite docs' "env variables" recipe) — injected as a build-time
+// constant, typed in env.d.ts, shown on Account (2026-08-02, Jalie asked
+// for a visible app version).
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8')) as { version: string }
+
 // https://vite.dev/config/
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   plugins: [
     vue(),
     vueDevTools(),
