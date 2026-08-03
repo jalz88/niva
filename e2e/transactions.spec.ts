@@ -10,9 +10,13 @@ import { signIn } from './helpers'
 //
 // Each test creates its own transaction rather than depending on another
 // test's state, so retries and re-runs stay safe — this does mean the test
-// workspace accumulates transactions over time, which is an accepted
-// tradeoff for now (nothing reads or reports on that data outside this
-// suite) and not yet worth a cleanup step.
+// workspace accumulates transactions over time. That's still an accepted
+// tradeoff rather than worth a cleanup step, but it's not entirely inert:
+// the Dashboard's "Recent transactions" list is scoped to the current
+// month, so accumulated same-category entries there are exactly why every
+// assertion below matching a category name uses .first() (2026-08-02 — one
+// didn't, and broke in CI once enough runs had piled up "E2E Income"
+// entries within the same month).
 
 async function openQuickAdd(page: Page) {
   await page.getByRole('button', { name: 'Add transaction' }).click()
@@ -44,7 +48,12 @@ test('adding an income transaction updates the dashboard without a reload', asyn
   // The sheet closes and the Dashboard's recent-transactions list and
   // totals refetch on their own (useTransactions' revision counter — see
   // DashboardView.vue) — no page.reload() anywhere in this test.
-  await expect(page.getByText('E2E Income')).toBeVisible()
+  // .first(): this suite doesn't clean up after itself (see file header),
+  // so after enough CI runs within the same month, the Dashboard's top-5
+  // recent list legitimately contains more than one past "E2E Income"
+  // entry — an unscoped getByText() then hits a strict-mode multi-match
+  // violation instead of the flaky timeout it looks like at first glance.
+  await expect(page.getByText('E2E Income').first()).toBeVisible()
 })
 
 test('adding an expense transaction appears in the Transactions list without a reload', async ({ page }) => {
