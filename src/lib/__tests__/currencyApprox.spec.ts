@@ -47,6 +47,7 @@ describe('approxCombinedTotal', () => {
     expect(result!.net).toBe(3200)
     expect(result!.missingRateCodes).toEqual([])
     expect(result!.asOf).toBe('2026-08-01T00:00:00Z')
+    expect(result!.ratesUsed).toEqual([{ code: 'USD', rate: 300, updatedAt: '2026-08-01T00:00:00Z' }])
   })
 
   it('flags a currency with no rate set instead of silently dropping or blocking the total', () => {
@@ -64,6 +65,8 @@ describe('approxCombinedTotal', () => {
     expect(result!.missingRateCodes).toEqual(['AED'])
     // AED's 50 is excluded from the total since it has no rate
     expect(result!.income).toBe(1000 + 10 * 300)
+    // AED never made it into ratesUsed since no rate was applied for it
+    expect(result!.ratesUsed).toEqual([{ code: 'USD', rate: 300, updatedAt: '2026-08-01T00:00:00Z' }])
   })
 
   it('reports the oldest rate date among the ones actually used, as the more conservative signal', () => {

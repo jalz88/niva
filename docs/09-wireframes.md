@@ -78,9 +78,9 @@ States: loading (skeleton cards, no fake numbers); empty (no transactions yet th
 
 **Purpose:** "Where did money come from and go?"
 
-- Period and property selectors at the top, persistent while scrolling (same period picker and single-property-hides-the-picker rule as the Dashboard, above).
+- Period and property selectors at the top, persistent while scrolling (same period picker and single-property-hides-the-picker rule as the Dashboard, above); two download buttons alongside them (2026-08-02, Jalie's wife's feedback) — **CSV** (raw totals/platform/category numbers, opens in a spreadsheet) and **PDF** (the browser's native print dialog against a print-only layout — no PDF library, every modern browser can "Save as PDF" from it). Both hidden from the printed/PDF output itself via `print:hidden`, replaced there by a plain-text period/property/generated-at line.
 - Totals card (same shape as Dashboard's, for consistency) — one section per currency in use, each exact and never blended into the others.
-- Approximate combined total (2026-08-02) directly below the totals card, same rule as the Dashboard — only when the period spans more than one currency, visually distinct, never treated as authoritative.
+- Approximate combined total (2026-08-02) directly below the totals card, same rule as the Dashboard — only when the period spans more than one currency, visually distinct, never treated as authoritative. Shows the actual rate(s) used inline (e.g. "1 USD ≈ 300.00 LKR, set 1 Aug 2026") so reading it never requires a trip to Currencies admin — also carried into the CSV/PDF export.
 - Revenue by platform: bar plus an authoritative table underneath — chart is never the only way to read a value (`04-ui-ux-principles.md` §6).
 - Expenses by category: same pattern, rolled up to top-level categories (a sub-category's activity counts toward its parent's total here — `07-domain-model-and-schema.md` §3).
 - Every row is tappable and drills into the filtered Transactions list — for a category row this filters by every sub-category id rolled into that total, not just the top-level id, so the drill-down always reconciles with the number shown (2026-07-21, migration 0008).

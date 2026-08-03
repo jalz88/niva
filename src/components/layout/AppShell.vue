@@ -26,9 +26,10 @@ const identityLabel = computed(() => displayName.value ?? user.value?.email ?? '
 
 <template>
   <div class="flex min-h-screen flex-col bg-neutral-50 md:flex-row">
-    <!-- Desktop sidebar -->
+    <!-- Desktop sidebar — hidden when printing (e.g. Reports' "Print / Save
+         as PDF") so only the actual report content ends up on the page. -->
     <aside
-      class="hidden w-56 shrink-0 border-r border-neutral-200 bg-white p-4 md:flex md:flex-col md:gap-1"
+      class="hidden w-56 shrink-0 border-r border-neutral-200 bg-white p-4 md:flex md:flex-col md:gap-1 print:hidden"
     >
       <div class="mb-4 flex items-center gap-2 px-2">
         <img src="/branding/niva-mark.svg" alt="" width="24" height="24" class="rounded-sm" />
@@ -56,7 +57,7 @@ const identityLabel = computed(() => displayName.value ?? user.value?.email ?? '
       <button
         type="button"
         aria-label="Add transaction"
-        class="fixed bottom-20 right-4 flex h-14 w-14 items-center justify-center rounded-full bg-accent-500 text-white shadow-md hover:bg-accent-600 md:bottom-8 md:right-8"
+        class="fixed bottom-20 right-4 flex h-14 w-14 items-center justify-center rounded-full bg-accent-500 text-white shadow-md hover:bg-accent-600 md:bottom-8 md:right-8 print:hidden"
         @click="quickAdd.show()"
       >
         <Plus :size="26" />
@@ -64,7 +65,7 @@ const identityLabel = computed(() => displayName.value ?? user.value?.email ?? '
 
       <!-- Mobile bottom nav -->
       <nav
-        class="fixed bottom-0 left-0 right-0 flex border-t border-neutral-200 bg-white md:hidden"
+        class="fixed bottom-0 left-0 right-0 flex border-t border-neutral-200 bg-white md:hidden print:hidden"
         style="padding-bottom: env(safe-area-inset-bottom)"
       >
         <RouterLink

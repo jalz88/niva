@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { TrendingUp, TrendingDown, Minus } from 'lucide-vue-next'
+import dayjs from 'dayjs'
+import { TrendingUp, TrendingDown, Minus, Download, Printer } from 'lucide-vue-next'
 import { useAuth } from '@/composables/useAuth'
 import { useConfigItems } from '@/composables/useConfigItems'
 import { useCurrencies } from '@/composables/useCurrencies'
@@ -9,6 +10,7 @@ import { useReports } from '@/composables/useReports'
 import { periodRange, periodLabel, periodQueryParams, type PeriodSelection } from '@/lib/period'
 import { formatMoney } from '@/lib/money'
 import { approxCombinedTotal } from '@/lib/currencyApprox'
+import { buildReportCsv, reportCsvFilename, downloadTextFile } from '@/lib/reportCsv'
 import PeriodPicker from '@/components/shared/PeriodPicker.vue'
 import ApproxTotalCard from '@/components/shared/ApproxTotalCard.vue'
 
@@ -47,6 +49,33 @@ watch(
 const approxTotal = computed(() => approxCombinedTotal(summary.value, currencies.rows.value))
 watch([period, propertyId], fetchReports)
 
+const propertyLabel = computed(
+  () => (propertyId.value ? (properties.items.value.find((p) => p.id === propertyId.value)?.name ?? 'Selected property') : 'All properties'),
+)
+
+// CSV is the raw numbers for further work (spreadsheet, accountant); "Print
+// / Save as PDF" reuses the browser's own print dialog against the
+// print:hidden/print:block rules below instead of a PDF-generation library
+// — every modern browser can save that as a real PDF with no new
+// dependency (2026-08-02, Jalie's wife asked for a downloadable report).
+function handleDownloadCsv() {
+  const generatedAt = new Date()
+  const csv = buildReportCsv({
+    periodLabel: periodLabel(period.value),
+    propertyLabel: propertyLabel.value,
+    generatedAt,
+    summary: summary.value,
+    approxTotal: approxTotal.value,
+    platformRevenue: platformRevenue.value,
+    categoryExpenses: categoryExpenses.value,
+  })
+  downloadTextFile(reportCsvFilename(periodLabel(period.value), generatedAt), csv, 'text/csv;charset=utf-8;')
+}
+
+function handlePrint() {
+  window.print()
+}
+
 const hasAnyData = computed(
   () => summary.value.length > 0 || platformRevenue.value.length > 0 || categoryExpenses.value.length > 0,
 )
@@ -74,12 +103,23 @@ const categoryGroups = computed(() => withBarPct(categoryExpenses.value))
 
 <template>
   <div class="mx-auto max-w-3xl px-4 pb-24 md:pb-8">
+    <!-- Print-only header — window.print() (the "Print / Save as PDF"
+         button below) hides everything else on the page via print:hidden,
+         so the printed/PDF output needs its own plain-text statement of
+         what's being reported instead of the interactive controls. -->
+    <div class="mb-4 hidden print:block">
+      <h1 class="text-h1 font-semibold text-neutral-900">NIVA report</h1>
+      <p class="text-body-sm text-neutral-600">{{ periodLabel(period) }} · {{ propertyLabel }}</p>
+      <p class="text-caption text-neutral-500">Generated {{ dayjs().format('D MMM YYYY, HH:mm') }}</p>
+    </div>
+
     <!-- Period/property selectors stay visible while scrolling, per
          docs/09-wireframes.md "Period and property selectors ... persistent
-         while scrolling." -->
-    <header class="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 bg-neutral-50 pb-3 pt-6">
+         while scrolling." Hidden when printing — see the print-only header
+         above instead. -->
+    <header class="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 bg-neutral-50 pb-3 pt-6 print:hidden">
       <h1 class="text-h1 font-semibold text-neutral-900">Reports</h1>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <select
           v-if="activeProperties.length > 1"
           v-model="propertyId"
@@ -90,6 +130,22 @@ const categoryGroups = computed(() => withBarPct(categoryExpenses.value))
           <option v-for="p in activeProperties" :key="p.id" :value="p.id">{{ p.name }}</option>
         </select>
         <PeriodPicker v-model="period" />
+        <button
+          type="button"
+          aria-label="Download report as CSV"
+          class="flex items-center gap-1.5 rounded-sm border border-neutral-200 bg-white px-3 py-2 text-body-sm font-medium text-neutral-700 hover:bg-neutral-100"
+          @click="handleDownloadCsv"
+        >
+          <Download :size="16" /> CSV
+        </button>
+        <button
+          type="button"
+          aria-label="Print or save report as PDF"
+          class="flex items-center gap-1.5 rounded-sm border border-neutral-200 bg-white px-3 py-2 text-body-sm font-medium text-neutral-700 hover:bg-neutral-100"
+          @click="handlePrint"
+        >
+          <Printer :size="16" /> PDF
+        </button>
       </div>
     </header>
 

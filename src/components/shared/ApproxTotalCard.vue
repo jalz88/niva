@@ -1,12 +1,24 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import dayjs from 'dayjs'
 import { useAuth } from '@/composables/useAuth'
 import { formatMoney } from '@/lib/money'
 import type { ApproxCombinedTotal } from '@/lib/currencyApprox'
 
-defineProps<{ approx: ApproxCombinedTotal }>()
+const props = defineProps<{ approx: ApproxCombinedTotal }>()
 const { role } = useAuth()
+
+// Shown inline so the rate is visible right where the total is, instead of
+// sending the reader back to Currencies admin to find out what was used
+// (2026-08-02, Jalie's wife's feedback) — also read by the CSV export so a
+// downloaded report is self-explanatory on its own.
+const rateLines = computed(() =>
+  props.approx.ratesUsed.map((r) => {
+    const dated = r.updatedAt ? ` (set ${dayjs(r.updatedAt).format('D MMM YYYY')})` : ''
+    return `1 ${r.code} ≈ ${r.rate.toFixed(2)} ${props.approx.currencyCode}${dated}`
+  }),
+)
 </script>
 
 <template>
@@ -15,8 +27,10 @@ const { role } = useAuth()
       <span class="font-semibold text-neutral-900">≈ {{ formatMoney(approx.net.toFixed(2), approx.currencyCode) }}</span>
       <span class="text-neutral-500"> approx. net across currencies</span>
     </p>
+    <p v-if="rateLines.length" class="mt-0.5 text-caption text-neutral-500">
+      Rates used: {{ rateLines.join(' · ') }}
+    </p>
     <p class="mt-0.5 text-caption text-neutral-500">
-      <span v-if="approx.asOf">Using rates set as of {{ dayjs(approx.asOf).format('D MMM YYYY') }}. </span>
       An estimate for a quick overall read — every other total in NIVA stays in its own exact currency.
     </p>
     <p v-if="approx.missingRateCodes.length" class="mt-1.5 text-caption text-negative-600">

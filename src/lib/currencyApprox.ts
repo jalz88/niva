@@ -1,6 +1,12 @@
 import type { CurrencyTotal } from '@/composables/useReports'
 import type { WorkspaceCurrencyRow } from '@/composables/useCurrencies'
 
+export interface RateUsed {
+  code: string
+  rate: number
+  updatedAt: string | null
+}
+
 export interface ApproxCombinedTotal {
   currencyCode: string
   income: number
@@ -13,6 +19,12 @@ export interface ApproxCombinedTotal {
   // The oldest reference_rate_updated_at among the rates actually used —
   // the most conservative "how stale could this be" signal to show.
   asOf: string | null
+  // Every rate actually applied, so the UI (and the CSV export) can show
+  // "1 USD ≈ 300 LKR" inline instead of sending the reader back to
+  // Currencies admin to find out what was used — 2026-08-02, Jalie's wife's
+  // feedback (also needed once report download exists, so the downloaded
+  // file is self-explanatory on its own).
+  ratesUsed: RateUsed[]
 }
 
 // This is the one place in the app that sums money client-side —
@@ -35,6 +47,7 @@ export function approxCombinedTotal(summary: CurrencyTotal[], currencyRows: Work
   let expenses = 0
   let asOf: string | null = null
   const missingRateCodes: string[] = []
+  const ratesUsed: RateUsed[] = []
 
   for (const row of summary) {
     if (row.currencyCode === defaultRow.code) {
@@ -50,10 +63,11 @@ export function approxCombinedTotal(summary: CurrencyTotal[], currencyRows: Work
     }
     income += Number(row.income) * rate
     expenses += Number(row.expenses) * rate
+    ratesUsed.push({ code: row.currencyCode, rate, updatedAt: rateRow.referenceRateUpdatedAt })
     if (rateRow.referenceRateUpdatedAt && (!asOf || rateRow.referenceRateUpdatedAt < asOf)) {
       asOf = rateRow.referenceRateUpdatedAt
     }
   }
 
-  return { currencyCode: defaultRow.code, income, expenses, net: income - expenses, missingRateCodes, asOf }
+  return { currencyCode: defaultRow.code, income, expenses, net: income - expenses, missingRateCodes, asOf, ratesUsed }
 }

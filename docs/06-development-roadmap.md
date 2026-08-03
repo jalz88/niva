@@ -82,7 +82,7 @@ Dates are intentionally omitted until the owners choose development capacity and
 
 Prioritise using observed pain points, not a feature wish list. Likely candidates:
 
-1. Export of selected reports/transactions.
+1. ~~Export of Reports as CSV or print/PDF.~~ Done 2026-08-02 — see `src/lib/reportCsv.ts` and ReportsView's "Print / Save as PDF" (browser-native print, no PDF library). Exporting a filtered *transaction list* (not just report totals) is still open.
 2. Recurring bills and due-date reminders.
 3. Receipt uploads and OCR only after storage/privacy/retention choices are made.
 4. Multi-property operational refinements.
@@ -94,7 +94,7 @@ Prioritise using observed pain points, not a feature wish list. Likely candidate
 
 ### Currency conversion policy (decided 2026-08-02)
 
-Real per-currency totals never blend — that principle from Phase 4 stands everywhere. What changed: Dashboard and Reports now show one extra, clearly-labeled **approximate combined total** (in the workspace default currency) whenever a period has activity in more than one currency. It's built from a reference rate an administrator sets per currency in Currencies admin (migration `0010`), applied only at report display time — never stored against a transaction, never used in exports or drill-downs, and visually distinct (dashed border, "≈" prefix, "using rates set on [date]") so it can't be mistaken for a real total. A currency with no rate set is called out by name rather than silently excluded from the number. See `src/lib/currencyApprox.ts` for the computation and `docs/04-ui-ux-principles.md` / `05-information-architecture.md` for the presentation rule.
+Real per-currency totals never blend — that principle from Phase 4 stands everywhere. What changed: Dashboard and Reports now show one extra, clearly-labeled **approximate combined total** (in the workspace default currency) whenever a period has activity in more than one currency. It's built from a reference rate an administrator sets per currency in Currencies admin (migration `0010`), applied only at report display time — never stored against a transaction and never used in Transactions drill-down links, but (2026-08-02, second round of feedback) it *is* included in the Reports CSV/PDF export, along with every rate actually used, so a downloaded report never depends on going back to Currencies admin to make sense of it. It stays visually distinct everywhere (dashed border, "≈" prefix, "using rates set on [date]") so it can't be mistaken for a real total. A currency with no rate set is called out by name rather than silently excluded from the number. See `src/lib/currencyApprox.ts` for the computation and `docs/04-ui-ux-principles.md` / `05-information-architecture.md` for the presentation rule.
 
 Options considered and not chosen for now: no in-app conversion at all (too little help for a genuine "how are we doing" question); a rate locked in per transaction at entry time (more historically accurate, but adds a field to the fastest/most-used screen in the app); a live FX API looked up automatically by transaction date (most accurate and zero upkeep, but a new external dependency and materially more build work). Either of the latter two is the natural upgrade path if this ever needs to be accounting- or tax-grade rather than a quick pulse-check.
 
