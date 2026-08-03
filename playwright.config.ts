@@ -18,8 +18,20 @@ export default defineConfig({
     /**
      * Maximum time expect() should wait for the condition to be met.
      * For example in `await expect(locator).toHaveText();`
+     *
+     * 8000ms (was 5000ms until 2026-08-02): most of this suite's
+     * assertions follow a button click straight into a real Supabase
+     * round trip (create/update a transaction) before a toast or updated
+     * list ever appears. On a free-tier project + a shared CI runner, that
+     * round trip occasionally ran close to or past 5s, which read as
+     * "element(s) not found" — a real save that just hadn't finished
+     * yet, not a broken toast or a genuinely flaky test. The toast itself
+     * stays visible for a further 4s (or 6s with an action, e.g. Undo —
+     * see src/stores/toastStore.ts) once it does appear, so this is purely
+     * about giving the round trip enough room to finish before the poll
+     * window closes.
      */
-    timeout: 5000,
+    timeout: 8000,
   },
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
