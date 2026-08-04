@@ -227,3 +227,12 @@ Three read-only `SECURITY DEFINER` functions back the Dashboard and Reports scre
 - Decide whether `profiles.email` is synced via a Postgres trigger on `auth.users` or read from the session on the client — either is fine, pick the one that's less fragile to Supabase Auth changes.
 - Write the actual seed migration for `iso_currencies` (ISO 4217 list, or a trimmed list covering only realistically needed codes).
 - Confirm sort/display order for configuration lists (e.g. an `sort_order` column) is needed for Release 1 or can wait.
+
+## 10. Staff nav visibility — decided, not yet built (2026-08-04)
+
+Prompted by a real case: a housekeeping/inventory staff member (Jalie's employee) who should mostly see only that area, once it exists (`06-development-roadmap.md` post-release item 5). Decision, to apply when Housekeeping & Inventory is actually built:
+
+- Keep the existing `staff` role exactly as-is for permissions — it already restricts transaction editing/deletion and all configuration access at the RLS layer (§6). No security change needed.
+- Add a new nullable column, `workspace_memberships.visible_areas` (e.g. `text[]`), scoped per membership row. `null`/empty means "see everything permitted by role" (today's behavior — no migration-day impact on existing members). A non-null value restricts which nav areas the client shows that specific person, administrator-configurable per member in the Users admin screen.
+- This is a **navigation-filtering hint only** — it changes what the More sheet (see `09-wireframes.md` "Navigation chrome") renders for that person, nothing else. RLS remains the actual security boundary and is untouched; a restricted staff member who somehow opened a hidden route would still be bound by their role's existing RLS grants, not by `visible_areas`.
+- Deliberately not built now — there's no Housekeeping & Inventory feature yet for it to gate. Build the column, the admin UI toggle, and the nav filtering together when that feature ships, not before.

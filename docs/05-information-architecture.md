@@ -124,8 +124,8 @@ Permissions must be enforced in data access, not merely hidden in navigation.
 
 ## Navigation behavior
 
-- Desktop: persistent sidebar or equivalent navigation with clear selected state.
-- Mobile: compact bottom navigation or similarly reachable pattern for Dashboard, Transactions, Reports, and More/Administration; Quick Add remains prominent.
+- Desktop: persistent sidebar listing every destination inline (Dashboard, Transactions, Reports, Account, Administration when permitted) — there's room, so nothing is collapsed.
+- Mobile: bottom bar with Dashboard, Transactions, a raised Add, Reports, and More; More opens a sheet holding everything else (Account, Administration when permitted, and future areas as they're built — see "Navigation chrome" in `09-wireframes.md`, decided 2026-08-04). Quick Add remains prominent either way.
 - Deep links: authenticated users can open a transaction or report URL directly; users without access receive a clear permission state.
 - Back behavior: returns to the prior list/filter state wherever practical.
 

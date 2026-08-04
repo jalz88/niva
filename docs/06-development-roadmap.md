@@ -86,7 +86,7 @@ Prioritise using observed pain points, not a feature wish list. Likely candidate
 2. Recurring bills and due-date reminders.
 3. Receipt uploads and OCR only after storage/privacy/retention choices are made.
 4. Multi-property operational refinements.
-5. Assets, maintenance, housekeeping, inventory, and staff workflows.
+5. Assets, maintenance, housekeeping, inventory, and staff workflows. Staff nav-visibility model decided 2026-08-04 (see `07-domain-model-and-schema.md` §10) — reuse the existing `staff` role, add a per-membership `visible_areas` toggle when this is actually built. Priority stays where it is on this list (confirmed 2026-08-04); a real staff member needing it didn't move it forward.
 6. Booking platform, calendar, Home Assistant, and notification integrations.
 7. Reliable offline transaction queueing only with a complete conflict-resolution design.
 8. ~~Visible app version.~~ Done 2026-08-02 — shown on Account (`v{{ __APP_VERSION__ }}`, injected from `package.json` at build time via `vite.config.ts`'s `define`). `package.json`'s version is now the source of truth and should stay in sync with the latest git tag.

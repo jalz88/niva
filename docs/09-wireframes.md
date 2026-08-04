@@ -26,7 +26,7 @@ Mobile layout, top to bottom:
 3. Revenue by platform: small horizontal bar list (Airbnb, Agoda, ...), tied to the same period/property.
 4. Recent transactions: last 5, "View all" link to Transactions.
 5. Floating Quick Add button, bottom-right, always reachable while scrolling.
-6. Bottom navigation: Dashboard, Transactions, Reports, More (→ Administration).
+6. Bottom navigation: Dashboard, Transactions, raised Add, Reports, More (→ Account, Administration, and future areas — see "Navigation chrome" below).
 
 Desktop delta: summary card and platform revenue sit side by side; recent transactions becomes a wider table; navigation moves to a persistent left sidebar.
 
@@ -97,5 +97,8 @@ States: loading (skeleton cards, no fake numbers); empty (no transactions yet th
 
 ## Navigation chrome
 
-- Mobile: bottom navigation bar (Dashboard, Transactions, Reports, More) with the current section visually marked; Quick Add floats above it, never inside it.
-- Desktop: persistent left sidebar with the same four destinations plus the active property/period shown in the top bar, not repeated per-page.
+**Decided 2026-08-04**, after comparing three patterns side by side (bottom nav + full-screen "More" hub, bottom nav + swipe-up sheet, side drawer only) — chosen for protecting Quick Add's prominence while still scaling to every future feature without another nav redesign.
+
+- Mobile: bottom navigation bar with 5 slots — Dashboard, Transactions, a raised Add button in the center, Reports, and More. Add opens the same Quick Add sheet as before (an action, not a destination). More opens a swipe-up sheet listing every other destination: Account today; Recurring bills, Notifications, Receipts, and Housekeeping & Inventory join this sheet as each is actually built, with no change to the bar itself.
+- Desktop: persistent left sidebar lists every destination inline (Dashboard, Transactions, Reports, Account, Administration) — there's room, so nothing is collapsed into a hub. The floating Quick Add button stays bottom-right, unchanged from before.
+- Administration only appears (mobile sheet or desktop sidebar) for roles permitted per `05-information-architecture.md`.
