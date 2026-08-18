@@ -35,20 +35,23 @@ async function handleSubmit(payload: TransactionPayload): Promise<NivaError | nu
         <Transition name="slide-up">
           <div
             v-if="quickAdd.open"
-            class="fixed inset-x-0 bottom-0 z-50 max-h-[90vh] overflow-y-auto rounded-t-lg bg-white shadow-lg md:inset-x-auto md:bottom-8 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2 md:rounded-md"
+            class="fixed inset-x-0 bottom-0 z-50 max-h-[90vh] overflow-y-auto rounded-t-lg bg-neutral-100 shadow-lg md:inset-x-auto md:bottom-8 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2 md:rounded-md"
           >
-            <div class="sticky top-0 flex items-center justify-between border-b border-neutral-200 bg-white p-4">
-              <h2 class="text-h3 font-semibold text-neutral-900">Add transaction</h2>
-              <button
-                type="button"
-                aria-label="Close"
-                class="rounded-sm p-1 text-neutral-500 hover:bg-neutral-100"
-                @click="quickAdd.hide()"
-              >
-                <X :size="20" />
-              </button>
+            <div class="sticky top-0 bg-neutral-100 px-5 pt-2 pb-1">
+              <div class="mx-auto mb-3 h-1 w-9 rounded-pill bg-neutral-300 md:hidden" />
+              <div class="flex items-center justify-between">
+                <h2 class="text-h3 font-semibold text-neutral-900">Add transaction</h2>
+                <button
+                  type="button"
+                  aria-label="Close"
+                  class="rounded-sm p-1 text-neutral-500 hover:bg-neutral-200/60"
+                  @click="quickAdd.hide()"
+                >
+                  <X :size="20" />
+                </button>
+              </div>
             </div>
-            <div class="p-4">
+            <div class="px-5 pt-2 pb-5">
               <TransactionForm
                 v-if="workspaceId"
                 mode="create"

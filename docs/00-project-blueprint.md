@@ -106,6 +106,7 @@ This initial set establishes intent. The next set, created before corresponding 
 - ~~Design system and detailed wireframes for every initial screen.~~ Done — see `08-design-system.md` and `09-wireframes.md` (companion low-fidelity mockups in `wireframes.html`).
 - ~~API/data-access specification and error contract.~~ Done — see `10-api-data-access-spec.md`.
 - ~~Coding standards, test strategy, deployment runbook, and AI development guide.~~ Done — see `11-coding-standards-and-test-strategy.md`.
+- UX options review, covering every shipped screen and pipeline feature as a behavior question (not a visual one), with alternatives and a recommendation per item, awaiting decisions — see `12-ux-options-review.md` (2026-08-05).
 
 All four Phase 0 documentation artifacts are complete as of 2026-07-19. Phase 0's remaining exit criteria — approving this set and confirming initial seed values (property, currency, categories, payment methods) — are the last steps before Phase 1 technical foundation work begins, per `06-development-roadmap.md`.
 

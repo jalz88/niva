@@ -23,14 +23,29 @@ async function openQuickAdd(page: Page) {
   await expect(page.getByRole('heading', { name: 'Add transaction' })).toBeVisible()
 }
 
+// Category/Payment method render as a favorite-chip row plus a borderless
+// "More" overflow popover (docs/08-design-system.md §5.1) rather than a
+// native <select> — pick whichever surface actually has the option rather
+// than assuming it's always favorited.
+async function selectChipOption(page: Page, groupLabel: string, optionLabel: string) {
+  const group = page.getByRole('group', { name: groupLabel })
+  const favoriteChip = group.getByRole('button', { name: optionLabel, exact: true })
+  if (await favoriteChip.count()) {
+    await favoriteChip.click()
+    return
+  }
+  await group.getByRole('button', { name: 'More' }).click()
+  await group.getByRole('button', { name: optionLabel, exact: true }).click()
+}
+
 async function fillAndSubmit(
   page: Page,
   opts: { type: 'income' | 'expense'; amount: string; categoryLabel: string; paymentLabel: string },
 ) {
   await page.getByRole('button', { name: opts.type === 'income' ? 'Income' : 'Expense', exact: true }).click()
   await page.getByLabel('Amount').fill(opts.amount)
-  await page.getByLabel('Category').selectOption({ label: opts.categoryLabel })
-  await page.getByLabel('Payment method').selectOption({ label: opts.paymentLabel })
+  await selectChipOption(page, 'Category', opts.categoryLabel)
+  await selectChipOption(page, 'Payment method', opts.paymentLabel)
   await page.getByRole('button', { name: opts.type === 'income' ? 'Save income' : 'Save expense' }).click()
 }
 

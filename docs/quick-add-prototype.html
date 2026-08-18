@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIVA — Quick Add prototype</title>
+<style>
+  :root {
+    --color-accent-50: #FBEEE7;
+    --color-accent-100: #F5D6C4;
+    --color-accent-500: #B5542A;
+    --color-accent-600: #954423;
+    --color-accent-700: #74351C;
+    --color-neutral-50: #FAF8F6;
+    --color-neutral-100: #F3EFEA;
+    --color-neutral-200: #E6DFD7;
+    --color-neutral-300: #D3C8BC;
+    --color-neutral-400: #A99C8E;
+    --color-neutral-500: #7D7266;
+    --color-neutral-700: #453F37;
+    --color-neutral-900: #1C1916;
+    --color-positive-600: #2F7D5A;
+    --color-negative-600: #B3261E;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --radius-pill: 9999px;
+    --shadow-sm: 0 1px 2px rgba(28, 25, 22, 0.06);
+    --shadow-md: 0 4px 12px rgba(28, 25, 22, 0.10);
+    --font-sans: -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--color-neutral-200);
+    font-family: var(--font-sans);
+    color: var(--color-neutral-900);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .note {
+    max-width: 430px;
+    width: 100%;
+    padding: 10px 20px;
+    font-size: 12px;
+    color: var(--color-neutral-500);
+    text-align: center;
+    box-sizing: border-box;
+  }
+  .stage {
+    width: 100%;
+    max-width: 430px;
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    min-height: 640px;
+  }
+  .sheet {
+    width: 100%;
+    background: var(--color-neutral-100);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding: 10px 22px 24px;
+    box-sizing: border-box;
+  }
+  .handle { width: 36px; height: 4px; border-radius: var(--radius-pill); background: var(--color-neutral-300); margin: 4px auto 16px; }
+  .sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .sheet-header h1 { font-size: 17px; font-weight: 600; margin: 0; }
+  .close-btn { background: none; border: none; color: var(--color-neutral-500); cursor: pointer; padding: 4px; }
+
+  .section { margin-bottom: 22px; }
+  .section-label {
+    font-size: 11px; font-weight: 600; color: var(--color-neutral-400);
+    text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 10px;
+  }
+  .field-label { font-size: 13px; color: var(--color-neutral-500); margin: 0 0 8px; }
+
+  /* Segmented toggle — capsule, no borders, solid pill slides */
+  .toggle { position: relative; display: flex; background: #fff; border-radius: var(--radius-pill); padding: 4px; box-shadow: var(--shadow-sm); margin-bottom: 14px; }
+  .toggle-pill { position: absolute; top: 4px; bottom: 4px; width: calc(50% - 4px); border-radius: var(--radius-pill); transition: transform 0.22s ease, background 0.22s ease; }
+  .toggle-pill.income { background: var(--color-positive-600); transform: translateX(0); }
+  .toggle-pill.expense { background: var(--color-accent-500); transform: translateX(100%); }
+  .toggle button { position: relative; z-index: 1; flex: 1; border: none; background: none; padding: 12px; font-size: 15px; font-weight: 600; color: var(--color-neutral-500); cursor: pointer; }
+  .toggle button.active { color: #fff; }
+
+  /* Amount — no border, just weight and a card lift */
+  .amount-card { background: #fff; border-radius: var(--radius-md); padding: 14px 16px; box-shadow: var(--shadow-sm); }
+  .amount-top { display: flex; justify-content: space-between; align-items: baseline; }
+  .amount-value { border: none; outline: none; background: none; font-size: 26px; font-weight: 600; color: var(--color-neutral-900); width: 100%; padding: 4px 0 0; font-family: var(--font-sans); border-bottom: 2px solid transparent; }
+  .amount-value:focus { border-bottom-color: var(--color-accent-500); }
+  .currency-chip { border: none; background: var(--color-neutral-100); color: var(--color-neutral-700); font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: var(--radius-pill); cursor: pointer; }
+
+  /* Chips — fill + shadow, no stroke */
+  .chip-row { display: flex; gap: 8px; flex-wrap: wrap; position: relative; }
+  .chip { border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--color-neutral-700); cursor: pointer; }
+  .chip.selected { background: var(--color-accent-50); color: var(--color-accent-700); box-shadow: none; }
+  .chip.more.selected { background: var(--color-accent-50); color: var(--color-accent-700); box-shadow: none; }
+
+  .popover { width: 100%; margin-top: 8px; background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-md); overflow: hidden; }
+  .popover-row { padding: 12px 16px; font-size: 14px; color: var(--color-neutral-900); cursor: pointer; }
+  .popover-row:hover, .popover-row:active { background: var(--color-neutral-50); }
+
+  /* Details — flat rows on the sheet background, hairline dividers only */
+  .detail-row { padding: 13px 0; border-bottom: 1px solid var(--color-neutral-200); cursor: pointer; }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-row-collapsed { display: flex; justify-content: space-between; align-items: center; }
+  .detail-row-label { font-size: 14px; color: var(--color-neutral-500); }
+  .detail-row-value { font-size: 14px; color: var(--color-neutral-900); display: flex; align-items: center; gap: 6px; }
+  .detail-row-value.placeholder { color: var(--color-neutral-400); }
+  .detail-row-expanded { padding-top: 4px; }
+  .detail-row-expanded .field-label { margin-bottom: 8px; }
+  .expanded-list { display: flex; flex-direction: column; }
+  .expanded-list button { text-align: left; border: none; background: none; padding: 10px 0; font-size: 14px; color: var(--color-neutral-900); cursor: pointer; }
+  .expanded-list button:hover { color: var(--color-accent-600); }
+  .plain-input { width: 100%; border: none; border-bottom: 2px solid var(--color-neutral-300); background: none; font-size: 15px; font-family: var(--font-sans); color: var(--color-neutral-900); padding: 6px 0; outline: none; }
+  .plain-input:focus { border-bottom-color: var(--color-accent-500); }
+  textarea.plain-input { resize: vertical; min-height: 60px; border: none; background: var(--color-neutral-50); border-radius: var(--radius-sm); padding: 10px; }
+  .link-btn { background: none; border: none; color: var(--color-accent-600); font-size: 12px; cursor: pointer; padding: 8px 0 0; }
+
+  .save-btn { width: 100%; border: none; border-radius: var(--radius-lg); padding: 15px; font-size: 15px; font-weight: 600; color: #fff; background: var(--color-accent-500); cursor: pointer; margin-top: 6px; }
+  .save-btn:disabled { background: var(--color-neutral-300); color: var(--color-neutral-50); cursor: not-allowed; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
+    background: var(--color-neutral-900); color: #fff; padding: 10px 16px; border-radius: var(--radius-md);
+    font-size: 13px; display: flex; align-items: center; gap: 8px; opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease; max-width: 90vw;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast svg { flex-shrink: 0; color: #6FCF97; }
+  svg { display: block; }
+  .chev { color: var(--color-neutral-400); }
+
+  .style-switcher { max-width: 430px; width: 100%; display: flex; gap: 6px; padding: 0 20px 12px; box-sizing: border-box; flex-wrap: wrap; justify-content: center; }
+  .style-switcher button { border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 7px 13px; font-size: 12px; font-weight: 500; color: var(--color-neutral-700); cursor: pointer; }
+  .style-switcher button.active { background: var(--color-accent-500); color: #fff; box-shadow: none; }
+
+  .subchip-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .subchip { border: none; background: var(--color-neutral-50); border-radius: var(--radius-pill); padding: 7px 12px; font-size: 12px; font-weight: 500; color: var(--color-neutral-500); cursor: pointer; }
+  .subchip.selected { background: var(--color-accent-50); color: var(--color-accent-700); }
+
+  .sub-sheet-overlay { position: fixed; inset: 0; background: rgba(28, 25, 22, 0.35); display: flex; align-items: flex-end; justify-content: center; z-index: 20; }
+  .sub-sheet { width: 100%; max-width: 430px; background: #fff; border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 10px 20px 24px; box-sizing: border-box; }
+  .sub-sheet .handle { margin-bottom: 14px; }
+  .sub-sheet-title { font-size: 15px; font-weight: 600; margin: 0 0 8px; }
+  .sub-sheet-row { padding: 13px 0; border-bottom: 1px solid var(--color-neutral-200); font-size: 15px; color: var(--color-neutral-900); cursor: pointer; }
+  .sub-sheet-row:last-child { border-bottom: none; }
+  .sub-sheet-row.selected { color: var(--color-accent-600); font-weight: 600; }
+
+  .skip-caption { font-size: 12px; color: var(--color-neutral-400); margin-top: 8px; }
+
+  .prop-toggle-title { color: var(--color-accent-600); cursor: pointer; text-decoration: underline; text-decoration-color: var(--color-accent-100); text-underline-offset: 3px; }
+  .prop-picker { margin: 8px 0 4px; background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-md); overflow: hidden; }
+  .prop-picker-row { padding: 11px 16px; font-size: 14px; color: var(--color-neutral-900); cursor: pointer; }
+  .prop-picker-row.selected { color: var(--color-accent-600); font-weight: 600; }
+  .prop-picker-row:hover { background: var(--color-neutral-50); }
+</style>
+</head>
+<body>
+
+<div class="note">Prototype — Quick Add, no box borders or dropdown chrome, optional fields collapse to one line until tapped. Nothing here is actually saved.</div>
+
+<div class="style-switcher" id="propertyCountSwitcher">
+  <button type="button" data-count="1">Simulate 1 property</button>
+  <button type="button" data-count="2">Simulate 2 properties</button>
+</div>
+
+<div class="style-switcher" id="catLabelSwitcher">
+  <button type="button" data-labelstyle="field">Field label style</button>
+  <button type="button" data-labelstyle="caps">Section label style</button>
+</div>
+
+<div class="style-switcher" id="subStyleSwitcher">
+  <button type="button" data-style="inline">Inline chips</button>
+  <button type="button" data-style="sheet">Bottom sheet</button>
+  <button type="button" data-style="skip">Skip in Quick Add</button>
+</div>
+
+<div class="stage">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="sheet-header">
+      <div id="sheetTitleWrap"></div>
+      <button class="close-btn" aria-label="Close" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="propertyPicker"></div>
+    <div id="form"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+  <span id="toast-text"></span>
+</div>
+
+<script>
+var CATEGORIES = {
+  expense: {
+    favorites: [
+      { id: 'util', name: 'Utilities', subs: ['Electricity', 'Water', 'Internet'] },
+      { id: 'clean', name: 'Cleaning' },
+      { id: 'groc', name: 'Groceries', subs: ['Eggs', 'Milk', 'Vegetables', 'Bread', 'Meat'] }
+    ],
+    more: [
+      { id: 'maint', name: 'Maintenance' },
+      { id: 'ins', name: 'Insurance' },
+      { id: 'sup', name: 'Supplies' },
+      { id: 'misc', name: 'Miscellaneous' }
+    ]
+  },
+  income: {
+    favorites: [
+      { id: 'book', name: 'Booking revenue' },
+      { id: 'other', name: 'Other income' },
+      { id: 'refund', name: 'Refund received' }
+    ],
+    more: [
+      { id: 'dep', name: 'Deposit forfeited' },
+      { id: 'int', name: 'Interest' }
+    ]
+  }
+};
+var PAYMENT_FAVORITES = [{ id: 'cash', name: 'Cash' }, { id: 'card', name: 'Card' }, { id: 'bank', name: 'Bank transfer' }];
+var PAYMENT_MORE = [{ id: 'ewallet', name: 'E-wallet' }, { id: 'cheque', name: 'Cheque' }];
+var PLATFORMS = ['Airbnb', 'Agoda'];
+var SUPPLIERS = ['ABC Cleaners', 'City Hardware'];
+var CURRENCIES = ['LKR', 'USD', 'AED'];
+var PROPERTIES = ['Kandy BnB', 'Bali Villa'];
+
+var state = {
+  propertyCount: 2,
+  qaProperty: 'Kandy BnB',
+  qaPropertyOpen: false,
+  catLabelStyle: 'field',
+  type: 'expense',
+  currency: 'LKR',
+  amount: '3,500',
+  date: new Date().toISOString().slice(0, 10),
+  categoryId: 'groc',
+  subcategoryId: '',
+  paymentMethodId: 'cash',
+  platform: '',
+  supplierMode: 'select',
+  supplierValue: '',
+  notes: '',
+  categoryMoreOpen: false,
+  paymentMoreOpen: false,
+  openDetailRow: '',
+  subcategoryStyle: 'inline',
+  subSheetOpen: false
+};
+
+function findCategory(id) {
+  var set = CATEGORIES[state.type];
+  return set.favorites.concat(set.more).filter(function (c) { return c.id === id; })[0];
+}
+function chevron() {
+  return '<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>';
+}
+function fmtDate(iso) {
+  var d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function chipRow(favorites, moreList, selectedId, moreOpenKey, action) {
+  var currentSelected = findCategoryOrPayment(action, selectedId);
+  var isFavorite = favorites.indexOf(currentSelected) !== -1;
+  var moreLabel = (!isFavorite && currentSelected) ? currentSelected.name : 'More';
+  var html = '<div class="chip-row">';
+  html += favorites.map(function (c) {
+    return '<button type="button" class="chip' + (selectedId === c.id ? ' selected' : '') + '" data-action="' + action + '" data-value="' + c.id + '">' + c.name + '</button>';
+  }).join('');
+  html += '<button type="button" class="chip more' + (!isFavorite && selectedId ? ' selected' : '') + '" data-action="' + action + '-more-toggle">' + moreLabel + '</button>';
+  html += '</div>';
+  if (state[moreOpenKey]) {
+    html += '<div class="popover">' + moreList.map(function (c) {
+      return '<div class="popover-row" data-action="' + action + '-more-pick" data-value="' + c.id + '">' + c.name + '</div>';
+    }).join('') + '</div>';
+  }
+  return html;
+}
+function findCategoryOrPayment(action, id) {
+  if (action === 'category') return findCategory(id);
+  var all = PAYMENT_FAVORITES.concat(PAYMENT_MORE);
+  return all.filter(function (p) { return p.id === id; })[0];
+}
+
+function detailRow(key, label, valueHtml, placeholder, expandedHtml) {
+  var open = state.openDetailRow === key;
+  var html = '<div class="detail-row">';
+  if (!open) {
+    html += '<div class="detail-row-collapsed" data-action="open-detail" data-value="' + key + '">';
+    html += '<span class="detail-row-label">' + label + '</span>';
+    html += '<span class="detail-row-value' + (valueHtml ? '' : ' placeholder') + '">' + (valueHtml || placeholder) + chevron() + '</span>';
+    html += '</div>';
+  } else {
+    html += '<div class="detail-row-expanded"><p class="field-label">' + label + '</p>' + expandedHtml + '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderHeader() {
+  var titleHtml;
+  if (state.propertyCount === 1) {
+    titleHtml = '<h1>Add transaction</h1>';
+  } else {
+    titleHtml = '<h1>Add transaction for <span id="propToggle" class="prop-toggle-title">' + state.qaProperty + '</span></h1>';
+  }
+  document.getElementById('sheetTitleWrap').innerHTML = titleHtml;
+
+  var pickerHtml = '';
+  if (state.propertyCount === 2 && state.qaPropertyOpen) {
+    pickerHtml = '<div class="prop-picker">' + PROPERTIES.map(function (p) {
+      return '<div class="prop-picker-row' + (state.qaProperty === p ? ' selected' : '') + '" data-proppick="' + p + '">' + p + '</div>';
+    }).join('') + '</div>';
+  }
+  document.getElementById('propertyPicker').innerHTML = pickerHtml;
+
+  var toggle = document.getElementById('propToggle');
+  if (toggle) toggle.onclick = function () { state.qaPropertyOpen = !state.qaPropertyOpen; renderHeader(); };
+  document.querySelectorAll('[data-proppick]').forEach(function (el) {
+    el.onclick = function () { state.qaProperty = this.getAttribute('data-proppick'); state.qaPropertyOpen = false; renderHeader(); };
+  });
+}
+
+function render() {
+  renderHeader();
+  var set = CATEGORIES[state.type];
+  var currentCategory = findCategory(state.categoryId);
+  var hasSubs = currentCategory && currentCategory.subs && currentCategory.subs.length > 0;
+  var currentPayment = findCategoryOrPayment('payment', state.paymentMethodId);
+
+  var html = '';
+
+  html += '<div class="section">';
+  html += '<p class="section-label">Amount and type</p>';
+  html += '<div class="toggle">';
+  html += '<div class="toggle-pill ' + state.type + '"></div>';
+  html += '<button type="button" class="' + (state.type === 'income' ? 'active' : '') + '" data-action="type" data-value="income">Income</button>';
+  html += '<button type="button" class="' + (state.type === 'expense' ? 'active' : '') + '" data-action="type" data-value="expense">Expense</button>';
+  html += '</div>';
+  html += '<div class="amount-card"><div class="amount-top"><span class="field-label" style="margin:0">Amount</span><button type="button" class="currency-chip" data-action="currency-cycle">' + state.currency + '</button></div>';
+  html += '<input class="amount-value" type="text" inputmode="decimal" placeholder="0.00" value="' + state.amount + '" data-action="amount" /></div>';
+  html += '</div>';
+
+  var catPayClass = state.catLabelStyle === 'caps' ? 'section-label' : 'field-label';
+
+  html += '<div class="section">';
+  html += '<p class="' + catPayClass + '">Category</p>';
+  html += chipRow(set.favorites, set.more, state.categoryId, 'categoryMoreOpen', 'category');
+
+  var subSheetHtml = '';
+  if (hasSubs) {
+    if (state.subcategoryStyle === 'inline') {
+      html += '<div class="subchip-row">' + currentCategory.subs.map(function (s) {
+        return '<button type="button" class="subchip' + (state.subcategoryId === s ? ' selected' : '') + '" data-action="subcategory-pick" data-value="' + s + '">' + s + '</button>';
+      }).join('') + '</div>';
+    } else if (state.subcategoryStyle === 'sheet') {
+      var subLabel = state.subcategoryId ? state.subcategoryId : 'Add specific item (optional)';
+      html += '<button type="button" class="link-btn" style="margin-top:8px" data-action="open-sub-sheet">' + subLabel + '</button>';
+      if (state.subSheetOpen) {
+        subSheetHtml = '<div class="sub-sheet-overlay" id="subSheetOverlay"><div class="sub-sheet">' +
+          '<div class="handle"></div><p class="sub-sheet-title">Choose a specific item</p>' +
+          currentCategory.subs.map(function (s) {
+            return '<div class="sub-sheet-row' + (state.subcategoryId === s ? ' selected' : '') + '" data-action="subcategory-pick-sheet" data-value="' + s + '">' + s + '</div>';
+          }).join('') +
+          '<div class="sub-sheet-row" data-action="subcategory-pick-sheet" data-value="">None</div>' +
+          '</div></div>';
+      }
+    } else if (state.subcategoryStyle === 'skip') {
+      html += '<p class="skip-caption">A specific item can be added later from the transaction detail page.</p>';
+    }
+  }
+  html += '<div style="height:14px"></div>';
+  html += '<p class="' + catPayClass + '">Payment method</p>';
+  html += chipRow(PAYMENT_FAVORITES, PAYMENT_MORE, state.paymentMethodId, 'paymentMoreOpen', 'payment');
+  html += '</div>';
+
+  html += '<div class="section">';
+  html += '<p class="section-label">Details</p>';
+  html += detailRow('date', 'Date', fmtDate(state.date), 'Today',
+    '<input class="plain-input" type="date" value="' + state.date + '" data-action="date" />');
+
+  if (state.type === 'income') {
+    html += detailRow('platform', 'Platform (optional)', state.platform, 'None',
+      '<div class="expanded-list">' + PLATFORMS.map(function (p) {
+        return '<button type="button" data-action="platform-pick" data-value="' + p + '">' + p + '</button>';
+      }).join('') + '<button type="button" data-action="platform-pick" data-value="">None</button></div>');
+  } else {
+    if (state.supplierMode === 'select') {
+      html += detailRow('supplier', 'Supplier (optional)', state.supplierValue, 'None',
+        '<div class="expanded-list">' + SUPPLIERS.map(function (s) {
+          return '<button type="button" data-action="supplier-pick" data-value="' + s + '">' + s + '</button>';
+        }).join('') + '<button type="button" data-action="supplier-pick" data-value="">None</button><button type="button" data-action="supplier-new-mode">+ Add new supplier…</button></div>');
+    } else {
+      html += detailRow('supplier', 'Supplier (optional)', state.supplierValue, 'None',
+        '<input class="plain-input" type="text" placeholder="Supplier name" value="' + state.supplierValue + '" data-action="supplier-text" />' +
+        '<button type="button" class="link-btn" data-action="supplier-back">Choose an existing supplier instead</button>');
+    }
+  }
+
+  html += detailRow('notes', 'Notes (optional)', state.notes ? (state.notes.length > 22 ? state.notes.slice(0, 22) + '…' : state.notes) : '', 'Add a note',
+    '<textarea class="plain-input" rows="2" data-action="notes">' + state.notes + '</textarea>');
+  html += '</div>';
+
+  var canSave = parseFloat((state.amount + '').replace(/,/g, '')) > 0 && state.categoryId && state.paymentMethodId;
+  html += '<button type="button" class="save-btn" data-action="save"' + (canSave ? '' : ' disabled') + '>' + (state.type === 'income' ? 'Save income' : 'Save expense') + '</button>';
+
+  document.getElementById('form').innerHTML = html + subSheetHtml;
+  bind();
+}
+
+function closePopovers() { state.categoryMoreOpen = false; state.paymentMoreOpen = false; }
+
+function bind() {
+  var root = document.getElementById('form');
+
+  root.querySelectorAll('[data-action="type"]').forEach(function (el) {
+    el.onclick = function () { state.type = this.getAttribute('data-value'); state.categoryId = ''; state.subcategoryId = ''; closePopovers(); render(); };
+  });
+
+  var amountEl = root.querySelector('[data-action="amount"]');
+  if (amountEl) { amountEl.oninput = function () { state.amount = this.value; }; amountEl.onblur = render; }
+
+  var currencyBtn = root.querySelector('[data-action="currency-cycle"]');
+  if (currencyBtn) currencyBtn.onclick = function () {
+    var idx = CURRENCIES.indexOf(state.currency);
+    state.currency = CURRENCIES[(idx + 1) % CURRENCIES.length];
+    render();
+  };
+
+  root.querySelectorAll('[data-action="category"]').forEach(function (el) {
+    el.onclick = function () { state.categoryId = this.getAttribute('data-value'); state.subcategoryId = ''; closePopovers(); render(); };
+  });
+  var catMoreToggle = root.querySelector('[data-action="category-more-toggle"]');
+  if (catMoreToggle) catMoreToggle.onclick = function () { state.paymentMoreOpen = false; state.categoryMoreOpen = !state.categoryMoreOpen; render(); };
+  root.querySelectorAll('[data-action="category-more-pick"]').forEach(function (el) {
+    el.onclick = function () { state.categoryId = this.getAttribute('data-value'); state.subcategoryId = ''; closePopovers(); render(); };
+  });
+
+  root.querySelectorAll('[data-action="payment"]').forEach(function (el) {
+    el.onclick = function () { state.paymentMethodId = this.getAttribute('data-value'); closePopovers(); render(); };
+  });
+  var payMoreToggle = root.querySelector('[data-action="payment-more-toggle"]');
+  if (payMoreToggle) payMoreToggle.onclick = function () { state.categoryMoreOpen = false; state.paymentMoreOpen = !state.paymentMoreOpen; render(); };
+  root.querySelectorAll('[data-action="payment-more-pick"]').forEach(function (el) {
+    el.onclick = function () { state.paymentMethodId = this.getAttribute('data-value'); closePopovers(); render(); };
+  });
+
+  root.querySelectorAll('[data-action="open-detail"]').forEach(function (el) {
+    el.onclick = function () { state.openDetailRow = this.getAttribute('data-value'); render(); };
+  });
+
+  var dateEl = root.querySelector('[data-action="date"]');
+  if (dateEl) dateEl.onchange = function () { state.date = this.value; state.openDetailRow = ''; render(); };
+
+  root.querySelectorAll('[data-action="subcategory-pick"]').forEach(function (el) {
+    el.onclick = function () { state.subcategoryId = this.getAttribute('data-value'); state.openDetailRow = ''; render(); };
+  });
+  var openSubSheetBtn = root.querySelector('[data-action="open-sub-sheet"]');
+  if (openSubSheetBtn) openSubSheetBtn.onclick = function () { state.subSheetOpen = true; render(); };
+  root.querySelectorAll('[data-action="subcategory-pick-sheet"]').forEach(function (el) {
+    el.onclick = function () { state.subcategoryId = this.getAttribute('data-value'); state.subSheetOpen = false; render(); };
+  });
+  var subSheetOverlay = root.querySelector('#subSheetOverlay');
+  if (subSheetOverlay) subSheetOverlay.onclick = function (e) { if (e.target === this) { state.subSheetOpen = false; render(); } };
+  root.querySelectorAll('[data-action="platform-pick"]').forEach(function (el) {
+    el.onclick = function () { state.platform = this.getAttribute('data-value'); state.openDetailRow = ''; render(); };
+  });
+  root.querySelectorAll('[data-action="supplier-pick"]').forEach(function (el) {
+    el.onclick = function () { state.supplierValue = this.getAttribute('data-value'); state.openDetailRow = ''; render(); };
+  });
+  var supplierNewMode = root.querySelector('[data-action="supplier-new-mode"]');
+  if (supplierNewMode) supplierNewMode.onclick = function () { state.supplierMode = 'new'; state.supplierValue = ''; render(); };
+  var supplierText = root.querySelector('[data-action="supplier-text"]');
+  if (supplierText) supplierText.oninput = function () { state.supplierValue = this.value; };
+  var supplierBack = root.querySelector('[data-action="supplier-back"]');
+  if (supplierBack) supplierBack.onclick = function () { state.supplierMode = 'select'; state.supplierValue = ''; render(); };
+
+  var notesEl = root.querySelector('[data-action="notes"]');
+  if (notesEl) { notesEl.oninput = function () { state.notes = this.value; }; notesEl.onblur = function () { state.openDetailRow = ''; render(); }; }
+
+  var saveBtn = root.querySelector('[data-action="save"]');
+  if (saveBtn) saveBtn.onclick = function () {
+    if (this.disabled) return;
+    var cat = findCategory(state.categoryId);
+    var label = (state.type === 'income' ? 'Income' : 'Expense') + ' saved — ' + state.currency + ' ' + state.amount + ' · ' + (cat ? cat.name : '') + (state.propertyCount === 2 ? ' · ' + state.qaProperty : '');
+    showToast(label);
+    state.amount = '';
+    state.notes = '';
+    state.supplierValue = '';
+    state.supplierMode = 'select';
+    state.openDetailRow = '';
+    render();
+  };
+}
+
+function showToast(text) {
+  var toast = document.getElementById('toast');
+  document.getElementById('toast-text').textContent = text;
+  toast.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(function () { toast.classList.remove('show'); }, 3000);
+}
+
+function updateCatLabelSwitcherUI() {
+  document.querySelectorAll('#catLabelSwitcher button').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-labelstyle') === state.catLabelStyle);
+  });
+}
+document.querySelectorAll('#catLabelSwitcher button').forEach(function (b) {
+  b.onclick = function () {
+    state.catLabelStyle = this.getAttribute('data-labelstyle');
+    updateCatLabelSwitcherUI();
+    render();
+  };
+});
+updateCatLabelSwitcherUI();
+
+function updatePropertyCountSwitcherUI() {
+  document.querySelectorAll('#propertyCountSwitcher button').forEach(function (b) {
+    b.classList.toggle('active', parseInt(b.getAttribute('data-count'), 10) === state.propertyCount);
+  });
+}
+document.querySelectorAll('#propertyCountSwitcher button').forEach(function (b) {
+  b.onclick = function () {
+    state.propertyCount = parseInt(this.getAttribute('data-count'), 10);
+    state.qaPropertyOpen = false;
+    updatePropertyCountSwitcherUI();
+    renderHeader();
+  };
+});
+updatePropertyCountSwitcherUI();
+
+function updateStyleSwitcherUI() {
+  document.querySelectorAll('#subStyleSwitcher button').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-style') === state.subcategoryStyle);
+  });
+}
+document.querySelectorAll('#subStyleSwitcher button').forEach(function (b) {
+  b.onclick = function () {
+    state.subcategoryStyle = this.getAttribute('data-style');
+    state.subSheetOpen = false;
+    updateStyleSwitcherUI();
+    render();
+  };
+});
+updateStyleSwitcherUI();
+
+render();
+</script>
+</body>
+</html>

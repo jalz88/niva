@@ -9,6 +9,8 @@ import { useCategories, topLevelCategories, subcategoriesOf } from '@/composable
 import { usePaymentMethods } from '@/composables/usePaymentMethods'
 import { useCurrencies } from '@/composables/useCurrencies'
 import { useSuppliers } from '@/composables/useSuppliers'
+import ChipPicker from '@/components/ui/ChipPicker.vue'
+import DetailRow from '@/components/ui/DetailRow.vue'
 import type { NivaError } from '@/lib/errors'
 
 const props = defineProps<{
@@ -28,10 +30,12 @@ const currencies = useCurrencies()
 const suppliers = useConfigItems('suppliers')
 
 // No property field on this form — see 2026-07-20 real-user-testing
-// feedback. Today there's exactly one active property, so it's assigned
-// silently. Once a second property exists, a header property switcher
-// (not built yet) becomes the "which property am I working on" control —
-// this form still won't need a field for it.
+// feedback, reaffirmed 2026-08-06 (docs/12-ux-options-review.md C.9). While
+// there's exactly one active property, it's assigned silently. Once a
+// second property exists, this title becomes "Add transaction for
+// [Property]" with a quiet tappable switch (prototyped in
+// docs/quick-add-prototype.html) — deliberately not built yet since it
+// isn't exercisable with today's single-property reality.
 const activePropertyId = computed(() => properties.items.value.find((p) => p.is_active)?.id ?? '')
 
 watch(
@@ -89,9 +93,25 @@ const [currencyCode] = defineField('currencyCode')
 const [occurredOn, occurredOnAttrs] = defineField('occurredOn')
 const [categoryId] = defineField('categoryId')
 const [paymentMethodId] = defineField('paymentMethodId')
-const [platformId, platformIdAttrs] = defineField('platformId')
+const [platformId] = defineField('platformId')
 const [supplierName, supplierNameAttrs] = defineField('supplierName')
 const [notes] = defineField('notes')
+
+// ---- Minimalist UI state — docs/08-design-system.md §5.1 -----------------
+// Only one "More" popover and one collapsed-field expansion open at a
+// time, mirroring docs/quick-add-prototype.html's single-flag state.
+const openPopover = ref<'category' | 'payment' | 'currency' | ''>('')
+const openDetailRow = ref<'date' | 'platform' | 'supplier' | 'notes' | ''>('')
+
+function togglePopover(name: 'category' | 'payment' | 'currency') {
+  openPopover.value = openPopover.value === name ? '' : name
+}
+function openDetail(row: 'date' | 'platform' | 'supplier' | 'notes') {
+  openDetailRow.value = row
+}
+function closeDetail() {
+  openDetailRow.value = ''
+}
 
 // ---- Category: favorite chips + "more" + optional sub-category --------
 // Everything here derives from categoryId + the loaded category list, so
@@ -120,23 +140,38 @@ const subcategoryOptions = computed(() =>
 const showSubcategoryRow = computed(() => subcategoryOptions.value.length > 0)
 const noCategoriesAvailable = computed(() => favoriteCategories.value.length === 0 && moreCategories.value.length === 0)
 
-const categoryMoreValue = computed({
-  get: () => (favoriteCategories.value.some((c) => c.id === currentTopCategoryId.value) ? '' : currentTopCategoryId.value),
-  // Picking a different top-level category always clears any sub-category
-  // selection, since categoryId becomes that top-level id directly.
-  set: (id: string) => setFieldValue('categoryId', id),
-})
-const subcategorySelectValue = computed({
-  get: () => currentSubcategoryId.value,
-  set: (id: string) => setFieldValue('categoryId', id || currentTopCategoryId.value),
+// Name shown on the category "More" chip when the current selection came
+// from overflow rather than the favorite row — null/'' keeps the chip
+// reading as plain "More".
+const categoryMoreSelectedLabel = computed(() => {
+  if (!currentTopCategoryId.value) return ''
+  if (favoriteCategories.value.some((c) => c.id === currentTopCategoryId.value)) return ''
+  const match =
+    moreCategories.value.find((c) => c.id === currentTopCategoryId.value) ??
+    categories.items.value.find((c) => c.id === currentTopCategoryId.value)
+  return match?.name ?? ''
 })
 
+function selectFavoriteCategory(id: string) {
+  setFieldValue('categoryId', id)
+  openPopover.value = ''
+}
+function selectMoreCategory(id: string) {
+  setFieldValue('categoryId', id)
+  openPopover.value = ''
+}
+function selectSubcategory(id: string) {
+  setFieldValue('categoryId', currentSubcategoryId.value === id ? currentTopCategoryId.value : id)
+}
+
 // Switching Income/Expense invalidates whatever category was selected for
-// the other type.
+// the other type, and closes anything open.
 watch(type, () => {
   if (currentCategory.value && currentCategory.value.type !== type.value) {
     setFieldValue('categoryId', '')
   }
+  openPopover.value = ''
+  openDetailRow.value = ''
 })
 
 // ---- Payment method: favorite chips + "more" ----------------------------
@@ -145,14 +180,42 @@ const favoritePaymentMethods = computed(() => paymentMethods.items.value.filter(
 const morePaymentMethods = computed(() =>
   paymentMethods.items.value.filter((p) => !p.is_favorite && (p.is_active || p.id === paymentMethodId.value)),
 )
-const paymentMoreValue = computed({
-  get: () => (favoritePaymentMethods.value.some((p) => p.id === paymentMethodId.value) ? '' : paymentMethodId.value),
-  set: (id: string) => setFieldValue('paymentMethodId', id),
+const paymentMoreSelectedLabel = computed(() => {
+  if (!paymentMethodId.value) return ''
+  if (favoritePaymentMethods.value.some((p) => p.id === paymentMethodId.value)) return ''
+  const match =
+    morePaymentMethods.value.find((p) => p.id === paymentMethodId.value) ??
+    paymentMethods.items.value.find((p) => p.id === paymentMethodId.value)
+  return match?.name ?? ''
 })
+
+function selectFavoritePayment(id: string) {
+  setFieldValue('paymentMethodId', id)
+  openPopover.value = ''
+}
+function selectMorePayment(id: string) {
+  setFieldValue('paymentMethodId', id)
+  openPopover.value = ''
+}
+
+// ---- Currency — borderless popover instead of native <select> ------------
+
+const enabledCurrencies = computed(() => currencies.rows.value.filter((r) => r.enabled))
+
+function selectCurrency(code: string) {
+  setFieldValue('currencyCode', code)
+  openPopover.value = ''
+}
 
 // ---- Platform (income) ---------------------------------------------------
 
 const platformOptions = computed(() => platforms.items.value.filter((p) => p.is_active || p.id === props.initialValues?.platformId))
+const platformName = computed(() => platformOptions.value.find((p) => p.id === platformId.value)?.name ?? '')
+
+function pickPlatform(id: string) {
+  setFieldValue('platformId', id)
+  closeDetail()
+}
 
 // ---- Supplier: pick existing or type a new one ---------------------------
 
@@ -160,26 +223,40 @@ const supplierOptions = computed(() => suppliers.items.value.filter((s) => s.is_
 // Editing a transaction that already has a supplier: show it as free text
 // straight away rather than guessing whether it's still in the active list.
 const supplierMode = ref<'select' | 'new'>(props.initialValues?.supplierName ? 'new' : 'select')
-const supplierSelectValue = ref('')
 
-function onSupplierSelectChange() {
-  if (supplierSelectValue.value === '__new__') {
-    supplierMode.value = 'new'
-    setFieldValue('supplierName', '')
-  } else {
-    setFieldValue('supplierName', supplierSelectValue.value)
-  }
+function pickSupplier(name: string) {
+  setFieldValue('supplierName', name)
+  closeDetail()
 }
-
+function startNewSupplier() {
+  supplierMode.value = 'new'
+  setFieldValue('supplierName', '')
+}
 function backToSupplierSelect() {
   supplierMode.value = 'select'
-  supplierSelectValue.value = ''
   setFieldValue('supplierName', '')
+}
+
+// ---- Date / Notes display helpers -----------------------------------------
+
+const formattedDate = computed(() => {
+  const d = dayjs(occurredOn.value)
+  return d.isValid() ? d.format('D MMM YYYY') : ''
+})
+function onDateChange() {
+  closeDetail()
+}
+const notesPreview = computed(() => {
+  const value = (notes.value ?? '').trim()
+  if (!value) return ''
+  return value.length > 22 ? `${value.slice(0, 22)}…` : value
+})
+function onNotesBlur() {
+  closeDetail()
 }
 
 // ---- Submit ---------------------------------------------------------------
 
-const showNotes = ref(!!props.initialValues?.notes)
 const submitting = ref(false)
 const submitError = ref<NivaError | null>(null)
 
@@ -241,49 +318,57 @@ const onFormSubmit = handleSubmit(async (formValues) => {
     // what's specific to this one entry, per
     // docs/04-ui-ux-principles.md §4 "Default intelligently".
     resetForm({ values: { ...values, amount: '', notes: '', supplierName: '' } })
-    showNotes.value = false
     supplierMode.value = 'select'
-    supplierSelectValue.value = ''
+    openPopover.value = ''
+    openDetailRow.value = ''
   }
 })
 </script>
 
 <template>
-  <form class="flex flex-col gap-4" @submit="onFormSubmit">
-    <!-- Type toggle -->
-    <div class="grid grid-cols-2 gap-2">
-      <button
-        type="button"
-        class="rounded-sm border py-3 text-body font-semibold"
-        :class="type === 'income' ? 'border-positive-600 bg-positive-600/10 text-positive-600' : 'border-neutral-200 text-neutral-500'"
-        @click="setFieldValue('type', 'income')"
-      >
-        Income
-      </button>
-      <button
-        type="button"
-        class="rounded-sm border py-3 text-body font-semibold"
-        :class="type === 'expense' ? 'border-negative-600 bg-negative-600/10 text-negative-600' : 'border-neutral-200 text-neutral-500'"
-        @click="setFieldValue('type', 'expense')"
-      >
-        Expense
-      </button>
-    </div>
+  <form class="flex flex-col" @submit="onFormSubmit">
+    <!-- Amount and type -->
+    <div class="mb-5">
+      <p class="mb-2.5 text-caption font-semibold uppercase tracking-wide text-neutral-400">Amount and type</p>
 
-    <!-- Amount + currency -->
-    <div>
-      <label class="mb-1 block text-body-sm text-neutral-700" for="tx-amount">Amount</label>
-      <div class="flex gap-2">
-        <select
-          v-if="currencies.rows.value.filter((r) => r.enabled).length > 1"
-          v-model="currencyCode"
-          class="rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none"
+      <div class="relative mb-3.5 flex rounded-pill bg-white p-1 shadow-sm">
+        <div
+          class="absolute inset-y-1 w-[calc(50%-4px)] rounded-pill transition-transform duration-200 ease-out"
+          :class="type === 'income' ? 'translate-x-0 bg-positive-600' : 'translate-x-full bg-accent-500'"
+        />
+        <button
+          type="button"
+          class="relative z-10 flex-1 py-3 text-body font-semibold"
+          :class="type === 'income' ? 'text-white' : 'text-neutral-500'"
+          @click="setFieldValue('type', 'income')"
         >
-          <option v-for="c in currencies.rows.value.filter((r) => r.enabled)" :key="c.code" :value="c.code">{{ c.code }}</option>
-        </select>
-        <span v-else class="flex items-center rounded-sm border border-neutral-200 bg-neutral-100 px-3 text-body text-neutral-500">
-          {{ currencyCode }}
-        </span>
+          Income
+        </button>
+        <button
+          type="button"
+          class="relative z-10 flex-1 py-3 text-body font-semibold"
+          :class="type === 'expense' ? 'text-white' : 'text-neutral-500'"
+          @click="setFieldValue('type', 'expense')"
+        >
+          Expense
+        </button>
+      </div>
+
+      <div class="rounded-md bg-white p-4 shadow-sm">
+        <div class="flex items-baseline justify-between">
+          <label for="tx-amount" class="text-body-sm text-neutral-500">Amount</label>
+          <button
+            v-if="enabledCurrencies.length > 1"
+            type="button"
+            class="rounded-pill bg-neutral-100 px-2.5 py-1.5 text-caption font-semibold text-neutral-700"
+            @click="togglePopover('currency')"
+          >
+            {{ currencyCode }}
+          </button>
+          <span v-else class="rounded-pill bg-neutral-100 px-2.5 py-1.5 text-caption font-semibold text-neutral-500">
+            {{ currencyCode }}
+          </span>
+        </div>
         <input
           id="tx-amount"
           v-model="amount"
@@ -291,187 +376,176 @@ const onFormSubmit = handleSubmit(async (formValues) => {
           type="text"
           inputmode="decimal"
           placeholder="0.00"
-          class="flex-1 rounded-sm border border-neutral-200 bg-white p-2.5 text-amount font-semibold focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
+          class="w-full border-0 border-b-2 border-transparent bg-transparent pt-1 font-sans text-[26px] font-semibold text-neutral-900 outline-none focus:border-accent-500"
         />
+      </div>
+      <div v-if="openPopover === 'currency'" class="mt-2 overflow-hidden rounded-md bg-white shadow-md">
+        <button
+          v-for="c in enabledCurrencies"
+          :key="c.code"
+          type="button"
+          class="block w-full px-4 py-3 text-left text-body text-neutral-900 hover:bg-neutral-50"
+          @click="selectCurrency(c.code)"
+        >
+          {{ c.code }}
+        </button>
       </div>
       <p v-if="errors.amount" class="mt-1 text-caption text-negative-600">{{ errors.amount }}</p>
     </div>
 
-    <!-- Date -->
-    <div>
-      <label class="mb-1 block text-body-sm text-neutral-700" for="tx-date">Date</label>
-      <input
-        id="tx-date"
-        v-model="occurredOn"
-        v-bind="occurredOnAttrs"
-        type="date"
-        class="w-full rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
+    <!-- Category / Payment method — no wrapping group label, see
+         docs/12-ux-options-review.md C.11/C.12 -->
+    <div class="mb-5">
+      <p class="mb-2 text-body-sm text-neutral-500">Category</p>
+      <ChipPicker
+        group-label="Category"
+        :favorites="favoriteCategories"
+        :more-options="moreCategories"
+        :selected-id="currentTopCategoryId"
+        :more-selected-label="categoryMoreSelectedLabel"
+        :open="openPopover === 'category'"
+        @select-favorite="selectFavoriteCategory"
+        @select-more="selectMoreCategory"
+        @toggle-more="togglePopover('category')"
       />
-      <p v-if="errors.occurredOn" class="mt-1 text-caption text-negative-600">{{ errors.occurredOn }}</p>
-    </div>
-
-    <!-- Category -->
-    <div>
-      <label class="mb-1 block text-body-sm text-neutral-700" for="tx-category-more">Category</label>
-
-      <div v-if="favoriteCategories.length" class="mb-2 grid grid-cols-3 gap-2">
-        <button
-          v-for="c in favoriteCategories"
-          :key="c.id"
-          type="button"
-          :aria-pressed="currentTopCategoryId === c.id"
-          class="rounded-sm border px-2 py-2.5 text-caption font-medium leading-tight"
-          :class="
-            currentTopCategoryId === c.id
-              ? 'border-accent-500 bg-accent-50 text-accent-700'
-              : 'border-neutral-200 text-neutral-700 hover:bg-neutral-100'
-          "
-          @click="setFieldValue('categoryId', c.id)"
-        >
-          {{ c.name }}
-        </button>
-      </div>
-
-      <select
-        v-if="moreCategories.length"
-        id="tx-category-more"
-        v-model="categoryMoreValue"
-        class="w-full rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
-      >
-        <option value="">More categories…</option>
-        <option v-for="c in moreCategories" :key="c.id" :value="c.id">{{ c.name }}</option>
-      </select>
-
       <p v-if="errors.categoryId" class="mt-1 text-caption text-negative-600">{{ errors.categoryId }}</p>
       <p v-if="noCategoriesAvailable" class="mt-1 text-caption text-neutral-500">
         No {{ type }} categories yet — add one in Administration → Categories.
       </p>
 
-      <div v-if="showSubcategoryRow" class="mt-2">
-        <label class="mb-1 block text-body-sm text-neutral-700" for="tx-subcategory">Sub-category (optional)</label>
-        <select
-          id="tx-subcategory"
-          v-model="subcategorySelectValue"
-          class="w-full rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
-        >
-          <option value="">None</option>
-          <option v-for="c in subcategoryOptions" :key="c.id" :value="c.id">{{ c.name }}</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Payment method -->
-    <div>
-      <label class="mb-1 block text-body-sm text-neutral-700" for="tx-payment-more">Payment method</label>
-
-      <div v-if="favoritePaymentMethods.length" class="mb-2 grid grid-cols-3 gap-2">
+      <div v-if="showSubcategoryRow" class="mt-2 flex flex-wrap gap-1.5">
         <button
-          v-for="p in favoritePaymentMethods"
-          :key="p.id"
+          v-for="c in subcategoryOptions"
+          :key="c.id"
           type="button"
-          :aria-pressed="paymentMethodId === p.id"
-          class="rounded-sm border px-2 py-2.5 text-caption font-medium leading-tight"
-          :class="
-            paymentMethodId === p.id
-              ? 'border-accent-500 bg-accent-50 text-accent-700'
-              : 'border-neutral-200 text-neutral-700 hover:bg-neutral-100'
-          "
-          @click="setFieldValue('paymentMethodId', p.id)"
+          :aria-pressed="currentSubcategoryId === c.id"
+          class="rounded-pill bg-neutral-50 px-3 py-1.5 text-caption font-medium text-neutral-500"
+          :class="currentSubcategoryId === c.id ? 'bg-accent-50 text-accent-700' : ''"
+          @click="selectSubcategory(c.id)"
         >
-          {{ p.name }}
+          {{ c.name }}
         </button>
       </div>
 
-      <select
-        v-if="morePaymentMethods.length"
-        id="tx-payment-more"
-        v-model="paymentMoreValue"
-        class="w-full rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
-      >
-        <option value="">More payment methods…</option>
-        <option v-for="p in morePaymentMethods" :key="p.id" :value="p.id">{{ p.name }}</option>
-      </select>
+      <div class="h-3.5" />
 
+      <p class="mb-2 text-body-sm text-neutral-500">Payment method</p>
+      <ChipPicker
+        group-label="Payment method"
+        :favorites="favoritePaymentMethods"
+        :more-options="morePaymentMethods"
+        :selected-id="paymentMethodId"
+        :more-selected-label="paymentMoreSelectedLabel"
+        :open="openPopover === 'payment'"
+        @select-favorite="selectFavoritePayment"
+        @select-more="selectMorePayment"
+        @toggle-more="togglePopover('payment')"
+      />
       <p v-if="errors.paymentMethodId" class="mt-1 text-caption text-negative-600">{{ errors.paymentMethodId }}</p>
     </div>
 
-    <!-- Platform (income) -->
-    <div v-if="type === 'income'">
-      <label class="mb-1 block text-body-sm text-neutral-700" for="tx-platform">Platform (optional)</label>
-      <select
-        id="tx-platform"
-        v-model="platformId"
-        v-bind="platformIdAttrs"
-        class="w-full rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
-      >
-        <option value="">None</option>
-        <option v-for="p in platformOptions" :key="p.id" :value="p.id">{{ p.name }}</option>
-      </select>
-    </div>
+    <!-- Details -->
+    <div class="mb-1">
+      <p class="mb-1 text-caption font-semibold uppercase tracking-wide text-neutral-400">Details</p>
 
-    <!-- Supplier (expense) — pick existing or add a new one -->
-    <div v-else>
-      <label class="mb-1 block text-body-sm text-neutral-700" for="tx-supplier">Supplier (optional)</label>
-      <select
-        v-if="supplierMode === 'select'"
-        id="tx-supplier"
-        v-model="supplierSelectValue"
-        class="w-full rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
-        @change="onSupplierSelectChange"
-      >
-        <option value="">None</option>
-        <option v-for="s in supplierOptions" :key="s.id" :value="s.name">{{ s.name }}</option>
-        <option value="__new__">+ Add new supplier…</option>
-      </select>
-      <div v-else class="flex flex-col gap-1.5">
+      <DetailRow label="Date" :open="openDetailRow === 'date'" :value-text="formattedDate" placeholder="Today" @toggle="openDetail('date')">
         <input
-          id="tx-supplier"
-          v-model="supplierName"
-          v-bind="supplierNameAttrs"
-          type="text"
-          placeholder="Supplier name"
-          class="w-full rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
+          id="tx-date"
+          v-model="occurredOn"
+          v-bind="occurredOnAttrs"
+          type="date"
+          class="w-full border-0 border-b-2 border-neutral-300 bg-transparent py-1.5 font-sans text-body text-neutral-900 outline-none focus:border-accent-500"
+          @change="onDateChange"
         />
-        <button
-          v-if="supplierOptions.length"
-          type="button"
-          class="self-start text-caption font-medium text-accent-600 hover:text-accent-700"
-          @click="backToSupplierSelect"
-        >
-          Choose an existing supplier instead
-        </button>
-      </div>
+      </DetailRow>
+      <p v-if="errors.occurredOn" class="mt-1 text-caption text-negative-600">{{ errors.occurredOn }}</p>
+
+      <DetailRow
+        v-if="type === 'income'"
+        label="Platform (optional)"
+        :open="openDetailRow === 'platform'"
+        :value-text="platformName"
+        placeholder="None"
+        @toggle="openDetail('platform')"
+      >
+        <div class="flex flex-col">
+          <button
+            v-for="p in platformOptions"
+            :key="p.id"
+            type="button"
+            class="border-0 bg-transparent py-2.5 text-left text-body text-neutral-900 hover:text-accent-600"
+            @click="pickPlatform(p.id)"
+          >
+            {{ p.name }}
+          </button>
+          <button type="button" class="border-0 bg-transparent py-2.5 text-left text-body text-neutral-900 hover:text-accent-600" @click="pickPlatform('')">
+            None
+          </button>
+        </div>
+      </DetailRow>
+
+      <DetailRow
+        v-else
+        label="Supplier (optional)"
+        :open="openDetailRow === 'supplier'"
+        :value-text="supplierName"
+        placeholder="None"
+        @toggle="openDetail('supplier')"
+      >
+        <div v-if="supplierMode === 'select'" class="flex flex-col">
+          <button
+            v-for="s in supplierOptions"
+            :key="s.id"
+            type="button"
+            class="border-0 bg-transparent py-2.5 text-left text-body text-neutral-900 hover:text-accent-600"
+            @click="pickSupplier(s.name)"
+          >
+            {{ s.name }}
+          </button>
+          <button type="button" class="border-0 bg-transparent py-2.5 text-left text-body text-neutral-900 hover:text-accent-600" @click="pickSupplier('')">
+            None
+          </button>
+          <button type="button" class="border-0 bg-transparent py-2.5 text-left text-body text-accent-600 hover:text-accent-700" @click="startNewSupplier">
+            + Add new supplier…
+          </button>
+        </div>
+        <div v-else class="flex flex-col gap-1">
+          <input
+            id="tx-supplier"
+            v-model="supplierName"
+            v-bind="supplierNameAttrs"
+            type="text"
+            placeholder="Supplier name"
+            class="w-full border-0 border-b-2 border-neutral-300 bg-transparent py-1.5 font-sans text-body text-neutral-900 outline-none focus:border-accent-500"
+          />
+          <button
+            v-if="supplierOptions.length"
+            type="button"
+            class="self-start border-0 bg-transparent p-0 pt-1 text-caption font-medium text-accent-600 hover:text-accent-700"
+            @click="backToSupplierSelect"
+          >
+            Choose an existing supplier instead
+          </button>
+        </div>
+      </DetailRow>
+
+      <DetailRow label="Notes (optional)" :open="openDetailRow === 'notes'" :value-text="notesPreview" placeholder="Add a note" @toggle="openDetail('notes')">
+        <textarea
+          id="tx-notes"
+          v-model="notes"
+          rows="2"
+          class="w-full resize-y rounded-sm bg-neutral-50 p-2.5 font-sans text-body text-neutral-900 outline-none"
+          @blur="onNotesBlur"
+        />
+      </DetailRow>
     </div>
 
-    <!-- Notes -->
-    <button
-      v-if="!showNotes"
-      type="button"
-      class="self-start text-body-sm font-medium text-accent-600 hover:text-accent-700"
-      @click="showNotes = true"
-    >
-      + Add a note
-    </button>
-    <div v-else>
-      <label class="mb-1 block text-body-sm text-neutral-700" for="tx-notes">Notes (optional)</label>
-      <textarea
-        id="tx-notes"
-        v-model="notes"
-        rows="2"
-        class="w-full rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
-      />
-    </div>
-
-    <div
-      v-if="submitError"
-      class="rounded-md border border-negative-600/30 bg-negative-600/5 p-3 text-body-sm text-negative-600"
-      role="alert"
-    >
+    <div v-if="submitError" class="mt-4 rounded-md bg-negative-600/5 p-3 text-body-sm text-negative-600" role="alert">
       {{ submitError.message }}
       <button
         v-if="submitError.code === 'conflict'"
         type="button"
-        class="ml-2 font-semibold underline"
+        class="ml-2 border-0 bg-transparent p-0 font-semibold underline"
         @click="emit('reload-requested')"
       >
         Reload
@@ -481,7 +555,7 @@ const onFormSubmit = handleSubmit(async (formValues) => {
     <button
       type="submit"
       :disabled="submitting"
-      class="rounded-sm bg-accent-500 p-3 text-body font-semibold text-white hover:bg-accent-600 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500"
+      class="mt-5 rounded-lg bg-accent-500 p-4 text-body font-semibold text-white hover:bg-accent-600 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-50"
     >
       {{ submitLabel }}
     </button>

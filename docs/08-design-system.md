@@ -49,6 +49,8 @@ Per `04-ui-ux-principles.md` §6: never rely on color alone for income/expense. 
 
 All semantic tokens meet 4.5:1 contrast against `neutral-50`.
 
+**Income/Expense type toggle (decided 2026-08-06):** the Quick Add/Edit type toggle itself uses `positive-600` (green) for Income and `accent-500` (terracotta) for Expense — not `negative-600` red, which stays reserved for destructive actions and validation. This is scoped to that one control; amount coloring and +/- glyphs elsewhere keep the existing `positive-600`/`negative-600` pairing in §1.3.
+
 ### 1.4 Focus ring
 
 `accent-500` at 40% opacity, 2px offset ring — visible on every interactive element regardless of surface color. Never remove the browser focus indicator without replacing it.
@@ -102,7 +104,21 @@ Every interactive component must define, at minimum: default, hover (pointer onl
 
 **Inputs**
 
-Default: `neutral-50` bg, `neutral-200` border. Focus: `accent-500` border + focus ring. Error: `negative-600` border, error text below field in `text-caption` using `negative-600`. Disabled: `neutral-100` bg, `neutral-400` text, no border emphasis.
+**Superseded 2026-08-06** — see §5.1. Default is no longer a bordered box; separation comes from elevation and fill, not a `neutral-200` stroke. Error and disabled states are unchanged in meaning (error text in `text-caption`/`negative-600` below the field; disabled reduces to `neutral-400` text) but are now expressed without relying on a border either — a disabled row just loses its tap affordance and dims its text.
+
+### 5.1 Minimalist form language (decided 2026-08-06)
+
+Adopted app-wide, not just for one screen — "think like Google and Apple": separation is done with elevation (`shadow-sm`/`shadow-md`) and fill color, never a drawn border. Concretely:
+
+- **No box borders on inputs, chips, or cards.** A resting card/chip is `neutral-50` or white with `shadow-sm`, not a bordered rectangle. Selected/active state is a fill-color change (e.g. `accent-50` bg + `accent-700` text), not a border.
+- **No native `<select>` chrome.** "More…" pickers and any multi-option choice render as a custom borderless option list (white surface, `shadow-md`, row-per-option, tap to pick) instead of an OS-styled dropdown.
+- **Optional fields collapse to one line.** A field that isn't required to save (Date defaulting to today, Platform, Supplier, Notes, Sub-category) renders as a single row — label left, current value or muted placeholder right — and only expands into its real control when tapped. Required fields (e.g. Category, Payment method) stay always-visible as chips; they don't get the collapse treatment.
+- **Chip "More" trigger carries no arrow/chevron** — the label alone (or the picked value, once one is chosen from the overflow list) is enough; a chevron reads as extra chrome. Collapsed one-line rows (the point above) do keep a small chevron, since there the affordance is genuinely ambiguous without one.
+- **Sub-categories render as a lighter, smaller inline chip row directly beneath the Category chips**, appearing automatically the moment a category with sub-categories is selected — no extra tap. Decided 2026-08-06 after testing three real options (inline chips, a bottom-sheet picker, and skipping sub-category in Quick Add entirely) with Maria, the actual daily user — she chose inline chips specifically for speed, overriding the cleaner-but-slower bottom-sheet option that looked better on paper. Sub-categories still don't get their own favorite-chip tier — only top-level categories can be favorited (`07-domain-model-and-schema.md` §3) — so every sub-category of the selected category shows, unfiltered. Single-select only, confirmed 2026-08-06 — multi-select sub-category tags were considered and rejected; see `12-ux-options-review.md` Part C.10.
+
+Prototyped in `docs/quick-add-prototype.html` (2026-08-06), then shipped in production code 2026-08-18: `src/components/ui/ChipPicker.vue` (favorite chips + borderless "More" overflow, reused for both Category and Payment method), `src/components/ui/DetailRow.vue` (the collapsed-optional-field pattern, reused for Date/Platform/Supplier/Notes), and `src/components/transactions/TransactionForm.vue` (the full Quick Add/Edit rewrite — both screens share this one component). Category and Payment method labels use the lighter field-label style, not the bold-caps section-header style — decided 2026-08-06 (C.12) after comparing both live in the prototype. Existing shipped screens outside Transactions (Administration forms) still use the old bordered-input style and need a follow-up visual pass to match — not a same-day retrofit, but every screen touched from here on should use this language, and Administration should be revisited before Release-1-plus-features rather than left inconsistent indefinitely.
+
+Not built yet, deliberately: the multi-property "Add transaction for [Property]" title and quiet property switch from `12-ux-options-review.md` C.9 — there's only one active property today, so it isn't exercisable. `TransactionForm.vue` still assigns the single active property silently, same as before this rewrite. Build this the day a second property becomes real, not before (blueprint guardrail 1).
 
 ## 6. Icons
 

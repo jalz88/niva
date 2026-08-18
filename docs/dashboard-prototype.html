@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIVA — Dashboard prototype</title>
+<style>
+  :root {
+    --color-accent-50: #FBEEE7;
+    --color-accent-500: #B5542A;
+    --color-accent-600: #954423;
+    --color-accent-700: #74351C;
+    --color-neutral-50: #FAF8F6;
+    --color-neutral-100: #F3EFEA;
+    --color-neutral-200: #E6DFD7;
+    --color-neutral-300: #D3C8BC;
+    --color-neutral-400: #A99C8E;
+    --color-neutral-500: #7D7266;
+    --color-neutral-700: #453F37;
+    --color-neutral-900: #1C1916;
+    --color-positive-600: #2F7D5A;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --radius-pill: 9999px;
+    --shadow-sm: 0 1px 2px rgba(28, 25, 22, 0.06);
+    --shadow-md: 0 4px 12px rgba(28, 25, 22, 0.10);
+    --font-sans: -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--color-neutral-200);
+    font-family: var(--font-sans);
+    color: var(--color-neutral-900);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .note { max-width: 430px; width: 100%; padding: 10px 20px; font-size: 12px; color: var(--color-neutral-500); text-align: center; box-sizing: border-box; }
+  .style-switcher { max-width: 430px; width: 100%; display: flex; gap: 6px; padding: 0 20px 12px; box-sizing: border-box; flex-wrap: wrap; justify-content: center; }
+  .style-switcher button { border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 7px 13px; font-size: 12px; font-weight: 500; color: var(--color-neutral-700); cursor: pointer; }
+  .style-switcher button.active { background: var(--color-accent-500); color: #fff; box-shadow: none; }
+
+  .page { width: 100%; max-width: 430px; background: var(--color-neutral-100); border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 20px 20px 28px; box-sizing: border-box; flex: 1; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 16px; }
+
+  .strip { display: flex; align-items: center; gap: 8px; background: var(--color-accent-50); border-radius: var(--radius-md); padding: 10px 14px; margin-bottom: 14px; font-size: 12px; color: var(--color-accent-700); }
+
+  .card { background: #fff; border-radius: var(--radius-md); padding: 16px; box-shadow: var(--shadow-sm); margin-bottom: 14px; }
+  .card-label { font-size: 11px; color: var(--color-neutral-500); margin: 0; }
+  .card-value { font-size: 28px; font-weight: 600; color: var(--color-neutral-900); margin: 4px 0 0; }
+  .expand-btn { border: none; background: none; color: var(--color-accent-600); font-size: 12px; font-weight: 500; padding: 10px 0 0; cursor: pointer; }
+  .breakdown { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-neutral-200); }
+  .breakdown-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: var(--color-neutral-900); }
+  .breakdown-row span:first-child { color: var(--color-neutral-500); }
+
+  .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .bar-row:last-child { margin-bottom: 0; }
+  .bar-label { font-size: 12px; color: var(--color-neutral-900); width: 60px; flex-shrink: 0; }
+  .bar-track { flex: 1; height: 6px; background: var(--color-neutral-200); border-radius: var(--radius-pill); overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--color-accent-500); border-radius: var(--radius-pill); }
+  .bar-value { font-size: 12px; color: var(--color-neutral-500); width: 44px; text-align: right; flex-shrink: 0; }
+
+  .section-title { font-size: 13px; font-weight: 600; color: var(--color-neutral-900); margin: 0 0 10px; }
+</style>
+</head>
+<body>
+
+<div class="note">Prototype — Dashboard, always the combined view once a second property exists, detail on tap. Nothing here is live data.</div>
+
+<div class="style-switcher" id="propertyCountSwitcher">
+  <button type="button" data-count="1">Simulate 1 property</button>
+  <button type="button" data-count="2">Simulate 2 properties</button>
+</div>
+<div class="style-switcher" id="platformCountSwitcher">
+  <button type="button" data-pcount="1">Simulate 1 platform</button>
+  <button type="button" data-pcount="2">Simulate 2 platforms</button>
+</div>
+
+<div class="page">
+  <h1>Dashboard</h1>
+  <div id="content"></div>
+</div>
+
+<script>
+var state = { propertyCount: 2, expanded: false, platformCount: 1 };
+
+function render() {
+  var html = '';
+  html += '<div class="strip"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 2.1l4 4-4 4M3 12.7a4 4 0 0 1 4-4h13.9M7 21.9l-4-4 4-4M20.9 11.3a4 4 0 0 1-4 4H3"/></svg><span>Wifi bill due tomorrow · LKR 4,500</span></div>';
+
+  html += '<div class="card">';
+  if (state.propertyCount === 1) {
+    html += '<p class="card-label">This month · net</p>';
+    html += '<p class="card-value">LKR 128,400</p>';
+  } else {
+    html += '<p class="card-label">This month · net · all properties</p>';
+    html += '<p class="card-value">LKR 189,400</p>';
+    html += '<button type="button" id="expandBtn" class="expand-btn">' + (state.expanded ? 'Hide' : 'See') + ' by property</button>';
+    if (state.expanded) {
+      html += '<div class="breakdown">';
+      html += '<div class="breakdown-row"><span>Kandy BnB</span><span>LKR 128,400</span></div>';
+      html += '<div class="breakdown-row"><span>Bali Villa</span><span>LKR 61,000</span></div>';
+      html += '</div>';
+    }
+  }
+  html += '</div>';
+
+  if (state.platformCount === 2) {
+    html += '<div class="card"><p class="section-title">Revenue by platform</p>';
+    html += '<div class="bar-row"><span class="bar-label">Airbnb</span><div class="bar-track"><div class="bar-fill" style="width:70%"></div></div><span class="bar-value">140k</span></div>';
+    html += '<div class="bar-row"><span class="bar-label">Agoda</span><div class="bar-track"><div class="bar-fill" style="width:35%"></div></div><span class="bar-value">70k</span></div>';
+    html += '</div>';
+  }
+
+  document.getElementById('content').innerHTML = html;
+  var btn = document.getElementById('expandBtn');
+  if (btn) btn.onclick = function () { state.expanded = !state.expanded; render(); };
+}
+
+function updateSwitcherUI() {
+  document.querySelectorAll('#propertyCountSwitcher button').forEach(function (b) {
+    b.classList.toggle('active', parseInt(b.getAttribute('data-count'), 10) === state.propertyCount);
+  });
+  document.querySelectorAll('#platformCountSwitcher button').forEach(function (b) {
+    b.classList.toggle('active', parseInt(b.getAttribute('data-pcount'), 10) === state.platformCount);
+  });
+}
+document.querySelectorAll('#propertyCountSwitcher button').forEach(function (b) {
+  b.onclick = function () {
+    state.propertyCount = parseInt(this.getAttribute('data-count'), 10);
+    state.expanded = false;
+    updateSwitcherUI();
+    render();
+  };
+});
+document.querySelectorAll('#platformCountSwitcher button').forEach(function (b) {
+  b.onclick = function () {
+    state.platformCount = parseInt(this.getAttribute('data-pcount'), 10);
+    updateSwitcherUI();
+    render();
+  };
+});
+updateSwitcherUI();
+
+render();
+</script>
+</body>
+</html>
