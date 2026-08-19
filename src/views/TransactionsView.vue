@@ -304,8 +304,10 @@ function loadMore() {
               v-for="opt in [{ id: '', label: 'All types' }, { id: 'income', label: 'Income' }, { id: 'expense', label: 'Expense' }]"
               :key="opt.id || 'all'"
               type="button"
-              class="rounded-pill bg-white px-4 py-2.5 text-body-sm font-medium text-neutral-700 shadow-sm"
-              :class="filters.type === opt.id ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : ''"
+              class="rounded-pill px-4 py-2.5 text-body-sm"
+              :class="
+                filters.type === opt.id ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : 'bg-white font-medium text-neutral-700 shadow-sm'
+              "
               @click="filters.type = opt.id as '' | TransactionType"
             >
               {{ opt.label }}
@@ -318,8 +320,8 @@ function loadMore() {
           <div class="flex flex-wrap gap-2">
             <button
               type="button"
-              class="rounded-pill bg-white px-4 py-2.5 text-body-sm font-medium text-neutral-700 shadow-sm"
-              :class="!filters.propertyId ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : ''"
+              class="rounded-pill px-4 py-2.5 text-body-sm"
+              :class="!filters.propertyId ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : 'bg-white font-medium text-neutral-700 shadow-sm'"
               @click="filters.propertyId = ''"
             >
               All properties
@@ -328,8 +330,12 @@ function loadMore() {
               v-for="p in activeProperties"
               :key="p.id"
               type="button"
-              class="rounded-pill bg-white px-4 py-2.5 text-body-sm font-medium text-neutral-700 shadow-sm"
-              :class="filters.propertyId === p.id ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : ''"
+              class="rounded-pill px-4 py-2.5 text-body-sm"
+              :class="
+                filters.propertyId === p.id
+                  ? 'bg-accent-100 font-semibold text-accent-700 shadow-none'
+                  : 'bg-white font-medium text-neutral-700 shadow-sm'
+              "
               @click="filters.propertyId = p.id"
             >
               {{ p.name }}
@@ -366,8 +372,8 @@ function loadMore() {
           <div class="flex flex-wrap gap-2">
             <button
               type="button"
-              class="rounded-pill bg-white px-4 py-2.5 text-body-sm font-medium text-neutral-700 shadow-sm"
-              :class="!filters.platformId ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : ''"
+              class="rounded-pill px-4 py-2.5 text-body-sm"
+              :class="!filters.platformId ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : 'bg-white font-medium text-neutral-700 shadow-sm'"
               @click="filters.platformId = ''"
             >
               All platforms
@@ -376,8 +382,12 @@ function loadMore() {
               v-for="p in platforms.items.value"
               :key="p.id"
               type="button"
-              class="rounded-pill bg-white px-4 py-2.5 text-body-sm font-medium text-neutral-700 shadow-sm"
-              :class="filters.platformId === p.id ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : ''"
+              class="rounded-pill px-4 py-2.5 text-body-sm"
+              :class="
+                filters.platformId === p.id
+                  ? 'bg-accent-100 font-semibold text-accent-700 shadow-none'
+                  : 'bg-white font-medium text-neutral-700 shadow-sm'
+              "
               @click="filters.platformId = p.id"
             >
               {{ p.name }}

@@ -419,8 +419,8 @@ const onFormSubmit = handleSubmit(async (formValues) => {
           :key="c.id"
           type="button"
           :aria-pressed="currentSubcategoryId === c.id"
-          class="rounded-pill bg-neutral-50 px-3 py-1.5 text-caption font-medium text-neutral-500"
-          :class="currentSubcategoryId === c.id ? 'bg-accent-100 font-semibold text-accent-700' : ''"
+          class="rounded-pill px-3 py-1.5 text-caption"
+          :class="currentSubcategoryId === c.id ? 'bg-accent-100 font-semibold text-accent-700' : 'bg-neutral-50 font-medium text-neutral-500'"
           @click="selectSubcategory(c.id)"
         >
           {{ c.name }}

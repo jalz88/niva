@@ -43,8 +43,10 @@ const emit = defineEmits<{
         :key="f.id"
         type="button"
         :aria-pressed="props.selectedId === f.id"
-        class="rounded-pill bg-white px-4 py-2.5 text-body-sm font-medium text-neutral-700 shadow-sm"
-        :class="props.selectedId === f.id ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : ''"
+        class="rounded-pill px-4 py-2.5 text-body-sm"
+        :class="
+          props.selectedId === f.id ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : 'bg-white font-medium text-neutral-700 shadow-sm'
+        "
         @click="emit('select-favorite', f.id)"
       >
         {{ f.name }}
@@ -53,8 +55,10 @@ const emit = defineEmits<{
         v-if="props.moreOptions.length || props.moreSelectedLabel"
         type="button"
         :aria-pressed="!!props.moreSelectedLabel"
-        class="rounded-pill bg-white px-4 py-2.5 text-body-sm font-medium text-neutral-700 shadow-sm"
-        :class="props.moreSelectedLabel ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : ''"
+        class="rounded-pill px-4 py-2.5 text-body-sm"
+        :class="
+          props.moreSelectedLabel ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : 'bg-white font-medium text-neutral-700 shadow-sm'
+        "
         @click="emit('toggle-more')"
       >
         {{ props.moreSelectedLabel || 'More' }}
