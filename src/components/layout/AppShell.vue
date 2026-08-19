@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
-import { LayoutDashboard, Receipt, BarChart3, User, Settings, Plus, Menu } from 'lucide-vue-next'
+import { LayoutDashboard, Receipt, BarChart3, User, Settings, Repeat, Plus, Menu } from 'lucide-vue-next'
 import { useAuth } from '@/composables/useAuth'
 import { useQuickAddStore } from '@/stores/quickAddStore'
 import MoreSheet from './MoreSheet.vue'
@@ -12,10 +12,10 @@ const quickAdd = useQuickAddStore()
 const moreOpen = ref(false)
 
 // Mobile bottom bar keeps only the 3 destinations used every day, with Add
-// raised in the middle. Everything else — Account today, Recurring bills /
-// Notifications / Housekeeping & Inventory later — lives in the "More"
-// sheet so the bar never has to grow past 5 slots. Desktop has room to
-// spare, so its sidebar keeps showing every destination inline (below).
+// raised in the middle. Everything else — Account, Recurring payments
+// today, Notifications / Housekeeping & Inventory later — lives in the
+// "More" sheet so the bar never has to grow past 5 slots. Desktop has room
+// to spare, so its sidebar keeps showing every destination inline (below).
 // Decided 2026-08-04 — see docs/09-wireframes.md "Navigation chrome".
 const leftItems = computed(() => [
   { name: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -24,10 +24,13 @@ const leftItems = computed(() => [
 const rightItems = computed(() => [{ name: 'reports', label: 'Reports', icon: BarChart3 }])
 
 // Account is reachable by every role, not just administrator — signing out
-// or setting your own name isn't an admin-only capability.
+// or setting your own name isn't an admin-only capability. Recurring
+// payments is manager/administrator only — staff and viewer don't see the
+// entry at all, matching the RLS on the underlying table (migration 0011).
 const moreItems = computed(() =>
   [
     { name: 'account', label: 'Account', icon: User },
+    { name: 'recurring-payments', label: 'Recurring payments', icon: Repeat, roles: ['administrator', 'manager'] },
     { name: 'administration', label: 'Administration', icon: Settings, roles: ['administrator'] },
   ].filter((item) => !item.roles || (role.value && item.roles.includes(role.value))),
 )

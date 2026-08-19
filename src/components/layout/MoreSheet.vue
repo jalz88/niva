@@ -3,10 +3,11 @@ import type { Component } from 'vue'
 import { RouterLink } from 'vue-router'
 
 // Bottom sheet for the mobile "More" nav slot — houses every destination
-// that doesn't fit in the always-visible bottom bar (currently Account and
-// Administration). Built to grow: Recurring bills, Notifications, and
-// Housekeeping & Inventory will each just become another entry in `items`
-// once those features actually exist — no shell change needed then.
+// that doesn't fit in the always-visible bottom bar (currently Account,
+// Recurring payments, and Administration). Built to grow: Notifications
+// and Housekeeping & Inventory will each just become another entry in
+// `items` once those features actually exist — no shell change needed
+// then.
 // Decided 2026-08-04 after a 3-pattern visual comparison (bottom nav +
 // More hub vs. bottom nav + swipe-up vs. side drawer) — see
 // docs/09-wireframes.md "Navigation chrome".

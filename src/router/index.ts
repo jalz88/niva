@@ -47,6 +47,12 @@ const router = createRouter({
       component: () => import('@/views/ReportsView.vue'),
     },
     {
+      path: '/recurring-payments',
+      name: 'recurring-payments',
+      component: () => import('@/views/RecurringPaymentsView.vue'),
+      meta: { roles: ['administrator', 'manager'] },
+    },
+    {
       path: '/administration',
       name: 'administration',
       component: () => import('@/views/AdministrationView.vue'),

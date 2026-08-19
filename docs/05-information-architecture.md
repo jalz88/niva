@@ -27,6 +27,10 @@ NIVA
 │   ├── Period summary
 │   ├── Revenue by platform
 │   └── Expenses by category
+├── Recurring payments (manager/administrator only)
+│   ├── Overdue / Upcoming list — bills and staff wages on a schedule
+│   ├── Add / edit a payment (name, amount, category, payment method, monthly or weekly cadence)
+│   └── Mark paid — confirms amount/date/notes, logs the transaction, advances the schedule
 └── Administration
     ├── Properties
     ├── Platforms
@@ -56,6 +60,7 @@ Do not put these controls in every transaction form unless the choice is require
 | Transaction detail | What exactly was recorded? | All recorded fields, audit context appropriate to role, edit/delete controls when permitted. | Edit or return. |
 | Add/edit transaction | How do I record or correct this safely? | Type-aware, validated form. | Save income/expense or save changes. |
 | Reports | Where did money come from and go? | Period totals, revenue by platform, expenses by category, source transaction drill-down. | Change period/filter, inspect transactions. |
+| Recurring payments (manager/administrator only) | What's due, and did I already pay it? | Overdue/Upcoming list of bills and staff wages, each with amount, category, payment method, and cadence. | Add/edit a payment, Mark paid. |
 | Administration | What business values and access are available? | Small management lists with active/inactive state and impact-aware actions. | Add/change configuration. |
 
 ## Primary user flows
@@ -124,8 +129,8 @@ Permissions must be enforced in data access, not merely hidden in navigation.
 
 ## Navigation behavior
 
-- Desktop: persistent sidebar listing every destination inline (Dashboard, Transactions, Reports, Account, Administration when permitted) — there's room, so nothing is collapsed.
-- Mobile: bottom bar with Dashboard, Transactions, a raised Add, Reports, and More; More opens a sheet holding everything else (Account, Administration when permitted, and future areas as they're built — see "Navigation chrome" in `09-wireframes.md`, decided 2026-08-04). Quick Add remains prominent either way.
+- Desktop: persistent sidebar listing every destination inline (Dashboard, Transactions, Reports, Account, Recurring payments when permitted, Administration when permitted) — there's room, so nothing is collapsed.
+- Mobile: bottom bar with Dashboard, Transactions, a raised Add, Reports, and More; More opens a sheet holding everything else (Account, Recurring payments when permitted, Administration when permitted, and future areas as they're built — see "Navigation chrome" in `09-wireframes.md`, decided 2026-08-04). Quick Add remains prominent either way.
 - Deep links: authenticated users can open a transaction or report URL directly; users without access receive a clear permission state.
 - Back behavior: returns to the prior list/filter state wherever practical.
 

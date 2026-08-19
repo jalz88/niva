@@ -47,6 +47,18 @@ All three are `SECURITY DEFINER` functions guarded by `where is_workspace_member
 
 Amounts come back from Postgres as JSON numbers (same PostgREST behavior noted for `transactions.amount` above) and are converted to strings client-side before display — never summed or averaged again in JavaScript. Formatting uses `formatMoney`/`formatSignedMoney` (`src/lib/money.ts`).
 
+### Recurring payments (migration 0011)
+
+Manager/administrator only — every operation below is a no-op (empty result / RLS denial) for staff and viewer, both at the database and in the app's own nav gating (`07-domain-model-and-schema.md` §6). `useRecurringPayments()` (`src/composables/useRecurringPayments.ts`).
+
+| Operation | Shape | Notes |
+| --- | --- | --- |
+| `list(workspaceId)` | `Promise<RecurringPaymentWithLabels[]>` | ordered by `next_due_on`; includes joined `category_name`/`payment_method_name`, same embed pattern as Transactions' `get()` |
+| `create(workspaceId, input)` | `Promise<void>` | `nextDueOn` is computed client-side (`computeNextDueOn()`, `src/lib/recurringPayments.ts`) from the chosen cadence at creation time, not server-side |
+| `update(id, workspaceId, input)` | `Promise<void>` | the calling view only recomputes `nextDueOn` when the cadence itself changed since Edit was opened — editing just the amount or category must never silently reschedule the due date |
+| `remove(id, workspaceId)` | `Promise<void>` | a real hard `DELETE`, not an archive — stops future reminders only; `transactions.recurring_payment_id` is `ON DELETE SET NULL` so nothing already logged is affected |
+| `markPaid(workspaceId, id, amount, occurredOn, notes)` | `Promise<{ transactionId }>` | RPC `mark_recurring_payment_paid(p_recurring_payment_id, p_amount, p_occurred_on, p_notes)` — atomically inserts the expense transaction and advances `next_due_on` from the *previous scheduled* date, not `occurredOn` (see `07-domain-model-and-schema.md` §3 `recurring_payments`) |
+
 ### Workspace and membership
 
 | Operation | Shape | Notes |

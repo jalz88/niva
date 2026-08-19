@@ -31,7 +31,11 @@ workspaces
     ├── uses one payment method
     ├── has one currency_code + numeric amount
     ├── may reference one platform (typically income)
-    └── may reference one supplier (typically expense)
+    ├── may reference one supplier (typically expense)
+    └── may reference one recurring_payment (set by mark_recurring_payment_paid)
+├── recurring_payments (manager/administrator only — migration 0011)
+    ├── belongs to one property, one category (must be `expense`), one payment method
+    └── has a cadence: monthly (day of month) or weekly (day of week)
 
 iso_currencies (global reference table, not workspace-scoped)
 ```
@@ -152,12 +156,39 @@ Unique on `(workspace_id, currency_code)`.
 
 Delete is not exposed in Release 1 application logic; "delete" in the UI sets `status = 'archived'`. A true `DELETE` remains available at the database level for corrections/GDPR-style requests, restricted to administrators.
 
+### `recurring_payments` (migration 0011)
+
+Reminders for something that recurs on a schedule and is always an expense — a bill (Wifi, Electricity) or a staff wage paid on a standing bank order. NIVA never initiates or moves money; "Mark paid" (`mark_recurring_payment_paid`, below) just logs the transaction and advances the schedule. Manager/administrator only — staff and viewer get no RLS policy on this table at all, so it's invisible to them, not merely read-only. Docs: `12-ux-options-review.md` Part 2/B2.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | uuid, pk | |
+| workspace_id | uuid, not null, fk → workspaces.id | |
+| property_id | uuid, not null, fk → properties.id | silently assigned, same single-active-property convention as `transactions` |
+| name | text, not null | short free-text label ("Wifi", "Maria — wages") — kept separate from category so two payments sharing a category stay distinguishable |
+| category_id | uuid, not null, fk → categories.id | must be `type = 'expense'` (trigger) |
+| payment_method_id | uuid, not null, fk → payment_methods.id | |
+| currency_code | text, not null, fk → iso_currencies.code | must be enabled for the workspace (trigger) |
+| amount | numeric(14,2), not null | check `amount > 0`; the expected/default amount — editable per-payment at Mark-paid time |
+| cadence_type | text, not null | check in (`monthly`,`weekly`) |
+| cadence_day_of_month | smallint, null | 1–31; set only when `cadence_type = 'monthly'` |
+| cadence_day_of_week | smallint, null | 0 (Sunday) – 6 (Saturday), matching JS `Date#getDay()`; set only when `cadence_type = 'weekly'` |
+| next_due_on | date, not null | advanced by `mark_recurring_payment_paid`, never by a cron/scheduled job |
+| notes | text, null | |
+| created_by / created_at / updated_by / updated_at | | standard audit columns |
+
+A check constraint enforces exactly one of `cadence_day_of_month`/`cadence_day_of_week` being set, matching `cadence_type`. Deleting a row is a real hard `DELETE` (not an archive) — it only stops future reminders; `transactions.recurring_payment_id` is `ON DELETE SET NULL`, so anything already logged from it is untouched.
+
+`mark_recurring_payment_paid(p_recurring_payment_id, p_amount, p_occurred_on, p_notes)` — `SECURITY DEFINER`, manager/administrator only (checked explicitly inside, same pattern as `set_default_workspace_currency`). Atomically inserts the expense transaction (stamping `recurring_payment_id`) and advances `next_due_on`. Advancement is computed from the *previous scheduled* `next_due_on`, not `p_occurred_on` — paying a few days early or late never drifts the future schedule. Monthly advancement clamps to the last day of the target month when `cadence_day_of_month` doesn't exist there (e.g. day 31 into a 30-day month). Returns the new transaction's id.
+
 ## 4. Indexes
 
 - `transactions (workspace_id, occurred_on)` — dashboard/report period queries.
 - `transactions (workspace_id, property_id, occurred_on)` — property-filtered views.
 - `transactions (workspace_id, type, category_id)` — category reports.
 - `transactions (workspace_id, platform_id)` — revenue-by-platform report.
+- `transactions (recurring_payment_id) WHERE recurring_payment_id is not null` — traceability lookups, small partial index since most transactions have no recurring origin.
+- `recurring_payments (workspace_id, next_due_on)` — the Overdue/Upcoming grouping and Dashboard's "due soon" attention-strip item.
 - `workspace_memberships (user_id)` — RLS lookups.
 - Partial unique index on `workspace_currencies (workspace_id) WHERE is_default` — one default currency per workspace.
 
@@ -175,6 +206,10 @@ Three more rules, added by migration 0005 for the favorites/sub-category columns
 3. **Sub-category depth and consistency.** A `categories` row with `parent_category_id` set must reference a parent in the same `workspace_id`, the same `type`, and that parent must not itself have a parent (max one level deep).
 4. **Favorite limit, categories.** At most 3 rows with `is_favorite = true` per `(workspace_id, type)`.
 5. **Favorite limit, payment methods.** At most 3 rows with `is_favorite = true` per `workspace_id`.
+
+One more, added by migration 0011 on `recurring_payments`:
+
+6. **Category must be expense, currency must be enabled.** Same two checks as the `transactions` trigger (rules 1–2 above), applied on insert/update of a recurring payment definition rather than the transaction it eventually generates.
 
 ## 6. Row Level Security
 
@@ -198,6 +233,7 @@ Policy pattern applied per table (illustrative, not exhaustive):
 | `transactions` | any member of the workspace | administrator, manager, staff | administrator, manager | administrator, manager (sets `status='archived'`); hard `DELETE` restricted to administrator |
 | Configuration tables (properties, platforms, categories, payment_methods, workspace_currencies) | any member of the workspace | administrator | administrator | administrator (blocked by FK/trigger if referenced by a transaction — see below) |
 | `suppliers` | any member of the workspace | administrator, manager, staff | administrator | administrator (blocked by FK/trigger if referenced by a transaction) |
+| `recurring_payments` | administrator, manager only | administrator, manager | administrator, manager | administrator, manager (real hard delete, not archive) |
 | `workspace_memberships` | any member of the workspace | administrator | administrator | administrator |
 | `profiles` | self, and any workspace co-member | self (own row) | self (own row) | n/a |
 

@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIVA — Recurring payments prototype</title>
+<style>
+  :root {
+    --color-accent-50: #FBEEE7;
+    --color-accent-100: #F5D6C4;
+    --color-accent-500: #B5542A;
+    --color-accent-600: #954423;
+    --color-accent-700: #74351C;
+    --color-neutral-50: #FAF8F6;
+    --color-neutral-100: #F3EFEA;
+    --color-neutral-200: #E6DFD7;
+    --color-neutral-300: #D3C8BC;
+    --color-neutral-400: #A99C8E;
+    --color-neutral-500: #7D7266;
+    --color-neutral-700: #453F37;
+    --color-neutral-900: #1C1916;
+    --color-positive-600: #2F7D5A;
+    --color-negative-600: #B3261E;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --radius-pill: 9999px;
+    --shadow-sm: 0 1px 2px rgba(28, 25, 22, 0.06);
+    --shadow-md: 0 4px 12px rgba(28, 25, 22, 0.10);
+    --font-sans: -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--color-neutral-200);
+    font-family: var(--font-sans);
+    color: var(--color-neutral-900);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .note {
+    max-width: 430px;
+    width: 100%;
+    padding: 10px 20px;
+    font-size: 12px;
+    color: var(--color-neutral-500);
+    text-align: center;
+    box-sizing: border-box;
+  }
+
+  .stage { width: 100%; max-width: 430px; flex: 1; min-height: 680px; }
+  .screen { width: 100%; background: var(--color-neutral-50); min-height: 680px; padding: 18px 20px 24px; box-sizing: border-box; }
+
+  .screen-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .screen-header h1 { font-size: 22px; font-weight: 600; margin: 0; }
+  .add-btn { display: flex; align-items: center; gap: 6px; border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 9px 15px; font-size: 13px; font-weight: 500; color: var(--color-neutral-700); cursor: pointer; }
+
+  .section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin: 16px 0 8px; }
+  .section-label.overdue { color: var(--color-negative-600); }
+  .section-label.upcoming { color: var(--color-neutral-400); }
+
+  .bill-card { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 14px 16px; margin-bottom: 10px; cursor: pointer; }
+  .bill-card:hover { box-shadow: var(--shadow-md); }
+  .bill-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .bill-name { font-size: 15px; font-weight: 600; margin: 0; }
+  .bill-sub { font-size: 12px; color: var(--color-neutral-500); margin: 2px 0 0; }
+  .bill-amount { font-size: 17px; font-weight: 600; margin: 0; text-align: right; }
+  .bill-due { font-size: 12px; margin: 2px 0 0; text-align: right; }
+  .bill-due.overdue { color: var(--color-negative-600); }
+  .bill-due.upcoming { color: var(--color-neutral-500); }
+  .mark-paid-btn { width: 100%; border: none; border-radius: var(--radius-pill); background: var(--color-accent-500); color: #fff; font-size: 13px; font-weight: 600; padding: 10px 0; cursor: pointer; margin-top: 10px; }
+  .mark-paid-btn:hover { background: var(--color-accent-600); }
+  .tap-hint { font-size: 11px; color: var(--color-neutral-400); margin: 8px 0 0; text-align: center; }
+
+  .empty-state { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 28px 20px; text-align: center; }
+  .empty-state h2 { font-size: 17px; font-weight: 600; margin: 0 0 6px; }
+  .empty-state p { font-size: 13px; color: var(--color-neutral-500); margin: 0 0 16px; }
+
+  .overlay { position: fixed; inset: 0; background: rgba(28, 25, 22, 0.35); display: none; align-items: flex-end; justify-content: center; z-index: 20; }
+  .overlay.open { display: flex; }
+  .sheet { width: 100%; max-width: 430px; background: var(--color-neutral-100); border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 10px 22px 24px; box-sizing: border-box; max-height: 88vh; overflow-y: auto; }
+  .handle { width: 36px; height: 4px; border-radius: var(--radius-pill); background: var(--color-neutral-300); margin: 4px auto 16px; }
+  .sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+  .sheet-header h2 { font-size: 17px; font-weight: 600; margin: 0; }
+  .close-btn { background: none; border: none; color: var(--color-neutral-500); cursor: pointer; padding: 4px; }
+
+  .field { margin-bottom: 16px; }
+  .field-label { font-size: 13px; color: var(--color-neutral-500); margin: 0 0 8px; }
+  .text-input { width: 100%; border: none; border-radius: var(--radius-md); background: #fff; box-shadow: var(--shadow-sm); padding: 11px 13px; font-size: 15px; font-family: var(--font-sans); color: var(--color-neutral-900); }
+
+  .amount-card { background: #fff; border-radius: var(--radius-md); padding: 14px 16px; box-shadow: var(--shadow-sm); margin-bottom: 16px; }
+  .amount-top { display: flex; justify-content: space-between; align-items: baseline; }
+  .amount-value { border: none; outline: none; background: none; font-size: 26px; font-weight: 600; color: var(--color-neutral-900); width: 100%; padding: 4px 0 0; font-family: var(--font-sans); }
+  .currency-chip { border: none; background: var(--color-neutral-100); color: var(--color-neutral-700); font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: var(--radius-pill); }
+
+  .chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--color-neutral-700); cursor: pointer; }
+  .chip.selected { background: var(--color-accent-100); color: var(--color-accent-700); font-weight: 600; box-shadow: none; }
+  .chip.small { padding: 8px 13px; }
+
+  .cadence-card { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+  .cadence-card .field-label { margin: 0; }
+  .cadence-input { width: 56px; border: none; background: transparent; font-size: 16px; font-weight: 600; color: var(--color-neutral-900); text-align: right; font-family: var(--font-sans); }
+
+  .detail-row { padding: 13px 0; border-bottom: 1px solid var(--color-neutral-200); display: flex; justify-content: space-between; color: var(--color-neutral-500); font-size: 14px; cursor: pointer; }
+  .detail-row:last-of-type { border-bottom: none; margin-bottom: 16px; }
+
+  .save-btn { width: 100%; border: none; border-radius: var(--radius-lg); padding: 15px; font-size: 15px; font-weight: 600; color: #fff; background: var(--color-accent-500); cursor: pointer; margin-top: 6px; }
+  .delete-btn { width: 100%; border: 1px solid rgba(179, 38, 30, 0.3); background: none; border-radius: var(--radius-lg); padding: 13px; font-size: 14px; font-weight: 600; color: var(--color-negative-600); cursor: pointer; margin-top: 10px; }
+  .delete-btn:hover { background: rgba(179, 38, 30, 0.05); }
+
+  .confirm-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .confirm-row .text-input, .confirm-row input[type=date] { max-width: 150px; text-align: right; }
+
+  .small-sheet-text { font-size: 13px; color: var(--color-neutral-500); margin: 0 0 18px; }
+  .confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .cancel-btn { border: 1px solid var(--color-neutral-200); background: #fff; border-radius: var(--radius-sm); padding: 9px 16px; font-size: 13px; font-weight: 500; color: var(--color-neutral-700); cursor: pointer; }
+  .danger-btn { border: none; background: var(--color-negative-600); border-radius: var(--radius-sm); padding: 9px 16px; font-size: 13px; font-weight: 600; color: #fff; cursor: pointer; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
+    background: var(--color-neutral-900); color: #fff; padding: 10px 16px; border-radius: var(--radius-md);
+    font-size: 13px; display: flex; align-items: center; gap: 8px; opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease; max-width: 90vw; z-index: 30;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast svg { flex-shrink: 0; color: #6FCF97; }
+  svg { display: block; }
+  .chev { color: var(--color-neutral-400); }
+</style>
+</head>
+<body>
+
+<div class="note">Prototype — Recurring payments (bills + staff wages), nothing here is actually saved. Confirm-first Mark paid and the name field are locked in from last round — tap a card to see edit/delete.</div>
+
+<div class="stage">
+  <div class="screen" id="listScreen">
+    <div class="screen-header">
+      <h1>Recurring payments</h1>
+      <button class="add-btn" type="button" id="openAddBtn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        Add
+      </button>
+    </div>
+    <div id="billList"></div>
+    <p class="tap-hint">Tap a payment to edit or delete it. Only Mark paid logs a transaction.</p>
+  </div>
+</div>
+
+<div class="overlay" id="addOverlay">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="sheet-header">
+      <h2 id="formTitle">Add payment</h2>
+      <button class="close-btn" id="closeAddBtn" aria-label="Close" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="field">
+      <p class="field-label">Name</p>
+      <input class="text-input" id="nameInput" placeholder="Wifi, Electricity, Maria — wages…">
+    </div>
+
+    <div class="amount-card">
+      <div class="amount-top">
+        <span class="field-label" style="margin:0;">Amount</span>
+        <span class="currency-chip">LKR</span>
+      </div>
+      <input class="amount-value" id="amountInput" placeholder="0.00">
+    </div>
+
+    <div class="field">
+      <p class="field-label">Category</p>
+      <div class="chip-row" id="categoryChips">
+        <button type="button" class="chip selected" data-value="Utilities">Utilities</button>
+        <button type="button" class="chip" data-value="Staff wages">Staff wages</button>
+        <button type="button" class="chip" data-value="Subscriptions">Subscriptions</button>
+        <button type="button" class="chip" data-value="More">More</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <p class="field-label">Payment method</p>
+      <div class="chip-row" id="paymentChips">
+        <button type="button" class="chip selected" data-value="Cash">Cash</button>
+        <button type="button" class="chip" data-value="Bank transfer">Bank transfer</button>
+        <button type="button" class="chip" data-value="More">More</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <p class="field-label">Repeats</p>
+      <div class="chip-row" id="cadenceTypeChips">
+        <button type="button" class="chip selected" data-value="monthly">Monthly</button>
+        <button type="button" class="chip" data-value="weekly">Weekly</button>
+      </div>
+    </div>
+
+    <div class="cadence-card" id="monthlyCadenceCard">
+      <p class="field-label">On day</p>
+      <input class="cadence-input" id="monthlyDayInput" type="number" min="1" max="31" value="5">
+    </div>
+
+    <div class="field" id="weeklyCadenceField" style="display:none;">
+      <p class="field-label">On</p>
+      <div class="chip-row" id="weekdayChips">
+        <button type="button" class="chip small" data-value="Sun">Sun</button>
+        <button type="button" class="chip small" data-value="Mon">Mon</button>
+        <button type="button" class="chip small" data-value="Tue">Tue</button>
+        <button type="button" class="chip small" data-value="Wed">Wed</button>
+        <button type="button" class="chip small" data-value="Thu">Thu</button>
+        <button type="button" class="chip small" data-value="Fri">Fri</button>
+        <button type="button" class="chip small" data-value="Sat">Sat</button>
+      </div>
+    </div>
+
+    <div class="detail-row">Notes <span class="chev">⌄</span></div>
+
+    <button class="save-btn" id="saveBillBtn">Save payment</button>
+    <button class="delete-btn" id="deleteBillBtn" style="display:none;">Delete this payment</button>
+  </div>
+</div>
+
+<div class="overlay" id="confirmOverlay">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="sheet-header">
+      <h2>Mark paid</h2>
+      <button class="close-btn" id="closeConfirmBtn" aria-label="Close" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <p class="small-sheet-text">This logs a real expense in Transactions. Adjust the amount for overtime or a one-off change, and add a note if it helps explain it later.</p>
+    <div class="confirm-row">
+      <span class="field-label" style="margin:0;">Amount</span>
+      <input class="text-input" id="confirmAmount" value="2,500.00">
+    </div>
+    <div class="confirm-row">
+      <span class="field-label" style="margin:0;">Date</span>
+      <input type="date" class="text-input" id="confirmDate">
+    </div>
+    <div class="field">
+      <p class="field-label">Notes (optional)</p>
+      <input class="text-input" id="confirmNotes" placeholder="e.g. 2 extra days worked">
+    </div>
+    <button class="save-btn" id="confirmPaidBtn">Confirm payment</button>
+  </div>
+</div>
+
+<div class="overlay" id="deleteOverlay">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="sheet-header">
+      <h2>Delete this recurring payment?</h2>
+    </div>
+    <p class="small-sheet-text" id="deleteDescription"></p>
+    <div class="confirm-actions">
+      <button class="cancel-btn" id="cancelDeleteBtn">Cancel</button>
+      <button class="danger-btn" id="confirmDeleteBtn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+  <span id="toast-text"></span>
+</div>
+
+<script>
+var pendingBillId = null;
+var editingBillId = null;
+
+var bills = [
+  { id: 1, name: 'Wifi', category: 'Utilities', payment: 'Cash', amount: '2,500.00', currency: 'LKR', status: 'overdue', dueLabel: '14 days overdue', cadenceLabel: 'Monthly on day 5' },
+  { id: 2, name: 'Electricity', category: 'Utilities', payment: 'Bank transfer', amount: '8,200.00', currency: 'LKR', status: 'upcoming', dueLabel: 'Due in 9 days', cadenceLabel: 'Monthly on day 28' },
+  { id: 3, name: 'Netflix', category: 'Subscriptions', payment: 'Card', amount: '15.00', currency: 'USD', status: 'upcoming', dueLabel: 'Due in 14 days', cadenceLabel: 'Monthly on day 2' },
+  { id: 4, name: 'Maria — wages', category: 'Staff wages', payment: 'Bank transfer', amount: '12,000.00', currency: 'LKR', status: 'upcoming', dueLabel: 'Due in 3 days (Sunday)', cadenceLabel: 'Weekly on Sunday' }
+];
+
+function renderList() {
+  var overdue = bills.filter(function (b) { return b.status === 'overdue'; });
+  var upcoming = bills.filter(function (b) { return b.status === 'upcoming'; });
+  var html = '';
+
+  if (bills.length === 0) {
+    html += '<div class="empty-state"><h2>No recurring payments yet</h2><p>Add a bill or a staff wage to get reminded before it&rsquo;s due.</p></div>';
+  }
+
+  if (overdue.length) {
+    html += '<p class="section-label overdue">Overdue</p>';
+    overdue.forEach(function (b) { html += billCard(b); });
+  }
+  if (upcoming.length) {
+    html += '<p class="section-label upcoming">Upcoming</p>';
+    upcoming.forEach(function (b) { html += billCard(b); });
+  }
+
+  document.getElementById('billList').innerHTML = html;
+
+  document.querySelectorAll('.bill-card').forEach(function (card) {
+    card.addEventListener('click', function () { openEdit(Number(card.dataset.id)); });
+  });
+  document.querySelectorAll('.mark-paid-btn').forEach(function (btn) {
+    btn.addEventListener('click', function (e) { e.stopPropagation(); onMarkPaid(Number(btn.dataset.id)); });
+  });
+}
+
+function billCard(b) {
+  var dueClass = b.status === 'overdue' ? 'overdue' : 'upcoming';
+  var btn = b.status === 'overdue' ? '<button class="mark-paid-btn" data-id="' + b.id + '">Mark paid</button>' : '';
+  return '' +
+    '<div class="bill-card" data-id="' + b.id + '">' +
+      '<div class="bill-top">' +
+        '<div><p class="bill-name">' + b.name + '</p><p class="bill-sub">' + b.category + ' &middot; ' + b.payment + ' &middot; ' + b.cadenceLabel + '</p></div>' +
+        '<div><p class="bill-amount">' + b.currency + ' ' + b.amount + '</p><p class="bill-due ' + dueClass + '">' + b.dueLabel + '</p></div>' +
+      '</div>' +
+      btn +
+    '</div>';
+}
+
+function onMarkPaid(id) {
+  pendingBillId = id;
+  var b = bills.find(function (x) { return x.id === id; });
+  document.getElementById('confirmAmount').value = b.amount;
+  document.getElementById('confirmDate').valueAsDate = new Date();
+  document.getElementById('confirmNotes').value = '';
+  document.getElementById('confirmOverlay').classList.add('open');
+}
+
+document.getElementById('confirmPaidBtn').addEventListener('click', function () {
+  var b = bills.find(function (x) { return x.id === pendingBillId; });
+  var amt = document.getElementById('confirmAmount').value;
+  document.getElementById('confirmOverlay').classList.remove('open');
+  var note = document.getElementById('confirmNotes').value;
+  showToast(b.currency + ' ' + amt + ' logged to Transactions' + (note ? ' — "' + note + '"' : '') + '. Next due date moved forward.');
+  b.status = 'upcoming';
+  b.dueLabel = 'Due next cycle';
+  renderList();
+});
+document.getElementById('closeConfirmBtn').addEventListener('click', function () {
+  document.getElementById('confirmOverlay').classList.remove('open');
+});
+
+function openAdd() {
+  editingBillId = null;
+  document.getElementById('formTitle').textContent = 'Add payment';
+  document.getElementById('deleteBillBtn').style.display = 'none';
+  document.getElementById('nameInput').value = '';
+  document.getElementById('amountInput').value = '';
+  selectChip('categoryChips', 'Utilities');
+  selectChip('paymentChips', 'Cash');
+  selectChip('cadenceTypeChips', 'monthly');
+  toggleCadenceFields('monthly');
+  document.getElementById('monthlyDayInput').value = 5;
+  selectChip('weekdayChips', 'Sun');
+  document.getElementById('addOverlay').classList.add('open');
+}
+
+function openEdit(id) {
+  var b = bills.find(function (x) { return x.id === id; });
+  editingBillId = id;
+  document.getElementById('formTitle').textContent = 'Edit payment';
+  document.getElementById('deleteBillBtn').style.display = 'block';
+  document.getElementById('nameInput').value = b.name;
+  document.getElementById('amountInput').value = b.amount;
+  selectChip('categoryChips', b.category);
+  selectChip('paymentChips', b.payment);
+  var isWeekly = b.cadenceLabel.indexOf('Weekly') === 0;
+  selectChip('cadenceTypeChips', isWeekly ? 'weekly' : 'monthly');
+  toggleCadenceFields(isWeekly ? 'weekly' : 'monthly');
+  document.getElementById('addOverlay').classList.add('open');
+}
+
+function selectChip(containerId, value) {
+  var container = document.getElementById(containerId);
+  container.querySelectorAll('.chip').forEach(function (c) {
+    c.classList.toggle('selected', c.dataset.value === value);
+  });
+}
+
+function toggleCadenceFields(mode) {
+  document.getElementById('monthlyCadenceCard').style.display = mode === 'monthly' ? 'flex' : 'none';
+  document.getElementById('weeklyCadenceField').style.display = mode === 'weekly' ? 'block' : 'none';
+}
+
+document.getElementById('openAddBtn').addEventListener('click', openAdd);
+document.getElementById('closeAddBtn').addEventListener('click', function () {
+  document.getElementById('addOverlay').classList.remove('open');
+});
+
+document.querySelectorAll('#categoryChips .chip, #paymentChips .chip, #weekdayChips .chip').forEach(function (chip) {
+  chip.addEventListener('click', function () { selectChip(chip.parentElement.id, chip.dataset.value); });
+});
+document.querySelectorAll('#cadenceTypeChips .chip').forEach(function (chip) {
+  chip.addEventListener('click', function () {
+    selectChip('cadenceTypeChips', chip.dataset.value);
+    toggleCadenceFields(chip.dataset.value);
+  });
+});
+
+document.getElementById('saveBillBtn').addEventListener('click', function () {
+  var name = document.getElementById('nameInput').value || 'New payment';
+  var category = document.querySelector('#categoryChips .chip.selected').dataset.value;
+  var payment = document.querySelector('#paymentChips .chip.selected').dataset.value;
+  var cadenceType = document.querySelector('#cadenceTypeChips .chip.selected').dataset.value;
+  var cadenceLabel = cadenceType === 'monthly'
+    ? ('Monthly on day ' + document.getElementById('monthlyDayInput').value)
+    : ('Weekly on ' + document.querySelector('#weekdayChips .chip.selected').dataset.value);
+  var amount = document.getElementById('amountInput').value || '0.00';
+
+  if (editingBillId) {
+    var b = bills.find(function (x) { return x.id === editingBillId; });
+    b.name = name; b.category = category; b.payment = payment; b.amount = amount; b.cadenceLabel = cadenceLabel;
+    showToast('Payment updated.');
+  } else {
+    bills.push({ id: Date.now(), name: name, category: category, payment: payment, amount: amount, currency: 'LKR', status: 'upcoming', dueLabel: 'Due next cycle', cadenceLabel: cadenceLabel });
+    showToast('Payment saved.');
+  }
+  document.getElementById('addOverlay').classList.remove('open');
+  renderList();
+});
+
+document.getElementById('deleteBillBtn').addEventListener('click', function () {
+  var b = bills.find(function (x) { return x.id === editingBillId; });
+  document.getElementById('deleteDescription').textContent = 'This stops future reminders for "' + b.name + '". It won\'t remove any transactions already logged from it.';
+  document.getElementById('addOverlay').classList.remove('open');
+  document.getElementById('deleteOverlay').classList.add('open');
+});
+document.getElementById('cancelDeleteBtn').addEventListener('click', function () {
+  document.getElementById('deleteOverlay').classList.remove('open');
+});
+document.getElementById('confirmDeleteBtn').addEventListener('click', function () {
+  bills = bills.filter(function (x) { return x.id !== editingBillId; });
+  document.getElementById('deleteOverlay').classList.remove('open');
+  showToast('Payment deleted.');
+  renderList();
+});
+
+var toastTimer;
+function showToast(text) {
+  document.getElementById('toast-text').textContent = text;
+  var toast = document.getElementById('toast');
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { toast.classList.remove('show'); }, 3200);
+}
+
+renderList();
+</script>
+</body>
+</html>

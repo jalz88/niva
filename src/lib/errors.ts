@@ -31,6 +31,7 @@ interface PostgrestLikeError {
  * - 23514 check_violation
  * - 42501 insufficient_privilege (RLS denial)
  * - PGRST116 no rows found (PostgREST "not found" for .single())
+ * - P0002 no_data_found (raised explicitly inside a plpgsql function)
  */
 export function toNivaError(error: unknown): NivaError {
   if (error instanceof TypeError || (error instanceof Error && error.message === 'Failed to fetch')) {
@@ -69,6 +70,11 @@ export function toNivaError(error: unknown): NivaError {
     }
   }
   if (code === 'PGRST116') {
+    return { code: 'not_found', message: 'That record no longer exists.', retryable: false }
+  }
+  // P0002 no_data_found — raised explicitly by mark_recurring_payment_paid()
+  // (migration 0011) when the recurring payment it's given no longer exists.
+  if (code === 'P0002') {
     return { code: 'not_found', message: 'That record no longer exists.', retryable: false }
   }
 

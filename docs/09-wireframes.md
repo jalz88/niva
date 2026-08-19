@@ -21,11 +21,11 @@ Every screen below is defined by purpose, layout regions, key elements, and requ
 Mobile layout, top to bottom:
 
 1. Header: title and "Signed in as [name]" only — no property selector, no period picker. C.9 already ruled out a persistent property switcher anywhere in the app (property becomes relevant again only via a future "see by property" breakdown once a second property exists — prototyped in `dashboard-prototype.html`, not built).
-2. Attention strip — quietly absent when there's nothing to say, computed live on every load rather than stored (`src/lib/attentionStrip.ts`, see `12-ux-options-review.md` C.5). Ships today with "Last entry: [category] [income/expense], [time ago]" (any period, links to that transaction) and, administrators only, "[currency] exchange rate hasn't been updated in [N] days" (links to Currencies admin). "Bill due soon" joins this list once Recurring bills exists.
+2. Attention strip — quietly absent when there's nothing to say, computed live on every load rather than stored (`src/lib/attentionStrip.ts`, see `12-ux-options-review.md` C.5). Ships today with "Last entry: [category] [income/expense], [time ago]" (any period, links to that transaction); administrators only, "[currency] exchange rate hasn't been updated in [N] days" (links to Currencies admin); and, manager/administrator only, one line per recurring payment that's overdue or due within 3 days (e.g. "Maria — wages — due today," links to Recurring payments) — see the Recurring payments section below.
 3. Hero card: one net number for the period — the exact net if only one currency had activity, the approximate combined total (² prefixed, see "Currency conversion policy" in `06-development-roadmap.md`) if more than one did. A "See currency breakdown" disclosure underneath, collapsed by default, reveals the real per-currency Income/Expenses/Net figures (and the approximate-total's rate detail, when relevant) on tap.
 4. Revenue by platform — only rendered once the workspace has more than one *active configured* platform (same "quiet until needed" rule as the old property selector), not just because the current period happens to have more than one platform's worth of data. Small horizontal bar list, tied to the fixed this-month period.
 5. Floating Quick Add button, bottom-right, always reachable while scrolling.
-6. Bottom navigation: Dashboard, Transactions, raised Add, Reports, More (→ Account, Administration, and future areas — see "Navigation chrome" below).
+6. Bottom navigation: Dashboard, Transactions, raised Add, Reports, More (→ Account, Recurring payments when permitted, Administration when permitted, and future areas — see "Navigation chrome" below).
 
 No recent-transactions list — Transactions is one tap away via the nav, so duplicating it here just repeated content. No housekeeping glance yet — scoped in C.1, but nothing feeds it until Housekeeping actually exists; add it as its own line item here once it does, rather than now as empty chrome.
 
@@ -86,6 +86,17 @@ States: loading (skeleton blocks, no fake numbers); empty (no transactions yet t
 - Expenses by category: same pattern, rolled up to top-level categories (a sub-category's activity counts toward its parent's total here — `07-domain-model-and-schema.md` §3).
 - Every row is tappable and drills into the filtered Transactions list — for a category row this filters by every sub-category id rolled into that total, not just the top-level id, so the drill-down always reconciles with the number shown (2026-07-21, migration 0008).
 - States: loading skeleton; no data for the selected period ("No transactions in [period]. Try a different period."); the per-currency totals never carry a "mixed currency" caveat since they're never blended — see the currency conversion policy in `06-development-roadmap.md` (2026-07-21 initial decision, revised 2026-08-02).
+
+## Recurring payments
+
+**Purpose:** "What's due, and did I already pay it?" — manager/administrator only, per `05-information-architecture.md`; staff and viewer don't see the nav entry at all (matches the RLS on `recurring_payments`, migration 0011). Covers both bills (Wifi, Electricity) and staff wages paid on a standing bank order — NIVA never initiates or moves money itself, this screen is purely a reminder-and-log tool. See `docs/recurring-bills-prototype.html` for the working interactive prototype this was built from, and `12-ux-options-review.md` Part 2/B2 for the decision history.
+
+- Header: title, plus an "Add" button opening the same-shaped bottom sheet as edit.
+- List, grouped **Overdue** then **Upcoming**, each card showing name, category · payment method · cadence, amount, and a due-date caption ("3 days overdue" / "Due today" / "Due in 9 days"). Tapping anywhere on a card except the button below opens it for editing.
+- Overdue cards additionally show a **Mark paid** button. Upcoming cards don't — a payment that isn't due yet has nothing to mark paid.
+- Add/edit sheet: minimalist form language, same as Quick Add — Name (free text, since two payments can share a category), Amount + currency, Category (expense only, chip picker), Payment method (chip picker), Repeats (Monthly-on-day-N or Weekly-on-[weekday], a toggle plus the matching control), Notes (collapsed detail row). Editing shows a "Delete this payment" action below Save; deleting opens the same confirm-dialog pattern used for transaction delete, and only stops future reminders — transactions already logged from it are untouched.
+- **Mark paid** opens a small confirm sheet, not an instant action (decided 2026-08-19 after prototyping both directly with Jalie) — pre-filled with the saved amount and today's date, both editable, plus an optional notes field. This is what covers a variable bill (electricity differs month to month) or a housekeeper's overtime week (bump the amount, note "2 extra days worked") without needing a separate overtime concept — that's deferred until the Housekeeping calendar can auto-generate the overtime amount itself (roadmap item 5/6).
+- States: loading skeleton; error with retry; empty ("No recurring payments yet. Add a bill or a staff wage to get reminded before it's due." + Add CTA).
 
 ## Administration
 

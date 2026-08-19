@@ -2,6 +2,7 @@ import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import type { TransactionWithLabels, Role } from '@/types/database'
 import type { WorkspaceCurrencyRow } from '@/composables/useCurrencies'
+import { dueLabel } from './recurringPayments'
 
 dayjs.extend(relativeTime)
 
@@ -10,10 +11,8 @@ dayjs.extend(relativeTime)
 // computed live from data that already exists, on every dashboard load.
 // There's no "read" state and nothing to retain — an item just stops
 // appearing the moment its underlying condition resolves (a fresher
-// transaction gets entered, a rate gets updated). Recurring bills
-// ("bill due soon") is the other trigger named in the original decision
-// but isn't built yet (see roadmap item 2) — its item will slot in here
-// once that feature exists, not require a redesign of the strip itself.
+// transaction gets entered, a rate gets updated, a payment gets marked
+// paid).
 export interface AttentionStripItem {
   key: string
   text: string
@@ -56,6 +55,37 @@ export function buildStaleRateItems(currencyRows: WorkspaceCurrencyRow[], role: 
         linkTo: { name: 'administration-currencies' },
       })
     }
+  }
+  return items
+}
+
+export interface DuePaymentSource {
+  id: string
+  name: string
+  next_due_on: string
+}
+
+// A recurring payment (bill or staff wage, migration 0011) that's overdue
+// or due within this many days — same reasoning as buildStaleRateItems,
+// tight enough that a normal workspace with a handful of payments doesn't
+// see the strip get noisy. Manager/administrator only, matching the
+// table's own RLS (staff/viewer can't act on this, so it isn't shown).
+const DUE_SOON_DAYS = 3
+
+export function buildDuePaymentItems(payments: DuePaymentSource[], role: Role | null, now: Date = new Date()): AttentionStripItem[] {
+  if (role !== 'administrator' && role !== 'manager') return []
+  const today = dayjs(now).startOf('day')
+  const items: AttentionStripItem[] = []
+
+  for (const payment of payments) {
+    const diffDays = dayjs(payment.next_due_on).startOf('day').diff(today, 'day')
+    if (diffDays > DUE_SOON_DAYS) continue
+    const { label } = dueLabel(payment.next_due_on, today)
+    items.push({
+      key: `due-payment-${payment.id}`,
+      text: `${payment.name} — ${label.charAt(0).toLowerCase()}${label.slice(1)}`,
+      linkTo: { name: 'recurring-payments' },
+    })
   }
   return items
 }

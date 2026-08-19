@@ -99,3 +99,36 @@ export interface TransactionWithLabels extends Transaction {
   platform_name: string | null
   supplier_name: string | null
 }
+
+export type RecurringPaymentCadence = 'monthly' | 'weekly'
+
+// docs/12-ux-options-review.md Part 2/B2 — migration 0011. Always an
+// expense (no income variant); manager/administrator only, both in RLS
+// and in the app's own nav gating.
+export interface RecurringPayment {
+  id: string
+  workspace_id: string
+  property_id: string
+  name: string
+  category_id: string
+  payment_method_id: string
+  currency_code: string
+  amount: string
+  cadence_type: RecurringPaymentCadence
+  // 1-31, set only when cadence_type is 'monthly'.
+  cadence_day_of_month: number | null
+  // 0 (Sunday) - 6 (Saturday), matching JS Date#getDay(); set only when
+  // cadence_type is 'weekly'.
+  cadence_day_of_week: number | null
+  next_due_on: string
+  notes: string | null
+  created_by: string
+  created_at: string
+  updated_by: string | null
+  updated_at: string
+}
+
+export interface RecurringPaymentWithLabels extends RecurringPayment {
+  category_name: string
+  payment_method_name: string
+}

@@ -7,11 +7,12 @@ import { useConfigItems } from '@/composables/useConfigItems'
 import { useCurrencies } from '@/composables/useCurrencies'
 import { useReports } from '@/composables/useReports'
 import { useTransactions } from '@/composables/useTransactions'
+import { useRecurringPayments } from '@/composables/useRecurringPayments'
 import { useQuickAddStore } from '@/stores/quickAddStore'
 import { periodRange, periodLabel, periodQueryParams, type PeriodSelection } from '@/lib/period'
 import { formatMoney } from '@/lib/money'
 import { approxCombinedTotal } from '@/lib/currencyApprox'
-import { buildLastEntryItem, buildStaleRateItems } from '@/lib/attentionStrip'
+import { buildLastEntryItem, buildStaleRateItems, buildDuePaymentItems } from '@/lib/attentionStrip'
 import ApproxTotalCard from '@/components/shared/ApproxTotalCard.vue'
 
 // Redesigned 2026-08-19 per docs/12-ux-options-review.md C.1: attention
@@ -40,6 +41,10 @@ const { summary, platformRevenue, loading: reportsLoading, error: reportsError, 
 // useTransactions() instance (see useTransactions.ts), so this still
 // refetches on any create/edit/archive elsewhere.
 const { items: latestItems, list: listLatest, revision } = useTransactions()
+// Manager/administrator only, same as the screen itself (migration 0011's
+// RLS) — fetched only for those roles so staff/viewer never issue a
+// request that RLS would just return empty for anyway.
+const { items: recurringPayments, list: listRecurringPayments } = useRecurringPayments()
 
 async function fetchAll() {
   if (!workspaceId.value) return
@@ -55,6 +60,9 @@ async function fetchAll() {
   // month. page/pageSize: 1 keeps this to the same single-row cost as
   // everything else the strip needs.
   await listLatest({ workspaceId: workspaceId.value, page: 1, pageSize: 1 })
+  if (role.value === 'administrator' || role.value === 'manager') {
+    await listRecurringPayments(workspaceId.value)
+  }
 }
 
 watch(
@@ -69,7 +77,11 @@ watch(
 )
 
 const attentionItems = computed(() => {
-  const items = [buildLastEntryItem(latestItems.value[0] ?? null), ...buildStaleRateItems(currencies.rows.value, role.value)]
+  const items = [
+    buildLastEntryItem(latestItems.value[0] ?? null),
+    ...buildStaleRateItems(currencies.rows.value, role.value),
+    ...buildDuePaymentItems(recurringPayments.value, role.value),
+  ]
   return items.filter((item) => item !== null)
 })
 
