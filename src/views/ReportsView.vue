@@ -145,7 +145,7 @@ const categoryGroups = computed(() => withBarPct(categoryExpenses.value))
           v-if="activeProperties.length > 1"
           v-model="propertyId"
           aria-label="Property"
-          class="rounded-sm border border-neutral-200 bg-white p-2 text-body-sm"
+          class="rounded-md border-0 bg-white p-2 text-body-sm shadow-sm"
         >
           <option value="">All properties</option>
           <option v-for="p in activeProperties" :key="p.id" :value="p.id">{{ p.name }}</option>
@@ -154,7 +154,7 @@ const categoryGroups = computed(() => withBarPct(categoryExpenses.value))
         <button
           type="button"
           aria-label="Download report as CSV"
-          class="flex items-center gap-1.5 rounded-sm border border-neutral-200 bg-white px-3 py-2 text-body-sm font-medium text-neutral-700 hover:bg-neutral-100"
+          class="flex items-center gap-1.5 rounded-md border-0 bg-white px-3 py-2 text-body-sm font-medium text-neutral-700 shadow-sm hover:bg-neutral-50"
           @click="handleDownloadCsv"
         >
           <Download :size="16" /> CSV
@@ -162,7 +162,7 @@ const categoryGroups = computed(() => withBarPct(categoryExpenses.value))
         <button
           type="button"
           aria-label="Print or save report as PDF"
-          class="flex items-center gap-1.5 rounded-sm border border-neutral-200 bg-white px-3 py-2 text-body-sm font-medium text-neutral-700 hover:bg-neutral-100"
+          class="flex items-center gap-1.5 rounded-md border-0 bg-white px-3 py-2 text-body-sm font-medium text-neutral-700 shadow-sm hover:bg-neutral-50"
           @click="handlePrint"
         >
           <Printer :size="16" /> PDF
@@ -182,7 +182,7 @@ const categoryGroups = computed(() => withBarPct(categoryExpenses.value))
     <template v-else>
       <div
         v-if="error"
-        class="mb-4 flex items-center justify-between gap-3 rounded-md border border-negative-600/30 bg-negative-600/5 p-4 text-body-sm text-negative-600"
+        class="mb-4 flex items-center justify-between gap-3 rounded-md bg-negative-600/5 p-4 text-body-sm text-negative-600"
       >
         <span>{{ error.message }}</span>
         <button type="button" class="font-medium underline" @click="fetchReports">Try again</button>
@@ -191,7 +191,7 @@ const categoryGroups = computed(() => withBarPct(categoryExpenses.value))
       <!-- No data for the selected period -->
       <section
         v-if="!hasAnyData && !error"
-        class="rounded-md border border-neutral-200 bg-white p-6 text-center shadow-sm"
+        class="rounded-md bg-white p-6 text-center shadow-sm"
       >
         <h2 class="mb-1 text-h3 font-semibold text-neutral-900">No transactions in {{ periodLabel(period).toLowerCase() }}</h2>
         <p class="text-body-sm text-neutral-500">Try a different period once transactions exist.</p>
@@ -216,19 +216,19 @@ const categoryGroups = computed(() => withBarPct(categoryExpenses.value))
                min-w-0 lets the grid actually hold to equal thirds; the
                amount then wraps (break-words) instead of overflowing. -->
           <div class="grid grid-cols-3 gap-2">
-            <div class="min-w-0 rounded-md border border-neutral-200 bg-white p-3">
+            <div class="min-w-0 rounded-md bg-white p-3 shadow-sm">
               <p class="mb-1 flex items-center gap-1 text-caption text-neutral-500">
                 <TrendingUp :size="14" class="shrink-0 text-positive-600" /> Income
               </p>
               <p class="break-words text-amount font-semibold text-positive-600">{{ formatMoney(row.income, row.currencyCode) }}</p>
             </div>
-            <div class="min-w-0 rounded-md border border-neutral-200 bg-white p-3">
+            <div class="min-w-0 rounded-md bg-white p-3 shadow-sm">
               <p class="mb-1 flex items-center gap-1 text-caption text-neutral-500">
                 <TrendingDown :size="14" class="shrink-0 text-negative-600" /> Expenses
               </p>
               <p class="break-words text-amount font-semibold text-negative-600">{{ formatMoney(row.expenses, row.currencyCode) }}</p>
             </div>
-            <div class="min-w-0 rounded-md border border-neutral-200 bg-white p-3">
+            <div class="min-w-0 rounded-md bg-white p-3 shadow-sm">
               <p class="mb-1 flex items-center gap-1 text-caption text-neutral-500">
                 <Minus :size="14" class="shrink-0" :class="Number(row.net) >= 0 ? 'text-positive-600' : 'text-negative-600'" /> Net
               </p>
@@ -248,7 +248,7 @@ const categoryGroups = computed(() => withBarPct(categoryExpenses.value))
         <!-- Revenue by platform: bar + authoritative table underneath, per
              docs/09-wireframes.md — "chart is never the only way to read a
              value." Every row drills into Transactions filtered. -->
-        <section v-if="platformGroups.length" class="mb-4 rounded-md border border-neutral-200 bg-white p-4 shadow-sm">
+        <section v-if="platformGroups.length" class="mb-4 rounded-md bg-white p-4 shadow-sm">
           <h2 class="mb-3 text-h3 font-semibold text-neutral-900">Revenue by platform</h2>
           <div v-for="group in platformGroups" :key="group.currencyCode" class="mb-4 last:mb-0">
             <p v-if="platformGroups.length > 1" class="mb-1.5 text-caption font-medium text-neutral-500">
@@ -281,7 +281,7 @@ const categoryGroups = computed(() => withBarPct(categoryExpenses.value))
              categories (migration 0007/0008). The drill-down link carries
              every contributing sub-category id, not just the top one, so
              the Transactions list underneath matches this total exactly. -->
-        <section v-if="categoryGroups.length" class="rounded-md border border-neutral-200 bg-white p-4 shadow-sm">
+        <section v-if="categoryGroups.length" class="rounded-md bg-white p-4 shadow-sm">
           <h2 class="mb-3 text-h3 font-semibold text-neutral-900">Expenses by category</h2>
           <div v-for="group in categoryGroups" :key="group.currencyCode" class="mb-4 last:mb-0">
             <p v-if="categoryGroups.length > 1" class="mb-1.5 text-caption font-medium text-neutral-500">

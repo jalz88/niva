@@ -11,6 +11,7 @@ import { useCurrencies } from '@/composables/useCurrencies'
 import { useSuppliers } from '@/composables/useSuppliers'
 import ChipPicker from '@/components/ui/ChipPicker.vue'
 import DetailRow from '@/components/ui/DetailRow.vue'
+import { formatAmountInput, cleanAmountInput } from '@/lib/money'
 import type { NivaError } from '@/lib/errors'
 
 const props = defineProps<{
@@ -90,6 +91,7 @@ watch(
 const [type] = defineField('type')
 const [amount, amountAttrs] = defineField('amount')
 const [currencyCode] = defineField('currencyCode')
+
 const [occurredOn, occurredOnAttrs] = defineField('occurredOn')
 const [categoryId] = defineField('categoryId')
 const [paymentMethodId] = defineField('paymentMethodId')
@@ -205,6 +207,34 @@ const enabledCurrencies = computed(() => currencies.rows.value.filter((r) => r.e
 function selectCurrency(code: string) {
   setFieldValue('currencyCode', code)
   openPopover.value = ''
+}
+
+// ---- Amount — thousands-separator display over the raw schema value ------
+// `amount` (from defineField) must stay a plain "1500"/"1500.00" string —
+// that's what transactionFormSchema's regex and the API expect. This
+// computed is what the input element actually shows/edits: the getter
+// re-adds commas for display ("1500" -> "1,500"), the setter strips them
+// back out via cleanAmountInput() before writing to the real field. Typing
+// "1000" -> the browser's own value-assignment behaviour puts the cursor
+// at the end once the comma is inserted, which matches how amounts are
+// normally typed here (left-to-right, no mid-string editing).
+const amountDisplay = computed({
+  get: () => formatAmountInput(amount.value ?? ''),
+  set: (value: string) => {
+    amount.value = cleanAmountInput(value)
+  },
+})
+
+// The numeric keypad's Enter/checkmark key was doing nothing — this form
+// has more than one text field (amount, notes, sometimes supplier), and
+// per the HTML spec a text field's Enter key only implicitly submits a
+// form when it's the *only* field that would block submission; with more
+// than one, the browser silently does nothing instead. Treat it as "done
+// with this field" — dismiss the keyboard so the Category/Payment method
+// chips underneath are visible, same as tapping outside the field would.
+function onAmountEnter(event: KeyboardEvent) {
+  event.preventDefault()
+  ;(event.target as HTMLInputElement).blur()
 }
 
 // ---- Platform (income) ---------------------------------------------------
@@ -371,12 +401,14 @@ const onFormSubmit = handleSubmit(async (formValues) => {
         </div>
         <input
           id="tx-amount"
-          v-model="amount"
+          v-model="amountDisplay"
           v-bind="amountAttrs"
           type="text"
           inputmode="decimal"
+          enterkeyhint="done"
           placeholder="0.00"
           class="w-full border-0 border-b-2 border-transparent bg-transparent pt-1 font-sans text-[26px] font-semibold text-neutral-900 outline-none focus:border-accent-500"
+          @keydown.enter="onAmountEnter"
         />
       </div>
       <div v-if="openPopover === 'currency'" class="mt-2 overflow-hidden rounded-md bg-white shadow-md">
