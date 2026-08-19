@@ -16,7 +16,7 @@
 | A5. Transaction detail | Keep A. |
 | A6. Edit transaction | Keep A. Inherits Quick Add's visual refresh when that happens. |
 | A7. Delete/archive | Keep A. |
-| A8. Reports | Option C — plain-language insight line. |
+| A8. Reports | Option C — plain-language insight line. Shipped 2026-08-19. |
 | A9. Administration | Keep A. |
 | A10. Account | Keep A. |
 | B1. Transaction export | Option A, plus a confirm step for large filtered results — see Part C.4. |
@@ -91,6 +91,8 @@
 - **C.** One plain-language line at the top ("Expenses were 12% higher than last month, mostly Utilities"), computed client-side from numbers already fetched — no new data.
 
 *My lean:* keep A; add C first — cheap, and directly useful for a non-technical reader. B is the bigger version of the same idea, worth it once there's 12+ months of history to compare against.
+
+**Shipped 2026-08-19.** `src/lib/period.ts` gained `previousPeriodRange()` — a calendar-aware "the comparable period before this one" (last month for this month, last year for this year, an equal-length preceding window for a custom range). `ReportsView.vue` fetches that second period through a second `useReports()` instance (same RPCs, no new endpoint) and `src/lib/reportInsight.ts` turns the two into one sentence: "Expenses were 12% higher than last month, mostly Utilities." Deliberately conservative — skips the line entirely (no placeholder, no guess) when there's nothing clean to compare: no prior-period expenses, a missing currency reference rate, or a change under 1% either way (shown as "about the same" instead of "0% higher"). The "mostly X" category callout only appears for a single-currency period, since comparing category totals across currencies would mix figures the same way an un-approximated total would. Lint, typecheck, and build all clean.
 
 ### 9. Administration (shared list/add/edit/archive pattern)
 *Primary question:* manage business values without touching code.

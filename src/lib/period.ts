@@ -83,6 +83,52 @@ export function periodLabel(selection: PeriodSelection): string {
   }
 }
 
+// The immediately-preceding period of the same kind — for the Reports
+// insight line (docs/12-ux-options-review.md A8/Part C, "Expenses were 12%
+// higher than last month"), which needs a comparison period's numbers, not
+// just the current one. Calendar-aware (a month/year back, not a fixed
+// day-count) so "last month" means what it says across months of different
+// lengths; a custom range has no calendar unit to step back by, so it falls
+// back to an equal-length immediately-preceding window instead. Returns
+// null for 'all' (Dashboard/Reports never select it, and "the period
+// before all time" isn't a meaningful comparison anyway).
+export function previousPeriodRange(selection: PeriodSelection): { dateFrom: string; dateTo: string; label: string } | null {
+  const { period, month, rangeFrom, rangeTo } = selection
+
+  if (period === 'this_month') {
+    const d = dayjs().subtract(1, 'month')
+    return { dateFrom: d.startOf('month').format('YYYY-MM-DD'), dateTo: d.endOf('month').format('YYYY-MM-DD'), label: 'last month' }
+  }
+  if (period === 'last_month') {
+    const d = dayjs().subtract(2, 'month')
+    return { dateFrom: d.startOf('month').format('YYYY-MM-DD'), dateTo: d.endOf('month').format('YYYY-MM-DD'), label: 'the month before' }
+  }
+  if (period === 'this_year') {
+    const d = dayjs().subtract(1, 'year')
+    return { dateFrom: d.startOf('year').format('YYYY-MM-DD'), dateTo: d.endOf('year').format('YYYY-MM-DD'), label: 'last year' }
+  }
+  if (period === 'last_year') {
+    const d = dayjs().subtract(2, 'year')
+    return { dateFrom: d.startOf('year').format('YYYY-MM-DD'), dateTo: d.endOf('year').format('YYYY-MM-DD'), label: 'the year before' }
+  }
+  if (period === 'month' && month && MONTH_RE.test(month)) {
+    const d = parseMonth(month).subtract(1, 'month')
+    return { dateFrom: d.startOf('month').format('YYYY-MM-DD'), dateTo: d.endOf('month').format('YYYY-MM-DD'), label: 'the previous month' }
+  }
+  if (period === 'range' && rangeFrom && rangeTo && MONTH_RE.test(rangeFrom) && MONTH_RE.test(rangeTo)) {
+    let from = parseMonth(rangeFrom)
+    let to = parseMonth(rangeTo)
+    if (from.isAfter(to)) [from, to] = [to, from]
+    const monthCount = to.diff(from, 'month') + 1
+    return {
+      dateFrom: from.subtract(monthCount, 'month').startOf('month').format('YYYY-MM-DD'),
+      dateTo: from.subtract(1, 'month').endOf('month').format('YYYY-MM-DD'),
+      label: 'the previous period',
+    }
+  }
+  return null
+}
+
 // Flattens a selection into router-query-safe string params for drill-down
 // links (Reports/Dashboard -> Transactions) — vue-router query values must
 // be strings, not nested objects.

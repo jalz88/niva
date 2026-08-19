@@ -7,10 +7,11 @@ import { useAuth } from '@/composables/useAuth'
 import { useConfigItems } from '@/composables/useConfigItems'
 import { useCurrencies } from '@/composables/useCurrencies'
 import { useReports } from '@/composables/useReports'
-import { periodRange, periodLabel, periodQueryParams, type PeriodSelection } from '@/lib/period'
+import { periodRange, periodLabel, periodQueryParams, previousPeriodRange, type PeriodSelection } from '@/lib/period'
 import { formatMoney } from '@/lib/money'
 import { approxCombinedTotal } from '@/lib/currencyApprox'
 import { buildReportCsv, reportCsvFilename, downloadTextFile } from '@/lib/reportCsv'
+import { buildReportInsight } from '@/lib/reportInsight'
 import PeriodPicker from '@/components/shared/PeriodPicker.vue'
 import ApproxTotalCard from '@/components/shared/ApproxTotalCard.vue'
 
@@ -18,6 +19,14 @@ const { workspaceId } = useAuth()
 const properties = useConfigItems('properties')
 const currencies = useCurrencies()
 const { summary, platformRevenue, categoryExpenses, loading, error, load } = useReports()
+// Second, independent instance — the insight line (below) needs the prior
+// comparable period's numbers too, fetched via the same RPCs Reports
+// already calls rather than a new endpoint. Its own loading/error state is
+// deliberately not surfaced: the insight just quietly doesn't appear if
+// this fetch is slow or fails, rather than blocking or erroring the report
+// the person actually came here to see.
+const { summary: previousSummary, categoryExpenses: previousCategoryExpenses, load: loadPrevious } = useReports()
+const previousLabel = ref('')
 
 const period = ref<PeriodSelection>({ period: 'this_month' })
 // Same reasoning as the Dashboard: the property picker only appears once
@@ -33,6 +42,12 @@ function fetchReports() {
   // return type is shared with Transactions, which does need it.
   if (!dateFrom || !dateTo) return
   load({ workspaceId: workspaceId.value, propertyId: propertyId.value || undefined, dateFrom, dateTo })
+
+  const previous = previousPeriodRange(period.value)
+  previousLabel.value = previous?.label ?? ''
+  if (previous) {
+    loadPrevious({ workspaceId: workspaceId.value, propertyId: propertyId.value || undefined, dateFrom: previous.dateFrom, dateTo: previous.dateTo })
+  }
 }
 
 watch(
@@ -48,6 +63,12 @@ watch(
 
 const approxTotal = computed(() => approxCombinedTotal(summary.value, currencies.rows.value))
 watch([period, propertyId], fetchReports)
+
+const insight = computed(() =>
+  previousLabel.value
+    ? buildReportInsight(summary.value, previousSummary.value, categoryExpenses.value, previousCategoryExpenses.value, currencies.rows.value, previousLabel.value)
+    : null,
+)
 
 const propertyLabel = computed(
   () => (propertyId.value ? (properties.items.value.find((p) => p.id === propertyId.value)?.name ?? 'Selected property') : 'All properties'),
@@ -177,6 +198,13 @@ const categoryGroups = computed(() => withBarPct(categoryExpenses.value))
       </section>
 
       <template v-else>
+        <!-- Plain-language insight — docs/12-ux-options-review.md A8/Part C.
+             Quietly absent (not a skeleton, not an error) when there's
+             nothing clean to compare against, per buildReportInsight(). -->
+        <p v-if="insight" class="mb-4 text-body text-neutral-700 print:hidden">
+          <span :class="insight.direction === 'up' ? 'font-semibold text-negative-600' : insight.direction === 'down' ? 'font-semibold text-positive-600' : 'font-semibold'">{{ insight.text }}</span>
+        </p>
+
         <!-- Totals — same card shape as Dashboard, for consistency -->
         <section v-for="row in summary" :key="row.currencyCode" class="mb-4">
           <p v-if="summary.length > 1" class="mb-1.5 text-caption font-medium text-neutral-500">{{ row.currencyCode }}</p>
