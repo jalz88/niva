@@ -12,7 +12,7 @@
 | A1. Sign in | Keep A. Plan B (longer session + passkey/biometric) as a future improvement, not now. |
 | A2. Dashboard | Redesigned — attention strip, hero net number with expandable currency detail, role-aware housekeeping glance (hidden when nothing to show), no recent-transactions list. Full shape in Part C.1. |
 | A3. Quick Add | Keep the UX (A). Visual density flagged as real feedback — resolved and shipped 2026-08-18, see Part C.3. |
-| A4. Transactions list | Keep A. Filters consolidate into one "Filters" button + bottom sheet instead of several dropdowns — see Part C.2. |
+| A4. Transactions list | Keep A. Filters consolidate into one "Filters" button + bottom sheet instead of several dropdowns — shipped 2026-08-18, see Part C.2. |
 | A5. Transaction detail | Keep A. |
 | A6. Edit transaction | Keep A. Inherits Quick Add's visual refresh when that happens. |
 | A7. Delete/archive | Keep A. |
@@ -189,6 +189,8 @@ Mocked interactively in chat (2026-08-06) — the hero card's expand/collapse an
 ### C.2 Transactions filters
 
 Replace the several inline dropdowns with a single "Filters" button that opens the same bottom-sheet pattern already built for the nav's More menu (`MoreSheet.vue`) — one sheet holding Period, Property (once multi-property exists), Type, Category, and Platform, with Apply/Clear at the bottom. Active filters keep showing as removable chips above the list, so clearing one filter doesn't require reopening the sheet. Reuses a pattern already shipped and already familiar, rather than teaching a new one. **Decided 2026-08-06:** confirmed after seeing it — single Filters button + bottom sheet, active filters as removable chips.
+
+**Shipped 2026-08-18:** built in `src/views/TransactionsView.vue` using a new shared `src/components/ui/BottomSheet.vue` (the overlay/handle/header chrome factored out of `QuickAddSheet.vue`, which now uses it too). Type/Property/Platform are borderless chip rows; Category is a scrollable borderless list (can be long); Period keeps `PeriodPicker`'s native selects for now, lightly restyled to borderless/shadow to match. Property only appears once a workspace has 2+ active properties — not visible today. Filters apply live as each is tapped (unchanged from before); "Apply" just closes the sheet, "Clear" resets and leaves it open. Lint, typecheck, and build all clean.
 
 ### C.3 Quick Add density
 

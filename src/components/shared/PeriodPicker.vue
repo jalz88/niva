@@ -31,7 +31,7 @@ function setMode(mode: ReportPeriod) {
     <select
       :value="selection.period"
       aria-label="Period"
-      class="rounded-sm border border-neutral-200 bg-white p-2 text-body-sm"
+      class="rounded-md border-0 bg-white p-2 text-body-sm shadow-sm"
       @change="setMode(($event.target as HTMLSelectElement).value as ReportPeriod)"
     >
       <option v-if="allowAllTime" value="all">All time</option>
@@ -48,7 +48,7 @@ function setMode(mode: ReportPeriod) {
       type="month"
       :value="selection.month"
       aria-label="Month"
-      class="rounded-sm border border-neutral-200 bg-white p-2 text-body-sm"
+      class="rounded-md border-0 bg-white p-2 text-body-sm shadow-sm"
       @change="selection = { period: 'month', month: ($event.target as HTMLInputElement).value }"
     />
 
@@ -57,7 +57,7 @@ function setMode(mode: ReportPeriod) {
         type="month"
         :value="selection.rangeFrom"
         aria-label="From month"
-        class="rounded-sm border border-neutral-200 bg-white p-2 text-body-sm"
+        class="rounded-md border-0 bg-white p-2 text-body-sm shadow-sm"
         @change="selection = { period: 'range', rangeFrom: ($event.target as HTMLInputElement).value, rangeTo: selection.rangeTo }"
       />
       <span class="text-body-sm text-neutral-500" aria-hidden="true">–</span>
@@ -65,7 +65,7 @@ function setMode(mode: ReportPeriod) {
         type="month"
         :value="selection.rangeTo"
         aria-label="To month"
-        class="rounded-sm border border-neutral-200 bg-white p-2 text-body-sm"
+        class="rounded-md border-0 bg-white p-2 text-body-sm shadow-sm"
         @change="selection = { period: 'range', rangeFrom: selection.rangeFrom, rangeTo: ($event.target as HTMLInputElement).value }"
       />
     </template>

@@ -9,6 +9,7 @@ import { useConfigItems } from '@/composables/useConfigItems'
 import { useCategories, topLevelCategories, subcategoriesOf } from '@/composables/useCategories'
 import { periodRange, periodLabel, parsePeriodFromQuery, type PeriodSelection } from '@/lib/period'
 import PeriodPicker from '@/components/shared/PeriodPicker.vue'
+import BottomSheet from '@/components/ui/BottomSheet.vue'
 import type { TransactionType } from '@/types/database'
 
 const { workspaceId } = useAuth()
@@ -146,6 +147,13 @@ const hasActiveFilters = computed(
   () => filters.period.period !== 'all' || !!filters.propertyId || !!filters.type || !!filters.categoryId || !!filters.platformId,
 )
 
+// Property filter row only renders once a workspace actually has a second
+// active property — same "quiet until needed" rule used everywhere else
+// multi-property shows up (Dashboard's breakdown, Reports' revenue-by-
+// platform). See docs/12-ux-options-review.md C.9.
+const activeProperties = computed(() => properties.items.value.filter((p) => p.is_active))
+const showPropertyFilter = computed(() => activeProperties.value.length > 1)
+
 const propertyName = (id: string) => properties.items.value.find((p) => p.id === id)?.name ?? ''
 const platformName = (id: string) => platforms.items.value.find((p) => p.id === id)?.name ?? ''
 const categoryName = (id: string) => categories.items.value.find((c) => c.id === id)?.name ?? ''
@@ -255,8 +263,8 @@ function loadMore() {
       <h1 class="text-h1 font-semibold text-neutral-900">Transactions</h1>
       <button
         type="button"
-        class="flex items-center gap-1.5 rounded-sm border border-neutral-200 px-3 py-1.5 text-body-sm font-medium text-neutral-700 hover:bg-neutral-100"
-        @click="showFilters = !showFilters"
+        class="flex items-center gap-1.5 rounded-pill bg-white px-4 py-2 text-body-sm font-medium text-neutral-700 shadow-sm"
+        @click="showFilters = true"
       >
         <SlidersHorizontal :size="16" />
         Filters
@@ -270,7 +278,7 @@ function loadMore() {
         :key="chip.key"
         type="button"
         :aria-label="`Remove filter: ${chip.label}`"
-        class="flex items-center gap-1 rounded-full border border-accent-200 bg-accent-50 px-3 py-1 text-caption font-medium text-accent-700"
+        class="flex items-center gap-1 rounded-pill bg-accent-100 px-3 py-1.5 text-caption font-semibold text-accent-700"
         @click="chip.clear()"
       >
         {{ chip.label }}
@@ -281,29 +289,112 @@ function loadMore() {
       </button>
     </div>
 
-    <!-- Filter panel -->
-    <div v-if="showFilters" class="mb-4 flex flex-col gap-2 rounded-md border border-neutral-200 bg-white p-3">
-      <PeriodPicker v-model="filters.period" :allow-all-time="true" />
-      <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <select v-model="filters.type" aria-label="Type" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
-          <option value="">All types</option>
-          <option value="income">Income</option>
-          <option value="expense">Expense</option>
-        </select>
-        <select v-model="filters.propertyId" aria-label="Property" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
-          <option value="">All properties</option>
-          <option v-for="p in properties.items.value" :key="p.id" :value="p.id">{{ p.name }}</option>
-        </select>
-        <select v-model="filters.categoryId" aria-label="Category" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
-          <option value="">All categories</option>
-          <option v-for="c in categoryFilterOptions" :key="c.id" :value="c.id">{{ c.label }}</option>
-        </select>
-        <select v-model="filters.platformId" aria-label="Platform" class="rounded-sm border border-neutral-200 p-2 text-body-sm">
-          <option value="">All platforms</option>
-          <option v-for="p in platforms.items.value" :key="p.id" :value="p.id">{{ p.name }}</option>
-        </select>
+    <!-- Filters sheet -->
+    <BottomSheet :open="showFilters" title="Filters" @close="showFilters = false">
+      <div class="flex flex-col gap-5">
+        <div>
+          <p class="mb-2 text-body-sm text-neutral-500">Period</p>
+          <PeriodPicker v-model="filters.period" :allow-all-time="true" />
+        </div>
+
+        <div>
+          <p class="mb-2 text-body-sm text-neutral-500">Type</p>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="opt in [{ id: '', label: 'All types' }, { id: 'income', label: 'Income' }, { id: 'expense', label: 'Expense' }]"
+              :key="opt.id || 'all'"
+              type="button"
+              class="rounded-pill bg-white px-4 py-2.5 text-body-sm font-medium text-neutral-700 shadow-sm"
+              :class="filters.type === opt.id ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : ''"
+              @click="filters.type = opt.id as '' | TransactionType"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="showPropertyFilter">
+          <p class="mb-2 text-body-sm text-neutral-500">Property</p>
+          <div class="flex flex-wrap gap-2">
+            <button
+              type="button"
+              class="rounded-pill bg-white px-4 py-2.5 text-body-sm font-medium text-neutral-700 shadow-sm"
+              :class="!filters.propertyId ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : ''"
+              @click="filters.propertyId = ''"
+            >
+              All properties
+            </button>
+            <button
+              v-for="p in activeProperties"
+              :key="p.id"
+              type="button"
+              class="rounded-pill bg-white px-4 py-2.5 text-body-sm font-medium text-neutral-700 shadow-sm"
+              :class="filters.propertyId === p.id ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : ''"
+              @click="filters.propertyId = p.id"
+            >
+              {{ p.name }}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <p class="mb-2 text-body-sm text-neutral-500">Category</p>
+          <div class="max-h-56 overflow-y-auto rounded-md bg-white shadow-sm">
+            <button
+              type="button"
+              class="block w-full px-4 py-3 text-left text-body"
+              :class="!filters.categoryId ? 'bg-accent-100 font-semibold text-accent-700' : 'text-neutral-900 hover:bg-neutral-50'"
+              @click="filters.categoryId = ''"
+            >
+              All categories
+            </button>
+            <button
+              v-for="c in categoryFilterOptions"
+              :key="c.id"
+              type="button"
+              class="block w-full px-4 py-3 text-left text-body"
+              :class="filters.categoryId === c.id ? 'bg-accent-100 font-semibold text-accent-700' : 'text-neutral-900 hover:bg-neutral-50'"
+              @click="filters.categoryId = c.id"
+            >
+              {{ c.label }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="platforms.items.value.length">
+          <p class="mb-2 text-body-sm text-neutral-500">Platform</p>
+          <div class="flex flex-wrap gap-2">
+            <button
+              type="button"
+              class="rounded-pill bg-white px-4 py-2.5 text-body-sm font-medium text-neutral-700 shadow-sm"
+              :class="!filters.platformId ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : ''"
+              @click="filters.platformId = ''"
+            >
+              All platforms
+            </button>
+            <button
+              v-for="p in platforms.items.value"
+              :key="p.id"
+              type="button"
+              class="rounded-pill bg-white px-4 py-2.5 text-body-sm font-medium text-neutral-700 shadow-sm"
+              :class="filters.platformId === p.id ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : ''"
+              @click="filters.platformId = p.id"
+            >
+              {{ p.name }}
+            </button>
+          </div>
+        </div>
+
+        <div class="flex gap-2">
+          <button type="button" class="flex-1 rounded-lg bg-white py-3 text-body font-semibold text-neutral-700 shadow-sm" @click="clearAllFilters">
+            Clear
+          </button>
+          <button type="button" class="flex-1 rounded-lg bg-accent-500 py-3 text-body font-semibold text-white" @click="showFilters = false">
+            Apply
+          </button>
+        </div>
       </div>
-    </div>
+    </BottomSheet>
 
     <!-- Loading skeleton (first load only) -->
     <div v-if="loading && displayedItems.length === 0" class="flex flex-col gap-2">
@@ -311,21 +402,18 @@ function loadMore() {
     </div>
 
     <!-- Error -->
-    <div v-else-if="error" class="rounded-md border border-negative-600/30 bg-negative-600/5 p-4 text-body-sm text-negative-600">
+    <div v-else-if="error" class="rounded-md bg-negative-600/5 p-4 text-body-sm text-negative-600">
       {{ error.message }}
     </div>
 
     <!-- No transactions at all -->
-    <section
-      v-else-if="displayedItems.length === 0 && !hasActiveFilters"
-      class="rounded-md border border-neutral-200 bg-white p-6 text-center shadow-sm"
-    >
+    <section v-else-if="displayedItems.length === 0 && !hasActiveFilters" class="rounded-md bg-white p-6 text-center shadow-sm">
       <h2 class="mb-1 text-h3 font-semibold text-neutral-900">No transactions yet</h2>
       <p class="text-body-sm text-neutral-500">Add your first transaction to see it here.</p>
     </section>
 
     <!-- Filtered to empty -->
-    <section v-else-if="displayedItems.length === 0" class="rounded-md border border-neutral-200 bg-white p-6 text-center shadow-sm">
+    <section v-else-if="displayedItems.length === 0" class="rounded-md bg-white p-6 text-center shadow-sm">
       <h2 class="mb-1 text-h3 font-semibold text-neutral-900">No transactions match these filters</h2>
       <button type="button" class="text-body-sm font-medium text-accent-600 underline" @click="clearAllFilters">
         Clear filters
@@ -341,7 +429,7 @@ function loadMore() {
             v-for="tx in rows"
             :key="tx.id"
             :to="{ name: 'transaction-detail', params: { id: tx.id } }"
-            class="flex items-center gap-3 rounded-md border border-neutral-200 bg-white p-3 hover:border-accent-200"
+            class="flex items-center gap-3 rounded-md bg-white p-3 shadow-sm transition-shadow hover:shadow-md"
           >
             <span
               class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
@@ -368,7 +456,7 @@ function loadMore() {
         v-if="canLoadMore"
         type="button"
         :disabled="loading"
-        class="self-center rounded-sm border border-neutral-200 px-4 py-2 text-body-sm font-medium text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+        class="self-center rounded-pill bg-white px-4 py-2 text-body-sm font-medium text-neutral-700 shadow-sm hover:shadow-md disabled:opacity-50"
         @click="loadMore"
       >
         {{ loading ? 'Loading…' : 'Load more' }}
