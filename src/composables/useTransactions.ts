@@ -170,6 +170,49 @@ export function useTransactions() {
     cache.set(key, { items: items.value, total: total.value })
   }
 
+  // Fetches every row matching the given filters, ignoring list()'s normal
+  // 100-row page cap — used only by the Transactions CSV export (Download),
+  // which needs the complete filtered set, not one page of it. Loops in
+  // windows of 200 until the count the first query reports is satisfied.
+  // Deliberately not cached (unlike list()) — an export is a one-off action,
+  // not something the screen re-renders from repeatedly.
+  async function listAll(
+    filters: Omit<TransactionFilters, 'page' | 'pageSize'>,
+  ): Promise<{ data: TransactionWithLabels[]; error: NivaError | null }> {
+    const windowSize = 200
+    let from = 0
+    let expectedTotal = Infinity
+    const all: TransactionWithLabels[] = []
+
+    while (from < expectedTotal) {
+      let query = supabase
+        .from('transactions')
+        .select(SELECT_WITH_LABELS, { count: 'exact' })
+        .eq('workspace_id', filters.workspaceId)
+        .eq('status', 'active')
+        .order('occurred_on', { ascending: false })
+        .order('created_at', { ascending: false })
+        .range(from, from + windowSize - 1)
+
+      if (filters.propertyId) query = query.eq('property_id', filters.propertyId)
+      if (filters.type) query = query.eq('type', filters.type)
+      if (filters.categoryIds?.length) query = query.in('category_id', filters.categoryIds)
+      else if (filters.categoryId) query = query.eq('category_id', filters.categoryId)
+      if (filters.platformId) query = query.eq('platform_id', filters.platformId)
+      if (filters.dateFrom) query = query.gte('occurred_on', filters.dateFrom)
+      if (filters.dateTo) query = query.lte('occurred_on', filters.dateTo)
+
+      const { data, error: dbError, count } = await query
+      if (dbError) return { data: [], error: toNivaError(dbError) }
+
+      all.push(...(data as unknown as RawJoinedRow[]).map(flatten))
+      expectedTotal = count ?? all.length
+      from += windowSize
+    }
+
+    return { data: all, error: null }
+  }
+
   async function get(id: string): Promise<{ data: TransactionWithLabels | null; error: NivaError | null }> {
     const { data, error: dbError } = await supabase.from('transactions').select(SELECT_WITH_LABELS).eq('id', id).single()
 
@@ -238,6 +281,7 @@ export function useTransactions() {
      * caller — watch it to know when to refetch a list on screen. */
     revision,
     list,
+    listAll,
     get,
     create,
     update,

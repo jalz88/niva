@@ -19,7 +19,7 @@
 | A8. Reports | Option C — plain-language insight line. Shipped 2026-08-19. |
 | A9. Administration | Keep A. |
 | A10. Account | Keep A. |
-| B1. Transaction export | Option A, plus a confirm step for large filtered results — see Part C.4. |
+| B1. Transaction export | Option A, plus a confirm step for large filtered results — see Part C.4. Shipped 2026-08-19. |
 | B2. Recurring bills | Option A. |
 | B3. Receipts & OCR | Option A. |
 | B4. In-app notifications | Option B (dashboard strip, no inbox). Lifecycle explained, plus a separate future Web Push item — see Part C.5. |
@@ -214,6 +214,8 @@ Real feedback, not dismissed. Three concrete layout directions shown visually in
 ### C.4 Export confirmation threshold
 
 Decided 2026-08-06: confirm before exporting once the filtered result exceeds **100 transactions** (revised down from an initial 500 suggestion) — "This will export 240 transactions — continue?" Same confirmation pattern already used for delete, no new UI concept. Under 100, it exports immediately.
+
+**Shipped 2026-08-19.** `src/lib/csv.ts` now holds the CSV-quoting/download helpers shared by both Reports and Transactions (extracted out of `reportCsv.ts`, which re-exports `downloadTextFile` for backward compatibility). `src/lib/transactionCsv.ts` builds the file — one row per transaction (Date, Type, Category, Property, Payment method, Platform, Supplier, Amount, Currency, Notes), category formatted the same "Parent · Sub-category" way the on-screen list already shows it. Because the Transactions screen only ever has one page's worth of rows loaded at a time, export needed its own fetch: `useTransactions().listAll()` loops past the normal 100-row page cap to pull every transaction matching the current filters, uncached (an export is a one-off, not something the screen re-renders from). The Download button sits next to Filters and only appears once there's something to export; above 100 matching rows it opens the same `ConfirmDialog.vue` used for delete before fetching and downloading.
 
 ### C.5 In-app notifications — lifecycle, and a separate Web Push item
 

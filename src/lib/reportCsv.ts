@@ -1,6 +1,7 @@
 import dayjs from 'dayjs'
 import type { CurrencyTotal, PlatformRevenueRow, CategoryExpenseRow } from '@/composables/useReports'
 import type { ApproxCombinedTotal } from '@/lib/currencyApprox'
+import { csvRow } from '@/lib/csv'
 
 export interface ReportCsvInput {
   periodLabel: string
@@ -10,19 +11,6 @@ export interface ReportCsvInput {
   approxTotal: ApproxCombinedTotal | null
   platformRevenue: PlatformRevenueRow[]
   categoryExpenses: CategoryExpenseRow[]
-}
-
-// RFC 4180-ish: quote a field only when it actually needs it, doubling any
-// embedded quotes. Category/platform names are free text an administrator
-// typed in, so this has to be correct, not just "good enough for demo data."
-function csvField(value: string | number): string {
-  const str = String(value)
-  if (/[",\r\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`
-  return str
-}
-
-function csvRow(fields: (string | number)[]): string {
-  return fields.map(csvField).join(',') + '\r\n'
 }
 
 // Several sections with different column shapes, one after another with a
@@ -89,17 +77,7 @@ export function reportCsvFilename(periodLabel: string, generatedAt: Date): strin
   return `niva-report-${slug}-${dayjs(generatedAt).format('YYYY-MM-DD')}.csv`
 }
 
-// Actual browser download trigger — kept separate from buildReportCsv() so
-// the CSV-building logic itself stays a pure, unit-testable function with
-// no DOM dependency.
-export function downloadTextFile(filename: string, content: string, mimeType: string): void {
-  const blob = new Blob([content], { type: mimeType })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
-}
+// Re-exported so existing imports (ReportsView.vue) keep working —
+// downloadTextFile now lives in src/lib/csv.ts, shared with
+// transactionCsv.ts's export.
+export { downloadTextFile } from '@/lib/csv'

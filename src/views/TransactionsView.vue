@@ -2,18 +2,23 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import dayjs from 'dayjs'
-import { ArrowDownLeft, ArrowUpRight, SlidersHorizontal, X } from 'lucide-vue-next'
+import { ArrowDownLeft, ArrowUpRight, Download, SlidersHorizontal, X } from 'lucide-vue-next'
 import { useAuth } from '@/composables/useAuth'
 import { useTransactions } from '@/composables/useTransactions'
 import { useConfigItems } from '@/composables/useConfigItems'
 import { useCategories, topLevelCategories, subcategoriesOf } from '@/composables/useCategories'
 import { periodRange, periodLabel, parsePeriodFromQuery, type PeriodSelection } from '@/lib/period'
+import { buildTransactionCsv, transactionCsvFilename, type TransactionCsvRow } from '@/lib/transactionCsv'
+import { downloadTextFile } from '@/lib/csv'
+import { useToastStore } from '@/stores/toastStore'
 import PeriodPicker from '@/components/shared/PeriodPicker.vue'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import type { TransactionType } from '@/types/database'
 
 const { workspaceId } = useAuth()
-const { items, total, loading, refreshing, error, list, revision } = useTransactions()
+const { items, total, loading, refreshing, error, list, listAll, revision } = useTransactions()
+const toast = useToastStore()
 
 // useTransactions() now caches per filter+page combination and can update
 // `items` twice for one logical fetch — instantly from cache, then again
@@ -204,6 +209,65 @@ function clearAllFilters() {
   filters.platformId = ''
 }
 
+// ---- Export (Download) — docs/12-ux-options-review.md B.1/C.4 -----------
+// "A Download action on the Transactions list itself, exporting exactly
+// whatever filters are currently applied." Reuses the CSV pattern already
+// built for Reports (src/lib/csv.ts). Confirms first — via the same
+// ConfirmDialog used for delete, no new UI concept — once the filtered
+// result exceeds 100 rows; under that it exports immediately.
+const EXPORT_CONFIRM_THRESHOLD = 100
+const showExportConfirm = ref(false)
+const exporting = ref(false)
+
+const filterSummaryText = computed(() => (chips.value.length ? chips.value.map((c) => c.label).join(' · ') : 'All transactions'))
+
+function handleDownloadClick() {
+  if (total.value > EXPORT_CONFIRM_THRESHOLD) {
+    showExportConfirm.value = true
+    return
+  }
+  runExport()
+}
+
+async function runExport() {
+  if (!workspaceId.value) return
+  exporting.value = true
+  const { dateFrom, dateTo } = periodRange(filters.period)
+  const { data, error: exportError } = await listAll({
+    workspaceId: workspaceId.value,
+    propertyId: filters.propertyId || undefined,
+    type: filters.type || undefined,
+    categoryId: categoryIdsOverride.value.length ? undefined : filters.categoryId || undefined,
+    categoryIds: categoryIdsOverride.value.length ? categoryIdsOverride.value : undefined,
+    platformId: filters.platformId || undefined,
+    dateFrom,
+    dateTo,
+  })
+  exporting.value = false
+  showExportConfirm.value = false
+
+  if (exportError) {
+    toast.show(exportError.message, { tone: 'error' })
+    return
+  }
+
+  const generatedAt = new Date()
+  const rows: TransactionCsvRow[] = data.map((tx) => ({
+    date: tx.occurred_on,
+    type: tx.type === 'income' ? 'Income' : 'Expense',
+    category: categoryDisplay(tx),
+    property: tx.property_name,
+    paymentMethod: tx.payment_method_name,
+    platform: tx.platform_name ?? '',
+    supplier: tx.supplier_name ?? '',
+    amount: tx.amount,
+    currency: tx.currency_code,
+    notes: tx.notes ?? '',
+  }))
+  const csv = buildTransactionCsv(filterSummaryText.value, generatedAt, rows)
+  downloadTextFile(transactionCsvFilename(generatedAt), csv, 'text/csv;charset=utf-8;')
+}
+
 const groups = computed(() => {
   const map = new Map<string, typeof displayedItems.value>()
   for (const tx of displayedItems.value) {
@@ -259,16 +323,29 @@ function loadMore() {
       <div class="h-full w-1/3 animate-[refresh-bar_1.1s_ease-in-out_infinite] bg-accent-500" />
     </div>
 
-    <div class="mb-4 flex items-center justify-between">
+    <div class="mb-4 flex items-center justify-between gap-2">
       <h1 class="text-h1 font-semibold text-neutral-900">Transactions</h1>
-      <button
-        type="button"
-        class="flex items-center gap-1.5 rounded-pill bg-white px-4 py-2 text-body-sm font-medium text-neutral-700 shadow-sm"
-        @click="showFilters = true"
-      >
-        <SlidersHorizontal :size="16" />
-        Filters
-      </button>
+      <div class="flex items-center gap-2">
+        <button
+          v-if="displayedItems.length > 0"
+          type="button"
+          aria-label="Download transactions as CSV"
+          :disabled="exporting"
+          class="flex items-center gap-1.5 rounded-pill bg-white px-4 py-2 text-body-sm font-medium text-neutral-700 shadow-sm disabled:opacity-60"
+          @click="handleDownloadClick"
+        >
+          <Download :size="16" />
+          {{ exporting ? 'Preparing…' : 'Download' }}
+        </button>
+        <button
+          type="button"
+          class="flex items-center gap-1.5 rounded-pill bg-white px-4 py-2 text-body-sm font-medium text-neutral-700 shadow-sm"
+          @click="showFilters = true"
+        >
+          <SlidersHorizontal :size="16" />
+          Filters
+        </button>
+      </div>
     </div>
 
     <!-- Active filter chips -->
@@ -472,5 +549,15 @@ function loadMore() {
         {{ loading ? 'Loading…' : 'Load more' }}
       </button>
     </div>
+
+    <ConfirmDialog
+      :open="showExportConfirm"
+      title="Download transactions?"
+      :description="`This will export ${total} transactions (${filterSummaryText}) as a CSV file.`"
+      confirm-label="Download"
+      :busy="exporting"
+      @confirm="runExport"
+      @cancel="showExportConfirm = false"
+    />
   </div>
 </template>
