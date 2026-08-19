@@ -44,7 +44,7 @@ const emit = defineEmits<{
         type="button"
         :aria-pressed="props.selectedId === f.id"
         class="rounded-pill bg-white px-4 py-2.5 text-body-sm font-medium text-neutral-700 shadow-sm"
-        :class="props.selectedId === f.id ? 'bg-accent-50 text-accent-700 shadow-none' : ''"
+        :class="props.selectedId === f.id ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : ''"
         @click="emit('select-favorite', f.id)"
       >
         {{ f.name }}
@@ -54,7 +54,7 @@ const emit = defineEmits<{
         type="button"
         :aria-pressed="!!props.moreSelectedLabel"
         class="rounded-pill bg-white px-4 py-2.5 text-body-sm font-medium text-neutral-700 shadow-sm"
-        :class="props.moreSelectedLabel ? 'bg-accent-50 text-accent-700 shadow-none' : ''"
+        :class="props.moreSelectedLabel ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : ''"
         @click="emit('toggle-more')"
       >
         {{ props.moreSelectedLabel || 'More' }}
