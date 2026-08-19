@@ -23,7 +23,7 @@ const properties = useConfigItems('properties')
 const categories = useCategories()
 const paymentMethods = usePaymentMethods()
 const currencies = useCurrencies()
-const { items, loading, error, list, create, update, remove, markPaid } = useRecurringPayments()
+const { items, loading, error, list, create, update, remove, markPaid, revision } = useRecurringPayments()
 const toast = useToastStore()
 
 // No property field here either — same silent single-active-property
@@ -45,6 +45,14 @@ watch(
 )
 
 const hasAnyPayments = computed(() => items.value.length > 0)
+
+// Create/update/delete/markPaid all clear the cache and bump revision
+// (same contract as useTransactions) but never mutate `items` directly -
+// refetch so a newly-added or edited payment shows up without a manual
+// reload. Matches TransactionsView.vue's watch(revision, ...) pattern.
+watch(revision, () => {
+  if (workspaceId.value) list(workspaceId.value)
+})
 
 const grouped = computed(() => {
   const overdue: { item: RecurringPaymentWithLabels; due: ReturnType<typeof dueLabel> }[] = []

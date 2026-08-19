@@ -58,6 +58,7 @@ create index transactions_recurring_payment_idx on transactions (recurring_payme
 create function check_recurring_payment_integrity()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 declare
   category_type text;
@@ -83,7 +84,20 @@ begin
       using errcode = '23514';
   end if;
 
-  new.updated_at = now();
+  -- Same as check_transaction_integrity() (0002): audit fields are stamped
+  -- server-side from auth.uid(), never trusted from client input. This was
+  -- missing on the first pass, which is why every insert failed with a
+  -- created_by not-null violation.
+  if tg_op = 'INSERT' then
+    new.created_by := auth.uid();
+    new.updated_by := auth.uid();
+  elsif tg_op = 'UPDATE' then
+    new.created_by := old.created_by;
+    new.created_at := old.created_at;
+    new.updated_by := auth.uid();
+  end if;
+
+  new.updated_at := now();
   return new;
 end;
 $$;
