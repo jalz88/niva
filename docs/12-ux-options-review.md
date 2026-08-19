@@ -10,7 +10,7 @@
 | Item | Decision |
 | --- | --- |
 | A1. Sign in | Keep A. Plan B (longer session + passkey/biometric) as a future improvement, not now. |
-| A2. Dashboard | Redesigned — attention strip, hero net number with expandable currency detail, role-aware housekeeping glance (hidden when nothing to show), no recent-transactions list. Full shape in Part C.1. |
+| A2. Dashboard | Redesigned and shipped 2026-08-19 — hero net number with expandable currency detail, no recent-transactions list. Attention strip and housekeeping glance not built yet (nothing feeds them until Recurring bills/Notifications/Housekeeping exist). Full shape in Part C.1. |
 | A3. Quick Add | Keep the UX (A). Visual density flagged as real feedback — resolved and shipped 2026-08-18, see Part C.3. |
 | A4. Transactions list | Keep A. Filters consolidate into one "Filters" button + bottom sheet instead of several dropdowns — shipped 2026-08-18, see Part C.2. |
 | A5. Transaction detail | Keep A. |
@@ -185,6 +185,8 @@ New hierarchy, top to bottom:
 5. **Recent transactions — removed.** Transactions is one tap away in the nav; no need to duplicate the list here.
 
 Mocked interactively in chat (2026-08-06) — the hero card's expand/collapse and the housekeeping glance's three states (active/day-off/empty) are the parts worth re-checking before this gets built for real.
+
+**Shipped 2026-08-19 (partial):** hero net + expandable currency breakdown, and the recent-transactions removal, built in `src/views/DashboardView.vue`. Revenue by platform now correctly gates on the count of *active configured platforms* (there was a latent bug — the old code gated on currency-group count instead). The header property `<select>` was removed entirely rather than carried forward, since C.9 already ruled out a persistent switcher for good — not just for this pass. Attention strip and housekeeping glance are still not built: there's no recurring-bills, notification, or housekeeping data yet to feed them, so building the UI now would just be empty chrome. Lint, typecheck, and build all clean; one E2E test (`e2e/transactions.spec.ts`) updated since it asserted on the now-removed recent-transactions text.
 
 ### C.2 Transactions filters
 

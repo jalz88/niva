@@ -60,15 +60,15 @@ test('adding an income transaction updates the dashboard without a reload', asyn
   await fillAndSubmit(page, { type: 'income', amount, categoryLabel: 'E2E Income', paymentLabel: 'E2E Cash' })
 
   await expect(page.getByText('Income added')).toBeVisible()
-  // The sheet closes and the Dashboard's recent-transactions list and
-  // totals refetch on their own (useTransactions' revision counter — see
-  // DashboardView.vue) — no page.reload() anywhere in this test.
-  // .first(): this suite doesn't clean up after itself (see file header),
-  // so after enough CI runs within the same month, the Dashboard's top-5
-  // recent list legitimately contains more than one past "E2E Income"
-  // entry — an unscoped getByText() then hits a strict-mode multi-match
-  // violation instead of the flaky timeout it looks like at first glance.
-  await expect(page.getByText('E2E Income').first()).toBeVisible()
+  // The sheet closes and the Dashboard's hero net figure refetches on its
+  // own (useTransactions' revision counter — see DashboardView.vue) — no
+  // page.reload() anywhere in this test. Dashboard dropped its recent-
+  // transactions list in the 2026-08-19 redesign (docs/12-ux-options-
+  // review.md C.1), so there's no per-transaction text to assert on here
+  // any more — checking the hero card is showing real data (not still the
+  // empty state) is the closest equivalent for "updated without a reload."
+  await expect(page.getByText('This month · net')).toBeVisible()
+  await expect(page.getByText(/No transactions this month/)).toBeHidden()
 })
 
 test('adding an expense transaction appears in the Transactions list without a reload', async ({ page }) => {
