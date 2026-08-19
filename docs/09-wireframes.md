@@ -21,12 +21,13 @@ Every screen below is defined by purpose, layout regions, key elements, and requ
 Mobile layout, top to bottom:
 
 1. Header: title and "Signed in as [name]" only — no property selector, no period picker. C.9 already ruled out a persistent property switcher anywhere in the app (property becomes relevant again only via a future "see by property" breakdown once a second property exists — prototyped in `dashboard-prototype.html`, not built).
-2. Hero card: one net number for the period — the exact net if only one currency had activity, the approximate combined total (² prefixed, see "Currency conversion policy" in `06-development-roadmap.md`) if more than one did. A "See currency breakdown" disclosure underneath, collapsed by default, reveals the real per-currency Income/Expenses/Net figures (and the approximate-total's rate detail, when relevant) on tap.
-3. Revenue by platform — only rendered once the workspace has more than one *active configured* platform (same "quiet until needed" rule as the old property selector), not just because the current period happens to have more than one platform's worth of data. Small horizontal bar list, tied to the fixed this-month period.
-4. Floating Quick Add button, bottom-right, always reachable while scrolling.
-5. Bottom navigation: Dashboard, Transactions, raised Add, Reports, More (→ Account, Administration, and future areas — see "Navigation chrome" below).
+2. Attention strip — quietly absent when there's nothing to say, computed live on every load rather than stored (`src/lib/attentionStrip.ts`, see `12-ux-options-review.md` C.5). Ships today with "Last entry: [category] [income/expense], [time ago]" (any period, links to that transaction) and, administrators only, "[currency] exchange rate hasn't been updated in [N] days" (links to Currencies admin). "Bill due soon" joins this list once Recurring bills exists.
+3. Hero card: one net number for the period — the exact net if only one currency had activity, the approximate combined total (² prefixed, see "Currency conversion policy" in `06-development-roadmap.md`) if more than one did. A "See currency breakdown" disclosure underneath, collapsed by default, reveals the real per-currency Income/Expenses/Net figures (and the approximate-total's rate detail, when relevant) on tap.
+4. Revenue by platform — only rendered once the workspace has more than one *active configured* platform (same "quiet until needed" rule as the old property selector), not just because the current period happens to have more than one platform's worth of data. Small horizontal bar list, tied to the fixed this-month period.
+5. Floating Quick Add button, bottom-right, always reachable while scrolling.
+6. Bottom navigation: Dashboard, Transactions, raised Add, Reports, More (→ Account, Administration, and future areas — see "Navigation chrome" below).
 
-No recent-transactions list — Transactions is one tap away via the nav, so duplicating it here just repeated content. No attention strip or housekeeping glance yet either — both were scoped in C.1, but nothing feeds them until Recurring bills, Notifications, and Housekeeping actually exist; add them as their own line items here once they do, rather than now as empty chrome.
+No recent-transactions list — Transactions is one tap away via the nav, so duplicating it here just repeated content. No housekeeping glance yet — scoped in C.1, but nothing feeds it until Housekeeping actually exists; add it as its own line item here once it does, rather than now as empty chrome.
 
 Desktop delta: navigation moves to a persistent left sidebar; layout otherwise unchanged (no side-by-side treatment — there's only one hero card now, not a summary-card-plus-platform-revenue pair to place side by side).
 

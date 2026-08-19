@@ -11,29 +11,35 @@ import { useQuickAddStore } from '@/stores/quickAddStore'
 import { periodRange, periodLabel, periodQueryParams, type PeriodSelection } from '@/lib/period'
 import { formatMoney } from '@/lib/money'
 import { approxCombinedTotal } from '@/lib/currencyApprox'
+import { buildLastEntryItem, buildStaleRateItems } from '@/lib/attentionStrip'
 import ApproxTotalCard from '@/components/shared/ApproxTotalCard.vue'
 
 // Redesigned 2026-08-19 per docs/12-ux-options-review.md C.1: attention
-// strip (not built — nothing feeds it yet, since Recurring bills/
-// Notifications, B2/B4, aren't built), hero net number with an expandable
-// currency breakdown replacing the always-stacked per-currency cards, no
-// header property switcher (see C.9 — the "see by property" breakdown
-// prototyped in docs/dashboard-prototype.html is deliberately not built
-// yet, since there's only one active property today), revenue-by-platform
-// gated on 2+ active platforms, and recent transactions dropped (one tap
-// away via the nav). Period picker removed 2026-08-19 — Dashboard's own
-// stated purpose is "how's the business this month," and Reports already
-// owns every other period/comparison; a duplicate picker here just diluted
-// the pulse-check. Always this month; anything else is a Reports trip away.
+// strip, hero net number with an expandable currency breakdown replacing
+// the always-stacked per-currency cards, no header property switcher (see
+// C.9 — the "see by property" breakdown prototyped in
+// docs/dashboard-prototype.html is deliberately not built yet, since
+// there's only one active property today), revenue-by-platform gated on
+// 2+ active platforms, and recent transactions dropped (one tap away via
+// the nav). Period picker removed 2026-08-19 — Dashboard's own stated
+// purpose is "how's the business this month," and Reports already owns
+// every other period/comparison; a duplicate picker here just diluted the
+// pulse-check. Always this month; anything else is a Reports trip away.
 const period: PeriodSelection = { period: 'this_month' }
 
-const { workspaceId, user, displayName } = useAuth()
+const { workspaceId, user, displayName, role } = useAuth()
 const quickAdd = useQuickAddStore()
 
 const platforms = useConfigItems('platforms')
 const currencies = useCurrencies()
 const { summary, platformRevenue, loading: reportsLoading, error: reportsError, load: loadReports } = useReports()
-const { revision } = useTransactions()
+// This instance's own `items`/`list` are used only to fetch the single
+// most recent transaction for the attention strip's "Last entry" line —
+// unrelated to the summary/platform data above, and to Transactions'
+// separate paginated list. `revision` itself is shared across every
+// useTransactions() instance (see useTransactions.ts), so this still
+// refetches on any create/edit/archive elsewhere.
+const { items: latestItems, list: listLatest, revision } = useTransactions()
 
 async function fetchAll() {
   if (!workspaceId.value) return
@@ -44,6 +50,11 @@ async function fetchAll() {
   // the shared type rather than guarding a real runtime case.
   if (!dateFrom || !dateTo) return
   await loadReports({ workspaceId: workspaceId.value, dateFrom, dateTo })
+  // Deliberately not scoped to this_month — "how recently did anyone
+  // touch this workspace" should still answer honestly early in a new
+  // month. page/pageSize: 1 keeps this to the same single-row cost as
+  // everything else the strip needs.
+  await listLatest({ workspaceId: workspaceId.value, page: 1, pageSize: 1 })
 }
 
 watch(
@@ -56,6 +67,11 @@ watch(
   },
   { immediate: true },
 )
+
+const attentionItems = computed(() => {
+  const items = [buildLastEntryItem(latestItems.value[0] ?? null), ...buildStaleRateItems(currencies.rows.value, role.value)]
+  return items.filter((item) => item !== null)
+})
 
 const expanded = ref(false)
 
@@ -104,6 +120,23 @@ const platformGroups = computed(() => {
       <h1 class="text-h1 font-semibold text-neutral-900">Dashboard</h1>
       <p class="text-body-sm text-neutral-500">Signed in as {{ displayName ?? user?.email }}</p>
     </header>
+
+    <!-- Attention strip — docs/12-ux-options-review.md C.5. Computed live,
+         no loading state of its own: quiet until there's something to say,
+         appears the moment its own small fetch resolves rather than
+         waiting on the rest of the page. -->
+    <div v-if="attentionItems.length" class="mb-4 flex flex-col gap-1.5">
+      <component
+        :is="item.linkTo ? RouterLink : 'p'"
+        v-for="item in attentionItems"
+        :key="item.key"
+        v-bind="item.linkTo ? { to: item.linkTo } : {}"
+        class="block rounded-md bg-white px-3 py-2 text-caption text-neutral-600 shadow-sm"
+        :class="item.linkTo ? 'hover:shadow-md' : ''"
+      >
+        {{ item.text }}
+      </component>
+    </div>
 
     <!-- Loading skeleton (first load only, no fake numbers) -->
     <div v-if="isInitialLoading" class="flex flex-col gap-4">

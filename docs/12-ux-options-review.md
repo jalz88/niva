@@ -10,7 +10,7 @@
 | Item | Decision |
 | --- | --- |
 | A1. Sign in | Keep A. Plan B (longer session + passkey/biometric) as a future improvement, not now. |
-| A2. Dashboard | Redesigned and shipped 2026-08-19 — hero net number with expandable currency detail, no recent-transactions list. Attention strip and housekeeping glance not built yet (nothing feeds them until Recurring bills/Notifications/Housekeeping exist). Full shape in Part C.1. |
+| A2. Dashboard | Redesigned and shipped 2026-08-19 — hero net number with expandable currency detail, no recent-transactions list, plus the attention strip (see B4/C.5). Housekeeping glance not built yet (nothing feeds it until Housekeeping exists). Full shape in Part C.1. |
 | A3. Quick Add | Keep the UX (A). Visual density flagged as real feedback — resolved and shipped 2026-08-18, see Part C.3. |
 | A4. Transactions list | Keep A. Filters consolidate into one "Filters" button + bottom sheet instead of several dropdowns — shipped 2026-08-18, see Part C.2. |
 | A5. Transaction detail | Keep A. |
@@ -22,7 +22,7 @@
 | B1. Transaction export | Option A, plus a confirm step for large filtered results — see Part C.4. Shipped 2026-08-19. |
 | B2. Recurring bills | Option A. |
 | B3. Receipts & OCR | Option A. |
-| B4. In-app notifications | Option B (dashboard strip, no inbox). Lifecycle explained, plus a separate future Web Push item — see Part C.5. |
+| B4. In-app notifications | Option B (dashboard strip, no inbox). Lifecycle explained, plus a separate future Web Push item — see Part C.5. Shipped 2026-08-19. |
 | B5. Multi-property | Decided 2026-08-06, confirmed after real prototypes — see Part C.9. No global header switcher; a single "Default property" setting in Account, quiet context everywhere else. |
 | B6. Housekeeping & inventory | Expanded scope: room checklist + simple inventory + staff hours/day-off tracking. Two open sub-questions — see Part C.6. |
 | B7. Assets/maintenance/staff | Deferred. Option B (dedicated module) noted as the eventual direction, far away. |
@@ -188,9 +188,11 @@ New hierarchy, top to bottom:
 
 Mocked interactively in chat (2026-08-06) — the hero card's expand/collapse and the housekeeping glance's three states (active/day-off/empty) are the parts worth re-checking before this gets built for real.
 
-**Shipped 2026-08-19 (partial):** hero net + expandable currency breakdown, and the recent-transactions removal, built in `src/views/DashboardView.vue`. Revenue by platform now correctly gates on the count of *active configured platforms* (there was a latent bug — the old code gated on currency-group count instead). The header property `<select>` was removed entirely rather than carried forward, since C.9 already ruled out a persistent switcher for good — not just for this pass. Attention strip and housekeeping glance are still not built: there's no recurring-bills, notification, or housekeeping data yet to feed them, so building the UI now would just be empty chrome. Lint, typecheck, and build all clean; one E2E test (`e2e/transactions.spec.ts`) updated since it asserted on the now-removed recent-transactions text.
+**Shipped 2026-08-19 (partial):** hero net + expandable currency breakdown, and the recent-transactions removal, built in `src/views/DashboardView.vue`. Revenue by platform now correctly gates on the count of *active configured platforms* (there was a latent bug — the old code gated on currency-group count instead). The header property `<select>` was removed entirely rather than carried forward, since C.9 already ruled out a persistent switcher for good — not just for this pass. Housekeeping glance is still not built — there's no Housekeeping module yet to feed it. Lint, typecheck, and build all clean; one E2E test (`e2e/transactions.spec.ts`) updated since it asserted on the now-removed recent-transactions text.
 
 **Period picker removed 2026-08-19.** Raised after seeing the shipped screen: the header's This month/Last month/This year/... picker (added 2026-07-23) contradicted Dashboard's own stated purpose above ("this month," not "any period") and duplicated what Reports already owns. Agreed — removed entirely; Dashboard is now permanently scoped to the current month, with Reports one tap away for anything else. `docs/09-wireframes.md` updated to match.
+
+**Attention strip shipped 2026-08-19** — see C.5 below for the implementation. Housekeeping glance remains the one piece of this section still not built.
 
 ### C.2 Transactions filters
 
@@ -222,6 +224,8 @@ Decided 2026-08-06: confirm before exporting once the filtered result exceeds **
 **Lifecycle:** strip items aren't stored notification records. They're computed live, every time the dashboard loads, straight from data that already exists — a recurring bill due within N days and not yet marked paid; a reference rate untouched for 30+ days. There's no "read" state and nothing to retain. An item disappears automatically the moment its underlying condition resolves (bill marked paid, rate updated) — no notifications table, no cleanup job.
 
 **Mobile notification panel (Web Push):** genuinely possible, but a separate, larger feature — not what Option B (the dashboard strip) is. Works for an installed PWA on Android (any browser) and iOS 16.4+ (already true for NIVA, since it's installed to the home screen). Needs a permission prompt, a push subscription stored server-side, VAPID keys, a service worker push handler, and something to actually trigger sends (e.g. a daily scheduled check for bills due soon). Added to the roadmap as its own future item — additive on top of the dashboard strip, never a replacement for it.
+
+**Shipped 2026-08-19.** `src/lib/attentionStrip.ts` builds the strip's items live on every dashboard load — no notifications table, no read state, exactly as decided above. Two item types ship today: `buildLastEntryItem()` (the single most recent transaction across all time, not scoped to the current month, so an active workspace still reads as active early in a new month — "Last entry: Utilities expense, 2h ago," links to that transaction) and `buildStaleRateItems()` (a non-default, enabled currency whose reference rate has sat untouched 30+ days — gated to administrators only, since they're the only role that can act on it via Currencies admin; showing it to anyone else would just be noise). "Bill due soon" slots into this same list once Recurring bills exists — the strip's rendering in `DashboardView.vue` doesn't need to change for that, just one more `build*Items()` function feeding the same array. Rendered above the hero card, quietly absent when the array is empty. Lint, typecheck, and build all clean.
 
 ### C.6 Housekeeping & inventory, expanded
 
