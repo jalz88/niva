@@ -16,21 +16,21 @@ Every screen below is defined by purpose, layout regions, key elements, and requ
 
 ## Dashboard
 
-**Purpose:** "How is the business this month?" — answered within seconds of opening the app.
+**Purpose:** "How is the business this month?" — answered within seconds of opening the app. Always this month, no exceptions — Reports owns every other period, comparison, and drill-down; a duplicate picker here would just dilute the pulse-check (redesigned 2026-08-19, see `12-ux-options-review.md` C.1).
 
 Mobile layout, top to bottom:
 
-1. Header: property selector (defaults to owner's default property or "All properties") — only rendered once a workspace has more than one active property, otherwise there's nothing to choose (2026-07-21, agreed with Jalie); reporting period picker (2026-07-23, revised after owner feedback — This month/Last month/This year/Last year, plus a specific month and a custom month-to-month range via the shared `PeriodPicker` component).
-2. Summary card: Income, Expenses, Net result — each with amount, currency, and a sign-bearing icon (never color alone), one card group per currency in use.
-2a. Approximate combined total (2026-08-02, added after owner feedback) — appears only when the period has activity in more than one currency; a visually distinct, dashed-border "≈" card below the summary cards, never mixed into them. See "Currency conversion policy" in `06-development-roadmap.md`.
-3. Revenue by platform: small horizontal bar list (Airbnb, Agoda, ...), tied to the same period/property.
-4. Recent transactions: last 5, "View all" link to Transactions.
-5. Floating Quick Add button, bottom-right, always reachable while scrolling.
-6. Bottom navigation: Dashboard, Transactions, raised Add, Reports, More (→ Account, Administration, and future areas — see "Navigation chrome" below).
+1. Header: title and "Signed in as [name]" only — no property selector, no period picker. C.9 already ruled out a persistent property switcher anywhere in the app (property becomes relevant again only via a future "see by property" breakdown once a second property exists — prototyped in `dashboard-prototype.html`, not built).
+2. Hero card: one net number for the period — the exact net if only one currency had activity, the approximate combined total (² prefixed, see "Currency conversion policy" in `06-development-roadmap.md`) if more than one did. A "See currency breakdown" disclosure underneath, collapsed by default, reveals the real per-currency Income/Expenses/Net figures (and the approximate-total's rate detail, when relevant) on tap.
+3. Revenue by platform — only rendered once the workspace has more than one *active configured* platform (same "quiet until needed" rule as the old property selector), not just because the current period happens to have more than one platform's worth of data. Small horizontal bar list, tied to the fixed this-month period.
+4. Floating Quick Add button, bottom-right, always reachable while scrolling.
+5. Bottom navigation: Dashboard, Transactions, raised Add, Reports, More (→ Account, Administration, and future areas — see "Navigation chrome" below).
 
-Desktop delta: summary card and platform revenue sit side by side; recent transactions becomes a wider table; navigation moves to a persistent left sidebar.
+No recent-transactions list — Transactions is one tap away via the nav, so duplicating it here just repeated content. No attention strip or housekeeping glance yet either — both were scoped in C.1, but nothing feeds them until Recurring bills, Notifications, and Housekeeping actually exist; add them as their own line items here once they do, rather than now as empty chrome.
 
-States: loading (skeleton cards, no fake numbers); empty (no transactions yet this period → "No transactions this month. Add your first transaction." with Quick Add shortcut); error (period totals failed to load → inline retry, does not block Quick Add).
+Desktop delta: navigation moves to a persistent left sidebar; layout otherwise unchanged (no side-by-side treatment — there's only one hero card now, not a summary-card-plus-platform-revenue pair to place side by side).
+
+States: loading (skeleton blocks, no fake numbers); empty (no transactions yet this month → "No transactions this month. Add your first transaction." with Quick Add shortcut); error (period totals failed to load → inline retry, does not block Quick Add).
 
 ## Quick Add (Income / Expense)
 

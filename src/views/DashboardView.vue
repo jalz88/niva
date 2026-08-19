@@ -11,7 +11,6 @@ import { useQuickAddStore } from '@/stores/quickAddStore'
 import { periodRange, periodLabel, periodQueryParams, type PeriodSelection } from '@/lib/period'
 import { formatMoney } from '@/lib/money'
 import { approxCombinedTotal } from '@/lib/currencyApprox'
-import PeriodPicker from '@/components/shared/PeriodPicker.vue'
 import ApproxTotalCard from '@/components/shared/ApproxTotalCard.vue'
 
 // Redesigned 2026-08-19 per docs/12-ux-options-review.md C.1: attention
@@ -22,7 +21,11 @@ import ApproxTotalCard from '@/components/shared/ApproxTotalCard.vue'
 // prototyped in docs/dashboard-prototype.html is deliberately not built
 // yet, since there's only one active property today), revenue-by-platform
 // gated on 2+ active platforms, and recent transactions dropped (one tap
-// away via the nav).
+// away via the nav). Period picker removed 2026-08-19 — Dashboard's own
+// stated purpose is "how's the business this month," and Reports already
+// owns every other period/comparison; a duplicate picker here just diluted
+// the pulse-check. Always this month; anything else is a Reports trip away.
+const period: PeriodSelection = { period: 'this_month' }
 
 const { workspaceId, user, displayName } = useAuth()
 const quickAdd = useQuickAddStore()
@@ -32,14 +35,13 @@ const currencies = useCurrencies()
 const { summary, platformRevenue, loading: reportsLoading, error: reportsError, load: loadReports } = useReports()
 const { revision } = useTransactions()
 
-const period = ref<PeriodSelection>({ period: 'this_month' })
-
 async function fetchAll() {
   if (!workspaceId.value) return
-  const { dateFrom, dateTo } = periodRange(period.value)
-  // Dashboard never offers 'all' (see PeriodPicker's allowAllTime), so this
-  // is always true in practice — the guard exists because periodRange()'s
-  // return type is shared with Transactions, which does need it.
+  const { dateFrom, dateTo } = periodRange(period)
+  // periodRange()'s return type is shared with Transactions (which does
+  // need an unbounded 'all' option) — dateFrom/dateTo are always present
+  // for the fixed 'this_month' period used here, this guard just satisfies
+  // the shared type rather than guarding a real runtime case.
   if (!dateFrom || !dateTo) return
   await loadReports({ workspaceId: workspaceId.value, dateFrom, dateTo })
 }
@@ -56,10 +58,6 @@ watch(
 )
 
 const expanded = ref(false)
-watch(period, () => {
-  expanded.value = false
-  fetchAll()
-})
 
 // A Quick Add (or edit/delete) elsewhere bumps this — refetch so totals
 // update without the user having to manually reload, per
@@ -102,12 +100,9 @@ const platformGroups = computed(() => {
 
 <template>
   <div class="mx-auto max-w-3xl px-4 pt-6 pb-24 md:pb-8">
-    <header class="mb-4 flex flex-wrap items-center justify-between gap-2">
-      <div>
-        <h1 class="text-h1 font-semibold text-neutral-900">Dashboard</h1>
-        <p class="text-body-sm text-neutral-500">Signed in as {{ displayName ?? user?.email }}</p>
-      </div>
-      <PeriodPicker v-model="period" />
+    <header class="mb-4">
+      <h1 class="text-h1 font-semibold text-neutral-900">Dashboard</h1>
+      <p class="text-body-sm text-neutral-500">Signed in as {{ displayName ?? user?.email }}</p>
     </header>
 
     <!-- Loading skeleton (first load only, no fake numbers) -->
