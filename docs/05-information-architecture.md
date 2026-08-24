@@ -116,22 +116,28 @@ Exact permissions will be formalised alongside the schema and RLS policies. Init
 
 | Capability | Administrator | Manager | Staff | Viewer |
 | --- | ---: | ---: | ---: | ---: |
-| View permitted dashboard/reports | Yes | Yes | Yes (own workspace only) | Yes |
-| Create transactions | Yes | Yes | Yes | No |
+| View permitted dashboard/reports | Yes | Yes | No (kiosk mode, see below) | Yes |
+| Create transactions | Yes | Yes | No | No |
 | Edit transactions | Yes | Yes | No | No |
 | Delete/archive transactions | Yes | Yes | No | No |
+| Own Today housekeeping checklist | Yes | Yes | Yes | No |
+| Housekeeping hub/schedule/rooms/staff | Yes | Yes | No | No |
 | Manage configuration | Yes | No | No | No |
 | Manage users/roles | Yes | No | No | No |
 
-Staff create transactions but cannot edit or delete/archive them once saved — corrections are a manager/administrator action (decided 2026-07-19). This keeps Staff RLS policies to a single INSERT grant with no ownership-based exceptions to reason about.
+**Staff redefined 2026-08-24** as the housekeeping caretaker role (e.g. a live-in housekeeper), superseding the 2026-07-19 "create-only transactions" intent above before any real customer used it that way. A staff account gets no nav chrome at all — no sidebar, no bottom nav, no More sheet — and lands directly on its own Today checklist (`housekeeping-today`), filtered to whichever rooms round-robin assignment (or a manual override) puts on that person for the day. It reads and writes only `sop_task_completions` (its own) and `room_inspections`; RLS on `workforce_members`/`workforce_days_off`/`room_assignments` allows read access to any workspace member so Today can resolve "which rooms are mine," but write access (adding/editing roster entries, reassigning rooms) stays administrator/manager only. Someone who needs bookkeeping access should be given the Manager role instead — Staff is deliberately narrow now, not a general limited-access tier.
+
+The Housekeeping hub, Today's schedule (the admin/manager view of every room), Rooms, and Staff screens are all administrator/manager only; Staff and Viewer don't see the nav entry. Within that, an administrator can narrow an individual administrator/manager's own nav further via the Screen access sheet (`visible_areas` on `workspace_memberships`, see `07-domain-model-and-schema.md` §10) — e.g. giving a part-time manager only Transactions and Today's schedule, hiding Rooms/Staff/Recurring payments/Administration. This narrows navigation only; it can never widen what RLS already permits, and Staff's kiosk mode isn't affected by it at all (Staff ignores `visible_areas` entirely — the lockdown is unconditional).
 
 Permissions must be enforced in data access, not merely hidden in navigation.
 
 ## Navigation behavior
 
-- Desktop: persistent sidebar listing every destination inline (Dashboard, Transactions, Reports, Account, Recurring payments when permitted, Administration when permitted) — there's room, so nothing is collapsed.
-- Mobile: bottom bar with Dashboard, Transactions, a raised Add, Reports, and More; More opens a sheet holding everything else (Account, Recurring payments when permitted, Administration when permitted, and future areas as they're built — see "Navigation chrome" in `09-wireframes.md`, decided 2026-08-04). Quick Add remains prominent either way.
-- Deep links: authenticated users can open a transaction or report URL directly; users without access receive a clear permission state.
+- Desktop: persistent sidebar listing every destination inline (Dashboard, Transactions, Housekeeping, Reports, Recurring payments when permitted, Administration when permitted, Account) — there's room, so nothing is collapsed.
+- Mobile: bottom bar with Dashboard, Transactions, a raised Add, Housekeeping, and More. **Housekeeping replaced Reports in the bottom bar 2026-08-24** — used daily, where Reports isn't — and Reports moved into the More sheet instead. More opens a sheet grouped **Money** (Reports, Recurring payments when permitted) and **Account** (Administration when permitted, Account) — see "Navigation chrome" in `09-wireframes.md`. Quick Add remains prominent either way.
+- Every nav entry is additionally filtered by the signed-in member's `visible_areas` (narrowing only, never widening — see the Roles and access direction section above).
+- A Staff account bypasses all of the above — no sidebar, no bottom nav, no More sheet, just its own Today checklist full-bleed. See "Staff redefined 2026-08-24" above.
+- Deep links: authenticated users can open a transaction or report URL directly; users without access receive a clear permission state. A Staff account deep-linking anywhere but its own Today view is redirected there.
 - Back behavior: returns to the prior list/filter state wherever practical.
 
 ## Naming and labels

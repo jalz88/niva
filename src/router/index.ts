@@ -6,6 +6,12 @@ import { useAuth } from '@/composables/useAuth'
 // docs/05-information-architecture.md: "Permissions must be enforced in
 // data access, not merely hidden in navigation."
 const adminOnly = { roles: ['administrator'] }
+// Housekeeping hub/schedule/rooms/staff — same reasoning as
+// recurring-payments below: staff never reaches these at all (kiosk mode,
+// see AppShell.vue + the redirect below), viewer isn't in the Screen
+// access sheet's eligible roles either (administration/UsersView.vue's
+// SCREEN_GROUPS).
+const managerOrAdmin = { roles: ['administrator', 'manager'] }
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -50,7 +56,41 @@ const router = createRouter({
       path: '/recurring-payments',
       name: 'recurring-payments',
       component: () => import('@/views/RecurringPaymentsView.vue'),
-      meta: { roles: ['administrator', 'manager'] },
+      meta: managerOrAdmin,
+    },
+    {
+      path: '/housekeeping',
+      name: 'housekeeping',
+      component: () => import('@/views/housekeeping/HubView.vue'),
+      meta: managerOrAdmin,
+    },
+    {
+      path: '/housekeeping/schedule',
+      name: 'housekeeping-schedule',
+      component: () => import('@/views/housekeeping/TodayView.vue'),
+      meta: managerOrAdmin,
+    },
+    // Ungated — any authenticated workspace member reaches their own Today
+    // view (RLS on workforce_members/room_assignments already allows any
+    // member to read the roster/assignments, migration 0012). This is also
+    // the staff/caretaker kiosk-mode landing route (see the redirect below
+    // and AppShell.vue's isKiosk).
+    {
+      path: '/housekeeping/today',
+      name: 'housekeeping-today',
+      component: () => import('@/views/housekeeping/TodayView.vue'),
+    },
+    {
+      path: '/housekeeping/rooms',
+      name: 'housekeeping-rooms',
+      component: () => import('@/views/housekeeping/RoomsView.vue'),
+      meta: managerOrAdmin,
+    },
+    {
+      path: '/housekeeping/staff',
+      name: 'housekeeping-staff',
+      component: () => import('@/views/housekeeping/StaffView.vue'),
+      meta: managerOrAdmin,
     },
     {
       path: '/administration',
@@ -122,6 +162,16 @@ router.beforeEach(async (to) => {
 
   if (to.meta.public && to.name === 'sign-in' && isAuthenticated.value) {
     return { name: 'dashboard' }
+  }
+
+  // Staff = housekeeping caretaker (decided 2026-08-24) — no nav chrome,
+  // no other destination. Every route but their own Today view bounces
+  // back there, same as AppShell.vue rendering no chrome for this role.
+  // Checked ahead of the general roles check below so a staff account
+  // hitting an admin/manager-only route redirects straight there in one
+  // hop instead of bouncing through 'dashboard' first.
+  if (!to.meta.public && role.value === 'staff' && to.name !== 'housekeeping-today') {
+    return { name: 'housekeeping-today' }
   }
 
   const allowedRoles = to.meta.roles as string[] | undefined

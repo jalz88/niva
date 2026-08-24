@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIVA — Workforce &amp; Housekeeping (rooms/SOP) prototype</title>
+<style>
+  :root {
+    --color-accent-50: #FBEEE7;
+    --color-accent-100: #F5D6C4;
+    --color-accent-500: #B5542A;
+    --color-accent-600: #954423;
+    --color-accent-700: #74351C;
+    --color-neutral-50: #FAF8F6;
+    --color-neutral-100: #F3EFEA;
+    --color-neutral-200: #E6DFD7;
+    --color-neutral-300: #D3C8BC;
+    --color-neutral-400: #A99C8E;
+    --color-neutral-500: #7D7266;
+    --color-neutral-700: #453F37;
+    --color-neutral-900: #1C1916;
+    --color-positive-50: #EAF4EF;
+    --color-positive-600: #2F7D5A;
+    --color-info-50: #EAF0F8;
+    --color-info-600: #2E5FA3;
+    --color-warn-50: #FCF3E3;
+    --color-warn-600: #A9711C;
+    --color-negative-50: #FBEAE9;
+    --color-negative-600: #B3261E;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --radius-pill: 9999px;
+    --shadow-sm: 0 1px 2px rgba(28, 25, 22, 0.06);
+    --shadow-md: 0 4px 12px rgba(28, 25, 22, 0.10);
+    --font-sans: -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--color-neutral-200);
+    font-family: var(--font-sans);
+    color: var(--color-neutral-900);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .note {
+    max-width: 430px;
+    width: 100%;
+    padding: 10px 20px 4px;
+    font-size: 12px;
+    color: var(--color-neutral-500);
+    text-align: center;
+    box-sizing: border-box;
+  }
+
+  .mode-switch { display: flex; gap: 8px; max-width: 430px; width: 100%; padding: 10px 20px; box-sizing: border-box; }
+  .mode-btn { flex: 1; border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 9px 6px; font-size: 12px; font-weight: 600; color: var(--color-neutral-700); cursor: pointer; }
+  .mode-btn.active { background: var(--color-accent-500); color: #fff; }
+
+  .stage { width: 100%; max-width: 430px; flex: 1; min-height: 720px; }
+  .screen { width: 100%; background: var(--color-neutral-50); min-height: 720px; padding: 18px 20px 24px; box-sizing: border-box; display: none; }
+  .screen.active { display: block; }
+
+  .screen-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .screen-header h1 { font-size: 22px; font-weight: 600; margin: 0; }
+  .screen-sub { font-size: 13px; color: var(--color-neutral-500); margin: 0 0 16px; }
+  .add-btn { display: flex; align-items: center; gap: 6px; border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 9px 15px; font-size: 13px; font-weight: 500; color: var(--color-neutral-700); cursor: pointer; }
+
+  .section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-neutral-400); margin: 18px 0 8px; }
+  .section-label:first-of-type { margin-top: 0; }
+
+  /* ---- Housekeeper: room cards ---- */
+  .room-card { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 14px 16px; margin-bottom: 10px; cursor: pointer; }
+  .room-card:hover { box-shadow: var(--shadow-md); }
+  .room-card.ready { opacity: 0.6; }
+  .room-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .room-name { font-size: 15px; font-weight: 600; margin: 0; }
+  .room-sub { font-size: 12px; color: var(--color-neutral-500); margin: 2px 0 0; }
+  .room-badge { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: var(--radius-pill); flex-shrink: 0; }
+  .room-badge.checkout { background: var(--color-warn-50); color: var(--color-warn-600); }
+  .room-badge.stayover { background: var(--color-info-50); color: var(--color-info-600); }
+  .progress-track { height: 6px; border-radius: var(--radius-pill); background: var(--color-neutral-100); overflow: hidden; margin-bottom: 6px; }
+  .progress-fill { height: 100%; background: var(--color-accent-500); border-radius: var(--radius-pill); transition: width .2s ease; }
+  .progress-fill.complete { background: var(--color-positive-600); }
+  .progress-label { font-size: 12px; color: var(--color-neutral-500); }
+  .progress-label.complete { color: var(--color-positive-600); font-weight: 600; }
+
+  .empty-state { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 28px 20px; text-align: center; }
+  .empty-state h2 { font-size: 16px; font-weight: 600; margin: 0 0 6px; }
+  .empty-state p { font-size: 13px; color: var(--color-neutral-500); margin: 0; }
+
+  .tap-hint { font-size: 11px; color: var(--color-neutral-400); margin: 12px 0 0; text-align: center; }
+
+  /* ---- Task checklist inside room sheet ---- */
+  .task-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--color-neutral-200); }
+  .task-row:last-of-type { border-bottom: none; }
+  .check { width: 22px; height: 22px; border-radius: var(--radius-sm); border: 2px solid var(--color-neutral-300); flex-shrink: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .check.done { background: var(--color-positive-600); border-color: var(--color-positive-600); }
+  .check svg { display: none; color: #fff; }
+  .check.done svg { display: block; }
+  .task-row-body { flex: 1; min-width: 0; }
+  .task-row-name { font-size: 14px; font-weight: 500; margin: 0; }
+  .task-row-name.done { text-decoration: line-through; color: var(--color-neutral-400); }
+  .cadence-tag { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: var(--radius-pill); background: var(--color-neutral-100); color: var(--color-neutral-500); flex-shrink: 0; }
+  .cadence-tag.daily { background: var(--color-neutral-100); color: var(--color-neutral-500); }
+  .cadence-tag.weekly { background: var(--color-info-50); color: var(--color-info-600); }
+  .cadence-tag.monthly { background: var(--color-warn-50); color: var(--color-warn-600); }
+  .cadence-tag.quarterly { background: var(--color-accent-100); color: var(--color-accent-700); }
+
+  .mark-ready-btn { width: 100%; border: none; border-radius: var(--radius-pill); padding: 13px 0; font-size: 14px; font-weight: 600; color: #fff; background: var(--color-accent-500); cursor: pointer; margin-top: 16px; }
+  .mark-ready-btn:disabled { background: var(--color-neutral-200); color: var(--color-neutral-400); cursor: not-allowed; }
+  .mark-ready-btn.done-state { background: var(--color-positive-600); }
+
+  /* ---- Admin tabs ---- */
+  .tabs { display: flex; gap: 6px; background: var(--color-neutral-100); border-radius: var(--radius-pill); padding: 4px; margin-bottom: 18px; }
+  .tab-btn { flex: 1; border: none; background: none; border-radius: var(--radius-pill); padding: 8px 4px; font-size: 12px; font-weight: 600; color: var(--color-neutral-500); cursor: pointer; }
+  .tab-btn.active { background: #fff; color: var(--color-neutral-900); box-shadow: var(--shadow-sm); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ---- Workforce roster ---- */
+  .wf-card { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 13px 16px; margin-bottom: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .wf-card:hover { box-shadow: var(--shadow-md); }
+  .wf-card.inactive { opacity: 0.5; }
+  .wf-name { font-size: 15px; font-weight: 600; margin: 0; }
+  .wf-meta { font-size: 12px; color: var(--color-neutral-500); margin: 3px 0 0; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .role-chip { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: var(--radius-pill); background: var(--color-neutral-100); color: var(--color-neutral-700); }
+  .access-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-positive-600); display: inline-block; }
+  .access-dot.off { background: var(--color-neutral-300); }
+
+  .field { margin-bottom: 16px; }
+  .field-label { font-size: 13px; color: var(--color-neutral-500); margin: 0 0 8px; }
+  .field-hint { font-size: 12px; color: var(--color-neutral-400); margin: 6px 0 0; }
+  .text-input { width: 100%; border: none; border-radius: var(--radius-md); background: #fff; box-shadow: var(--shadow-sm); padding: 11px 13px; font-size: 15px; font-family: var(--font-sans); color: var(--color-neutral-900); }
+
+  .chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--color-neutral-700); cursor: pointer; }
+  .chip.selected { background: var(--color-accent-100); color: var(--color-accent-700); font-weight: 600; box-shadow: none; }
+  .chip.small { padding: 8px 13px; }
+
+  .toggle-row { display: flex; justify-content: space-between; align-items: center; background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 13px 14px; margin-bottom: 6px; }
+  .toggle-row .label-col { padding-right: 12px; }
+  .toggle-row .label-col p:first-child { font-size: 14px; font-weight: 500; margin: 0; }
+  .switch { width: 42px; height: 25px; border-radius: var(--radius-pill); background: var(--color-neutral-300); position: relative; cursor: pointer; flex-shrink: 0; border: none; }
+  .switch::after { content: ''; position: absolute; width: 21px; height: 21px; border-radius: 50%; background: #fff; top: 2px; left: 2px; transition: left .15s ease; box-shadow: var(--shadow-sm); }
+  .switch.on { background: var(--color-accent-500); }
+  .switch.on::after { left: 19px; }
+
+  .save-btn { width: 100%; border: none; border-radius: var(--radius-lg); padding: 15px; font-size: 15px; font-weight: 600; color: #fff; background: var(--color-accent-500); cursor: pointer; margin-top: 6px; }
+  .delete-btn { width: 100%; border: 1px solid rgba(179, 38, 30, 0.3); background: none; border-radius: var(--radius-lg); padding: 13px; font-size: 14px; font-weight: 600; color: var(--color-negative-600); cursor: pointer; margin-top: 10px; }
+  .delete-btn:hover { background: rgba(179, 38, 30, 0.05); }
+
+  /* ---- Hours & days off ---- */
+  .week-total { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 14px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+  .week-total .label { font-size: 12px; color: var(--color-neutral-500); }
+  .week-total .value { font-size: 20px; font-weight: 700; }
+  .week-strip { display: flex; gap: 6px; margin-bottom: 6px; }
+  .day-chip { flex: 1; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-md); padding: 10px 4px; text-align: center; cursor: pointer; border: none; font-family: var(--font-sans); }
+  .day-chip .dow { display: block; font-size: 10px; color: var(--color-neutral-400); font-weight: 600; text-transform: uppercase; }
+  .day-chip .num { display: block; font-size: 14px; font-weight: 600; margin-top: 3px; color: var(--color-neutral-900); }
+  .day-chip.off { background: var(--color-negative-50); }
+  .day-chip.off .num { color: var(--color-negative-600); }
+  .week-hint { font-size: 11px; color: var(--color-neutral-400); text-align: center; margin: 0 0 18px; }
+  .hours-row { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 12px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+  .hours-date { font-size: 13px; font-weight: 500; }
+  .hours-value { font-size: 13px; font-weight: 600; color: var(--color-neutral-700); }
+
+  .overlay { position: fixed; inset: 0; background: rgba(28, 25, 22, 0.35); display: none; align-items: flex-end; justify-content: center; z-index: 20; }
+  .overlay.open { display: flex; }
+  .sheet { width: 100%; max-width: 430px; background: var(--color-neutral-100); border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 10px 22px 24px; box-sizing: border-box; max-height: 88vh; overflow-y: auto; }
+  .handle { width: 36px; height: 4px; border-radius: var(--radius-pill); background: var(--color-neutral-300); margin: 4px auto 16px; }
+  .sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+  .sheet-header h2 { font-size: 17px; font-weight: 600; margin: 0; }
+  .sheet-header p.sub { font-size: 12px; color: var(--color-neutral-500); margin: 2px 0 0; }
+  .close-btn { background: none; border: none; color: var(--color-neutral-500); cursor: pointer; padding: 4px; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
+    background: var(--color-neutral-900); color: #fff; padding: 10px 16px; border-radius: var(--radius-md);
+    font-size: 13px; display: flex; align-items: center; gap: 8px; opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease; max-width: 90vw; z-index: 30; text-align: left;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast svg { flex-shrink: 0; color: #6FCF97; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+
+<div class="note">Prototype — Workforce roster + the housekeeper's room/SOP flow. Nothing here is saved. Admin screens for creating Rooms and SOP task lists come in a later round — this pass is about whether the housekeeper's homepage and the Workforce roster feel right first.</div>
+
+<div class="mode-switch">
+  <button class="mode-btn active" id="staffModeBtn" type="button">Maria — housekeeper</button>
+  <button class="mode-btn" id="adminModeBtn" type="button">Jalie — admin</button>
+</div>
+
+<div class="stage">
+
+  <!-- ============ HOUSEKEEPER HOMEPAGE ============ -->
+  <div class="screen active" id="staffScreen">
+    <div class="screen-header"><h1>Today</h1></div>
+    <p class="screen-sub" id="staffDateLabel">Wednesday, August 19 · Kandy BnB</p>
+
+    <div id="roomList"></div>
+    <p class="tap-hint">Tap a room to see its task list.</p>
+  </div>
+
+  <!-- ============ ADMIN SCREEN ============ -->
+  <div class="screen" id="adminScreen">
+    <div class="screen-header"><h1>Workforce</h1></div>
+    <p class="screen-sub">People who work at the property, and their hours.</p>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="rosterTab" type="button">Roster</button>
+      <button class="tab-btn" data-tab="hoursTab" type="button">Hours &amp; days off</button>
+    </div>
+
+    <!-- Roster tab -->
+    <div class="tab-panel active" id="rosterTab">
+      <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+        <button class="add-btn" id="openAddWfBtn" type="button">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          Add person
+        </button>
+      </div>
+      <div id="wfList"></div>
+    </div>
+
+    <!-- Hours & days off tab -->
+    <div class="tab-panel" id="hoursTab">
+      <div class="chip-row" id="hoursMemberChips" style="margin-bottom:16px;"></div>
+
+      <p class="section-label" style="margin-top:0;">This week's days off</p>
+      <div class="week-strip" id="weekStrip"></div>
+      <p class="week-hint">Tap a day to mark it as their day off.</p>
+
+      <div class="week-total">
+        <span class="label">This week's hours</span>
+        <span class="value" id="weekHoursTotal">0.0 h</span>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <p class="section-label" style="margin-top:0;">Timesheet</p>
+        <button class="add-btn" id="openAddHoursBtn" type="button">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          Add
+        </button>
+      </div>
+      <div id="hoursList"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Room task checklist sheet -->
+<div class="overlay" id="roomOverlay">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="sheet-header">
+      <div>
+        <h2 id="roomSheetTitle">Room 1</h2>
+        <p class="sub" id="roomSheetSub">Checkout today</p>
+      </div>
+      <button class="close-btn" id="closeRoomBtn" aria-label="Close" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="roomTaskList"></div>
+    <button class="mark-ready-btn" id="markReadyBtn" disabled>Mark room ready</button>
+  </div>
+</div>
+
+<!-- Add/edit workforce member sheet -->
+<div class="overlay" id="wfOverlay">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="sheet-header">
+      <h2 id="wfFormTitle">Add person</h2>
+      <button class="close-btn" id="closeWfBtn" aria-label="Close" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="field">
+      <p class="field-label">Name</p>
+      <input class="text-input" id="wfNameInput" placeholder="Full name">
+    </div>
+
+    <div class="field">
+      <p class="field-label">Role</p>
+      <div class="chip-row" id="wfRoleChips">
+        <button type="button" class="chip selected" data-value="Housekeeper">Housekeeper</button>
+        <button type="button" class="chip" data-value="Gardener">Gardener</button>
+        <button type="button" class="chip" data-value="Maintenance">Maintenance</button>
+        <button type="button" class="chip" data-value="More">More</button>
+      </div>
+    </div>
+
+    <div class="toggle-row">
+      <div class="label-col">
+        <p>Give app access</p>
+        <p class="field-hint" style="margin:2px 0 0;">They'll sign in and see their assigned tasks. Leave off if you're just tracking hours/pay.</p>
+      </div>
+      <button class="switch" id="wfAccessSwitch" type="button"></button>
+    </div>
+
+    <div class="toggle-row">
+      <div class="label-col"><p>Active</p></div>
+      <button class="switch on" id="wfActiveSwitch" type="button"></button>
+    </div>
+
+    <div class="field" style="margin-top:16px;">
+      <p class="field-label">Paid via</p>
+      <div class="chip-row" id="wfPayChips">
+        <button type="button" class="chip selected" data-value="none">Not linked</button>
+        <button type="button" class="chip" data-value="maria-wages">Maria — wages</button>
+      </div>
+      <p class="field-hint">Optional — connects to an existing entry in Recurring payments so Mark paid there logs their wage.</p>
+    </div>
+
+    <button class="save-btn" id="saveWfBtn">Save person</button>
+    <button class="delete-btn" id="deleteWfBtn" style="display:none;">Remove from workforce</button>
+  </div>
+</div>
+
+<!-- Add hours sheet -->
+<div class="overlay" id="hoursOverlay">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="sheet-header">
+      <h2>Log hours</h2>
+      <button class="close-btn" id="closeHoursBtn" aria-label="Close" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="field">
+      <p class="field-label">Date</p>
+      <input type="date" class="text-input" id="hoursDateInput">
+    </div>
+    <div class="field">
+      <p class="field-label">Hours worked</p>
+      <input type="text" inputmode="decimal" class="text-input" id="hoursValueInput" placeholder="8">
+    </div>
+    <button class="save-btn" id="saveHoursBtn">Save entry</button>
+  </div>
+</div>
+
+<div id="toast" class="toast">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+  <span id="toast-text"></span>
+</div>
+
+<script>
+// ---- Data (in-memory only) -------------------------------------------------
+
+// Rooms — "linked" rooms (bedrooms) show a checkout/stayover badge as if fed
+// by an iCal read; "linked: false" rooms (garden, dining room) have no
+// booking concept at all and are driven purely by their own SOP cadence.
+var rooms = [
+  {
+    id: 'room1', name: 'Room 1', type: 'Bedroom', linked: true, bookingState: 'checkout',
+    tasks: [
+      { id: 't1', name: 'Remove & replace linen', cadence: 'daily', done: false },
+      { id: 't2', name: 'Empty trash', cadence: 'daily', done: false },
+      { id: 't3', name: 'Wipe working desk', cadence: 'daily', done: false },
+      { id: 't4', name: 'Vacuum floor', cadence: 'daily', done: false },
+      { id: 't5', name: 'Deep-clean bathroom tile', cadence: 'weekly', done: false }
+    ]
+  },
+  {
+    id: 'room2', name: 'Room 2', type: 'Bedroom', linked: true, bookingState: 'stayover',
+    tasks: [
+      { id: 't6', name: 'Empty trash', cadence: 'daily', done: true },
+      { id: 't7', name: 'Tidy up', cadence: 'daily', done: false }
+    ]
+  },
+  {
+    id: 'garden', name: 'Garden', type: 'Outdoor', linked: false, bookingState: null,
+    tasks: [
+      { id: 't8', name: 'Water plants', cadence: 'weekly', done: false },
+      { id: 't9', name: 'Mow lawn', cadence: 'weekly', done: false }
+    ]
+  },
+  {
+    id: 'dining', name: 'Dining room', type: 'Common area', linked: false, bookingState: null,
+    tasks: [
+      { id: 't10', name: 'Wipe tables', cadence: 'daily', done: false },
+      { id: 't11', name: 'Sweep floor', cadence: 'daily', done: false }
+    ]
+  }
+];
+
+var workforce = [
+  { id: 'w1', name: 'Maria', role: 'Housekeeper', access: true, active: true, pay: 'maria-wages' },
+  { id: 'w2', name: 'Sunil', role: 'Gardener', access: false, active: true, pay: 'none' },
+  { id: 'w3', name: 'Kamal', role: 'Maintenance', access: false, active: false, pay: 'none' }
+];
+
+var daysOffByMember = { w1: { Thu: true }, w2: {}, w3: {} };
+var hoursByMember = {
+  w1: [ { id: 'h1', date: 'Mon, Aug 17', hours: 6 }, { id: 'h2', date: 'Tue, Aug 18', hours: 8 } ],
+  w2: [ { id: 'h3', date: 'Tue, Aug 18', hours: 4 } ],
+  w3: []
+};
+
+var openRoomId = null;
+var editingWfId = null;
+var selectedHoursMember = 'w1';
+
+// ---- Mode switch ------------------------------------------------------------
+
+document.getElementById('staffModeBtn').addEventListener('click', function () { setMode('staff'); });
+document.getElementById('adminModeBtn').addEventListener('click', function () { setMode('admin'); });
+
+function setMode(mode) {
+  document.getElementById('staffModeBtn').classList.toggle('active', mode === 'staff');
+  document.getElementById('adminModeBtn').classList.toggle('active', mode === 'admin');
+  document.getElementById('staffScreen').classList.toggle('active', mode === 'staff');
+  document.getElementById('adminScreen').classList.toggle('active', mode === 'admin');
+}
+
+// ---- Housekeeper homepage: room list ----------------------------------------
+
+function roomProgress(room) {
+  var due = room.tasks; // in this prototype every listed task is "due today"
+  var done = due.filter(function (t) { return t.done; }).length;
+  return { done: done, total: due.length, complete: due.length > 0 && done === due.length };
+}
+
+function renderRoomList() {
+  var html = '';
+  var visibleRooms = rooms.filter(function (r) { return r.tasks.length > 0; });
+
+  if (!visibleRooms.length) {
+    document.getElementById('roomList').innerHTML = '<div class="empty-state"><h2>Nothing due today</h2><p>Every room is caught up.</p></div>';
+    return;
+  }
+
+  visibleRooms.forEach(function (r) {
+    var p = roomProgress(r);
+    var badge = '';
+    if (r.linked) {
+      badge = r.bookingState === 'checkout'
+        ? '<span class="room-badge checkout">Checkout today</span>'
+        : '<span class="room-badge stayover">Stayover</span>';
+    }
+    html += '' +
+      '<div class="room-card' + (p.complete ? ' ready' : '') + '" data-id="' + r.id + '">' +
+        '<div class="room-top">' +
+          '<div><p class="room-name">' + r.name + '</p><p class="room-sub">' + r.type + '</p></div>' +
+          badge +
+        '</div>' +
+        '<div class="progress-track"><div class="progress-fill' + (p.complete ? ' complete' : '') + '" style="width:' + (p.total ? Math.round(p.done / p.total * 100) : 0) + '%;"></div></div>' +
+        '<p class="progress-label' + (p.complete ? ' complete' : '') + '">' + (p.complete ? 'All done' : (p.done + ' of ' + p.total + ' tasks done')) + '</p>' +
+      '</div>';
+  });
+  document.getElementById('roomList').innerHTML = html;
+  document.querySelectorAll('.room-card').forEach(function (card) {
+    card.addEventListener('click', function () { openRoom(card.dataset.id); });
+  });
+}
+
+function openRoom(id) {
+  openRoomId = id;
+  var room = rooms.find(function (r) { return r.id === id; });
+  document.getElementById('roomSheetTitle').textContent = room.name;
+  document.getElementById('roomSheetSub').textContent = room.linked
+    ? (room.bookingState === 'checkout' ? 'Checkout today — full turnover' : 'Guest staying — light service')
+    : room.type;
+  renderRoomTasks();
+  document.getElementById('roomOverlay').classList.add('open');
+}
+
+function renderRoomTasks() {
+  var room = rooms.find(function (r) { return r.id === openRoomId; });
+  var html = '';
+  room.tasks.forEach(function (t) {
+    html += '' +
+      '<div class="task-row" data-id="' + t.id + '">' +
+        '<div class="check' + (t.done ? ' done' : '') + '"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>' +
+        '<div class="task-row-body"><p class="task-row-name' + (t.done ? ' done' : '') + '">' + t.name + '</p></div>' +
+        '<span class="cadence-tag ' + t.cadence + '">' + t.cadence.charAt(0).toUpperCase() + t.cadence.slice(1) + '</span>' +
+      '</div>';
+  });
+  document.getElementById('roomTaskList').innerHTML = html;
+  document.querySelectorAll('#roomTaskList .task-row').forEach(function (row) {
+    row.addEventListener('click', function () {
+      var t = room.tasks.find(function (x) { return x.id === row.dataset.id; });
+      t.done = !t.done;
+      renderRoomTasks();
+      updateMarkReadyBtn(room);
+    });
+  });
+  updateMarkReadyBtn(room);
+}
+
+function updateMarkReadyBtn(room) {
+  var p = roomProgress(room);
+  var btn = document.getElementById('markReadyBtn');
+  btn.disabled = !p.complete;
+  btn.textContent = p.complete ? 'Room ready ✓' : 'Mark room ready (' + p.done + '/' + p.total + ')';
+  btn.classList.toggle('done-state', p.complete);
+}
+
+document.getElementById('closeRoomBtn').addEventListener('click', function () {
+  document.getElementById('roomOverlay').classList.remove('open');
+  renderRoomList();
+});
+document.getElementById('markReadyBtn').addEventListener('click', function () {
+  var room = rooms.find(function (r) { return r.id === openRoomId; });
+  document.getElementById('roomOverlay').classList.remove('open');
+  showToast(room.name + ' marked ready.');
+  renderRoomList();
+});
+
+// ---- Admin: tabs --------------------------------------------------------------
+
+document.querySelectorAll('.tab-btn').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+    document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ---- Admin: workforce roster ---------------------------------------------------
+
+function renderWfList() {
+  var html = '';
+  workforce.forEach(function (w) {
+    html += '' +
+      '<div class="wf-card' + (w.active ? '' : ' inactive') + '" data-id="' + w.id + '">' +
+        '<div><p class="wf-name">' + w.name + '</p>' +
+          '<p class="wf-meta"><span class="role-chip">' + w.role + '</span>' +
+          '<span><span class="access-dot' + (w.access ? '' : ' off') + '"></span> ' + (w.access ? 'App access' : 'No app access') + '</span>' +
+          (w.active ? '' : ' · Inactive') +
+          '</p>' +
+        '</div>' +
+      '</div>';
+  });
+  document.getElementById('wfList').innerHTML = html;
+  document.querySelectorAll('.wf-card').forEach(function (card) {
+    card.addEventListener('click', function () { openEditWf(card.dataset.id); });
+  });
+  renderHoursMemberChips();
+}
+
+document.getElementById('openAddWfBtn').addEventListener('click', function () {
+  editingWfId = null;
+  document.getElementById('wfFormTitle').textContent = 'Add person';
+  document.getElementById('deleteWfBtn').style.display = 'none';
+  document.getElementById('wfNameInput').value = '';
+  selectChip('wfRoleChips', 'Housekeeper');
+  setSwitch('wfAccessSwitch', false);
+  setSwitch('wfActiveSwitch', true);
+  selectChip('wfPayChips', 'none');
+  document.getElementById('wfOverlay').classList.add('open');
+});
+
+function openEditWf(id) {
+  var w = workforce.find(function (x) { return x.id === id; });
+  editingWfId = id;
+  document.getElementById('wfFormTitle').textContent = 'Edit person';
+  document.getElementById('deleteWfBtn').style.display = 'block';
+  document.getElementById('wfNameInput').value = w.name;
+  selectChip('wfRoleChips', w.role);
+  setSwitch('wfAccessSwitch', w.access);
+  setSwitch('wfActiveSwitch', w.active);
+  selectChip('wfPayChips', w.pay);
+  document.getElementById('wfOverlay').classList.add('open');
+}
+
+document.getElementById('closeWfBtn').addEventListener('click', function () {
+  document.getElementById('wfOverlay').classList.remove('open');
+});
+document.getElementById('wfAccessSwitch').addEventListener('click', function () { toggleSwitch('wfAccessSwitch'); });
+document.getElementById('wfActiveSwitch').addEventListener('click', function () { toggleSwitch('wfActiveSwitch'); });
+
+document.querySelectorAll('#wfRoleChips .chip, #wfPayChips .chip').forEach(function (chip) {
+  chip.addEventListener('click', function () { selectChip(chip.parentElement.id, chip.dataset.value); });
+});
+
+document.getElementById('saveWfBtn').addEventListener('click', function () {
+  var name = document.getElementById('wfNameInput').value || 'New person';
+  var role = document.querySelector('#wfRoleChips .chip.selected').dataset.value;
+  var access = document.getElementById('wfAccessSwitch').classList.contains('on');
+  var active = document.getElementById('wfActiveSwitch').classList.contains('on');
+  var pay = document.querySelector('#wfPayChips .chip.selected').dataset.value;
+
+  if (editingWfId) {
+    var w = workforce.find(function (x) { return x.id === editingWfId; });
+    w.name = name; w.role = role; w.access = access; w.active = active; w.pay = pay;
+    showToast('Workforce entry updated.');
+  } else {
+    var id = 'w' + Date.now();
+    workforce.push({ id: id, name: name, role: role, access: access, active: active, pay: pay });
+    daysOffByMember[id] = {};
+    hoursByMember[id] = [];
+    showToast(access ? name + ' added — they can be invited to sign in from Users admin.' : name + ' added to the roster.');
+  }
+  document.getElementById('wfOverlay').classList.remove('open');
+  renderWfList();
+});
+
+document.getElementById('deleteWfBtn').addEventListener('click', function () {
+  workforce = workforce.filter(function (x) { return x.id !== editingWfId; });
+  document.getElementById('wfOverlay').classList.remove('open');
+  renderWfList();
+  showToast('Removed from workforce.');
+});
+
+function setSwitch(id, on) {
+  document.getElementById(id).classList.toggle('on', on);
+}
+function toggleSwitch(id) {
+  document.getElementById(id).classList.toggle('on');
+}
+
+// ---- Admin: hours & days off ---------------------------------------------------
+
+var weekDays = [
+  { dow: 'Sun', num: 16 }, { dow: 'Mon', num: 17 }, { dow: 'Tue', num: 18 },
+  { dow: 'Wed', num: 19 }, { dow: 'Thu', num: 20 }, { dow: 'Fri', num: 21 }, { dow: 'Sat', num: 22 }
+];
+
+function renderHoursMemberChips() {
+  var html = '';
+  workforce.filter(function (w) { return w.active; }).forEach(function (w) {
+    html += '<button type="button" class="chip small' + (w.id === selectedHoursMember ? ' selected' : '') + '" data-id="' + w.id + '">' + w.name + '</button>';
+  });
+  document.getElementById('hoursMemberChips').innerHTML = html;
+  document.querySelectorAll('#hoursMemberChips .chip').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      selectedHoursMember = chip.dataset.id;
+      renderHoursMemberChips();
+      renderWeekStrip();
+      renderHours();
+    });
+  });
+}
+
+function renderWeekStrip() {
+  var off = daysOffByMember[selectedHoursMember] || {};
+  var html = '';
+  weekDays.forEach(function (d) {
+    var isOff = !!off[d.dow];
+    html += '<button class="day-chip' + (isOff ? ' off' : '') + '" data-dow="' + d.dow + '" type="button"><span class="dow">' + d.dow + '</span><span class="num">' + d.num + '</span></button>';
+  });
+  document.getElementById('weekStrip').innerHTML = html;
+  document.querySelectorAll('.day-chip').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      var dow = chip.dataset.dow;
+      var member = daysOffByMember[selectedHoursMember];
+      member[dow] = !member[dow];
+      renderWeekStrip();
+      showToast(member[dow] ? dow + ' marked as a day off.' : dow + ' is a working day again.');
+    });
+  });
+}
+
+function renderHours() {
+  var log = hoursByMember[selectedHoursMember] || [];
+  var total = log.reduce(function (sum, h) { return sum + h.hours; }, 0);
+  document.getElementById('weekHoursTotal').textContent = total.toFixed(1) + ' h';
+  var html = '';
+  log.forEach(function (h) {
+    html += '<div class="hours-row"><span class="hours-date">' + h.date + '</span><span class="hours-value">' + h.hours.toFixed(1) + ' h</span></div>';
+  });
+  document.getElementById('hoursList').innerHTML = html || '<div class="empty-state"><p>No hours logged yet.</p></div>';
+}
+
+document.getElementById('openAddHoursBtn').addEventListener('click', function () {
+  document.getElementById('hoursDateInput').valueAsDate = new Date();
+  document.getElementById('hoursValueInput').value = '';
+  document.getElementById('hoursOverlay').classList.add('open');
+});
+document.getElementById('closeHoursBtn').addEventListener('click', function () {
+  document.getElementById('hoursOverlay').classList.remove('open');
+});
+document.getElementById('saveHoursBtn').addEventListener('click', function () {
+  var dateInput = document.getElementById('hoursDateInput');
+  var val = parseFloat(document.getElementById('hoursValueInput').value || '0');
+  var label = dateInput.value ? new Date(dateInput.value + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : 'New entry';
+  hoursByMember[selectedHoursMember].push({ id: 'h' + Date.now(), date: label, hours: val });
+  document.getElementById('hoursOverlay').classList.remove('open');
+  renderHours();
+  showToast('Hours logged.');
+});
+
+function selectChip(containerId, value) {
+  var container = document.getElementById(containerId);
+  container.querySelectorAll('.chip').forEach(function (c) {
+    c.classList.toggle('selected', c.dataset.value === value);
+  });
+}
+
+// ---- Toast -----------------------------------------------------------------------
+
+var toastTimer;
+function showToast(text) {
+  document.getElementById('toast-text').textContent = text;
+  var toast = document.getElementById('toast');
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { toast.classList.remove('show'); }, 3200);
+}
+
+// ---- Init ---------------------------------------------------------------------
+
+renderRoomList();
+renderWfList();
+renderWeekStrip();
+renderHours();
+</script>
+</body>
+</html>

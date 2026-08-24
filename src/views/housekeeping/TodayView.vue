@@ -1,0 +1,294 @@
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import dayjs from 'dayjs'
+import { useAuth } from '@/composables/useAuth'
+import { useHousekeepingToday, type RoomToday, type TodayTask } from '@/composables/useHousekeepingToday'
+import { useWorkforce } from '@/composables/useWorkforce'
+import { useToastStore } from '@/stores/toastStore'
+import BottomSheet from '@/components/ui/BottomSheet.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import { Check } from 'lucide-vue-next'
+
+// Shared by two routes — housekeeping-today (a staff account's own rooms,
+// no reassign controls) and housekeeping-schedule (administrator/manager,
+// every room, with the reassign picker). Same underlying data and actions,
+// just filtered and gated differently — mirrors
+// docs/housekeeping-in-app-prototype.html's renderTodayOrSchedule(mode).
+const route = useRoute()
+const mode = computed<'today' | 'schedule'>(() => (route.name === 'housekeeping-today' ? 'today' : 'schedule'))
+
+const { workspaceId, user, membershipId, role } = useAuth()
+const { rooms, loading, error, revision: todayRevision, load, complete, uncomplete, markInspected } = useHousekeepingToday()
+const {
+  members,
+  revision: wfRevision,
+  list: listMembers,
+  loadDaysOff,
+  loadAssignments,
+  setAssignment,
+  computeAssignments,
+} = useWorkforce()
+const toast = useToastStore()
+
+const todayIso = dayjs().format('YYYY-MM-DD')
+const todayLabel = dayjs().format('dddd, MMMM D')
+
+async function loadAll() {
+  if (!workspaceId.value) return
+  await Promise.all([load(workspaceId.value), listMembers(workspaceId.value), loadDaysOff(workspaceId.value, todayIso, todayIso), loadAssignments(workspaceId.value, todayIso)])
+}
+
+watch(workspaceId, loadAll, { immediate: true })
+watch(todayRevision, loadAll)
+watch(wfRevision, loadAll)
+
+// Inspection is a manager-level action (matches room_inspections' RLS,
+// migration 0012) — staff don't get the "Mark inspected" control at all,
+// same shared screen either way.
+const canInspect = computed(() => role.value === 'administrator' || role.value === 'manager')
+
+const myWorkforceMemberId = computed(() => members.value.find((m) => m.membership_id === membershipId.value)?.id ?? null)
+const dueRoomIds = computed(() => rooms.value.map((r) => r.roomId))
+const dayAssignments = computed(() => computeAssignments(dueRoomIds.value, todayIso))
+const onShiftHousekeepers = computed(() => members.value.filter((m) => m.crew_role === 'housekeeper' && m.is_active))
+
+function roomProgress(room: RoomToday) {
+  const done = room.tasks.filter((t) => t.isDone).length
+  return { done, total: room.tasks.length, complete: room.tasks.length > 0 && done === room.tasks.length }
+}
+
+const visibleRooms = computed(() => {
+  if (mode.value === 'today') {
+    return rooms.value.filter((r) => dayAssignments.value[r.roomId] === myWorkforceMemberId.value)
+  }
+  return rooms.value
+})
+
+const daySummary = computed(() => {
+  const done = visibleRooms.value.filter((r) => roomProgress(r).complete).length
+  const total = visibleRooms.value.length
+  return { done, total, pct: total ? Math.round((done / total) * 100) : 100 }
+})
+
+function memberName(id: string | null): string {
+  if (!id) return ''
+  if (id === user.value?.id) return 'You'
+  return members.value.find((m) => m.id === id)?.name ?? 'Someone'
+}
+
+function lastUpdate(room: RoomToday) {
+  const completed = room.tasks.filter((t) => t.isDone && t.completedAt)
+  if (!completed.length) return null
+  return completed.reduce((latest, t) => (!latest || t.completedAt! > latest.completedAt! ? t : latest))
+}
+
+// ---- Room checklist sheet --------------------------------------------------
+
+const openRoomId = ref<string | null>(null)
+const openRoom = computed(() => rooms.value.find((r) => r.roomId === openRoomId.value) ?? null)
+function openRoomSheet(roomId: string) {
+  openRoomId.value = roomId
+}
+
+const pendingUntick = ref<TodayTask | null>(null)
+
+async function onToggleTask(task: TodayTask) {
+  if (!workspaceId.value) return
+  if (!task.isDone) {
+    const err = await complete(workspaceId.value, task.taskId)
+    if (err) toast.show(err.message, { tone: 'error' })
+    return
+  }
+  const mine = task.completedBy === user.value?.id
+  if (!mine && !canInspect.value) {
+    toast.show(`Only ${memberName(task.completedBy)} or an administrator/manager can undo this.`, { tone: 'error' })
+    return
+  }
+  if (!mine) {
+    pendingUntick.value = task
+    return
+  }
+  const err = await uncomplete(task.taskId, task.dueOn)
+  if (err) toast.show(err.message, { tone: 'error' })
+}
+
+async function confirmUntick() {
+  if (!pendingUntick.value) return
+  const err = await uncomplete(pendingUntick.value.taskId, pendingUntick.value.dueOn)
+  if (err) toast.show(err.message, { tone: 'error' })
+  pendingUntick.value = null
+}
+
+async function onMarkInspected(roomId: string) {
+  if (!workspaceId.value) return
+  const err = await markInspected(workspaceId.value, roomId)
+  if (err) toast.show(err.message, { tone: 'error' })
+  else toast.show('Room marked inspected.')
+}
+
+// ---- Reassign (schedule mode only) -----------------------------------------
+
+const reassignOpenFor = ref<string | null>(null)
+async function onReassign(roomId: string, memberId: string) {
+  if (!workspaceId.value) return
+  const err = await setAssignment(workspaceId.value, roomId, todayIso, memberId)
+  if (err) toast.show(err.message, { tone: 'error' })
+  reassignOpenFor.value = null
+}
+
+const CADENCE_TAG_CLASS: Record<string, string> = {
+  daily: 'bg-neutral-100 text-neutral-500',
+  weekly: 'bg-info-50 text-info-600',
+  monthly: 'bg-warn-50 text-warn-600',
+  quarterly: 'bg-accent-100 text-accent-700',
+}
+</script>
+
+<template>
+  <div class="mx-auto max-w-3xl px-4 pt-6 pb-24 md:pb-8">
+    <header class="mb-4">
+      <h1 class="text-h1 font-semibold text-neutral-900">{{ mode === 'today' ? 'Today' : "Today's schedule" }}</h1>
+      <p class="text-body-sm text-neutral-500">
+        {{ todayLabel }}
+        <template v-if="mode === 'schedule'"> · {{ onShiftHousekeepers.length ? onShiftHousekeepers.map((m) => m.name).join(' & ') + ' on shift' : 'No one on shift today' }}</template>
+      </p>
+    </header>
+
+    <div v-if="loading && !rooms.length" class="flex flex-col gap-2">
+      <div v-for="i in 3" :key="i" class="h-24 animate-pulse rounded-md bg-neutral-100" />
+    </div>
+    <div v-else-if="error" class="flex items-center justify-between gap-3 rounded-md bg-negative-600/5 p-4 text-body-sm text-negative-600">
+      <span>{{ error.message }}</span>
+      <button type="button" class="font-medium underline" @click="loadAll">Try again</button>
+    </div>
+    <section v-else-if="!visibleRooms.length" class="rounded-md bg-white p-6 text-center shadow-sm">
+      <h2 class="mb-1 text-h3 font-semibold text-neutral-900">{{ mode === 'today' ? 'Nothing due today' : 'Nothing to assign' }}</h2>
+      <p class="text-body-sm text-neutral-500">{{ mode === 'today' ? 'Every room is caught up.' : 'No rooms currently need attention.' }}</p>
+    </section>
+
+    <template v-else>
+      <!-- Single-glance rollup, same math as each room card below, just
+           summed across the rooms shown here (07-domain-model-and-schema.md
+           §8's housekeeping_completion_summary backs the Dashboard/Reports
+           equivalent of this; this one's computed from what's already
+           loaded, since it only needs today). -->
+      <div class="mb-4 rounded-md bg-white p-3.5 shadow-sm">
+        <div class="mb-1.5 flex items-baseline justify-between">
+          <p class="text-caption font-semibold text-neutral-700">{{ mode === 'today' ? "Today's progress" : 'Today across the property' }}</p>
+          <p class="text-body-sm font-bold" :class="daySummary.pct === 100 ? 'text-positive-600' : 'text-accent-600'">
+            {{ daySummary.done }} of {{ daySummary.total }} rooms · {{ daySummary.pct }}%
+          </p>
+        </div>
+        <div class="h-1.5 overflow-hidden rounded-pill bg-neutral-100">
+          <div class="h-full rounded-pill" :class="daySummary.pct === 100 ? 'bg-positive-600' : 'bg-accent-500'" :style="{ width: `${daySummary.pct}%` }" />
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <div
+          v-for="room in visibleRooms"
+          :key="room.roomId"
+          class="cursor-pointer rounded-md bg-white p-3.5 shadow-sm hover:shadow-md"
+          :class="{ 'opacity-65': roomProgress(room).complete && room.inspectedBy }"
+          @click="openRoomSheet(room.roomId)"
+        >
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <p class="truncate text-body font-semibold text-neutral-900">{{ room.roomName }}</p>
+              <p class="truncate text-caption text-neutral-500">{{ room.roomType }}</p>
+            </div>
+          </div>
+          <div class="my-1.5 h-1.5 overflow-hidden rounded-pill bg-neutral-100">
+            <div
+              class="h-full rounded-pill"
+              :class="roomProgress(room).complete ? 'bg-positive-600' : 'bg-accent-500'"
+              :style="{ width: `${roomProgress(room).total ? Math.round((roomProgress(room).done / roomProgress(room).total) * 100) : 0}%` }"
+            />
+          </div>
+          <p class="text-caption" :class="roomProgress(room).complete ? 'font-semibold text-positive-600' : 'text-neutral-500'">
+            <template v-if="!roomProgress(room).complete">{{ roomProgress(room).done }} of {{ roomProgress(room).total }} tasks done</template>
+            <template v-else-if="room.inspectedBy">All done</template>
+            <template v-else>Pending inspection</template>
+          </p>
+          <p v-if="lastUpdate(room)" class="mt-0.5 text-caption text-neutral-400">
+            Last update: <span class="font-medium text-neutral-600">{{ memberName(lastUpdate(room)!.completedBy) }}</span> · {{ dayjs(lastUpdate(room)!.completedAt).format('h:mm A') }}
+          </p>
+
+          <template v-if="mode === 'schedule'">
+            <div class="mt-2 flex items-center justify-between" @click.stop>
+              <span class="text-caption text-neutral-500">
+                {{ dayAssignments[room.roomId] ? memberName(dayAssignments[room.roomId]!) : 'Unassigned' }}
+              </span>
+              <button
+                v-if="onShiftHousekeepers.length > 1"
+                type="button"
+                class="rounded-pill bg-neutral-100 px-2.5 py-1 text-caption font-medium text-neutral-700"
+                @click="reassignOpenFor = reassignOpenFor === room.roomId ? null : room.roomId"
+              >
+                Reassign
+              </button>
+            </div>
+            <div v-if="reassignOpenFor === room.roomId" class="mt-2 flex flex-wrap gap-1.5" @click.stop>
+              <button
+                v-for="m in onShiftHousekeepers"
+                :key="m.id"
+                type="button"
+                class="rounded-pill px-3 py-1.5 text-caption"
+                :class="dayAssignments[room.roomId] === m.id ? 'bg-accent-100 font-semibold text-accent-700' : 'bg-neutral-50 font-medium text-neutral-500'"
+                @click="onReassign(room.roomId, m.id)"
+              >
+                {{ m.name }}
+              </button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </template>
+
+    <!-- Room checklist sheet -->
+    <BottomSheet :open="!!openRoom" :title="openRoom?.roomName ?? ''" @close="openRoomId = null">
+      <div v-if="openRoom" class="flex flex-col">
+        <div v-for="task in openRoom.tasks" :key="task.taskId" class="flex items-start gap-3 border-b border-neutral-200 py-2.5 last:border-b-0" @click="onToggleTask(task)">
+          <button
+            type="button"
+            class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border-2"
+            :class="task.isDone ? 'border-positive-600 bg-positive-600' : 'border-neutral-300'"
+          >
+            <Check v-if="task.isDone" :size="13" class="text-white" />
+          </button>
+          <div class="min-w-0 flex-1 cursor-pointer">
+            <p class="text-body-sm font-medium" :class="task.isDone ? 'text-neutral-400 line-through' : 'text-neutral-900'">{{ task.name }}</p>
+            <p v-if="task.isDone && task.completedBy" class="text-caption text-positive-600">{{ memberName(task.completedBy) }} · {{ dayjs(task.completedAt).format('h:mm A') }}</p>
+          </div>
+          <span class="shrink-0 self-start rounded-pill px-2 py-0.5 text-caption font-semibold" :class="CADENCE_TAG_CLASS[task.cadence]">{{ task.cadence }}</span>
+        </div>
+
+        <template v-if="roomProgress(openRoom).complete">
+          <button
+            v-if="!openRoom.inspectedBy && canInspect"
+            type="button"
+            class="mt-3.5 w-full rounded-pill bg-accent-500 py-3 text-body-sm font-semibold text-white hover:bg-accent-600"
+            @click="onMarkInspected(openRoom.roomId)"
+          >
+            Mark inspected
+          </button>
+          <div v-else-if="!openRoom.inspectedBy" class="mt-3.5 w-full rounded-pill bg-info-50 py-3 text-center text-body-sm font-semibold text-info-600">Pending inspection</div>
+          <div v-else class="mt-3.5 w-full rounded-pill bg-positive-600/10 py-3 text-center text-body-sm font-semibold text-positive-600">
+            Inspected by {{ memberName(openRoom.inspectedBy) }}
+          </div>
+        </template>
+      </div>
+    </BottomSheet>
+
+    <ConfirmDialog
+      :open="!!pendingUntick"
+      title="Undo this task?"
+      :description="pendingUntick ? `${memberName(pendingUntick.completedBy)} marked &quot;${pendingUntick.name}&quot; done. Undo it?` : ''"
+      confirm-label="Undo"
+      danger
+      @confirm="confirmUntick"
+      @cancel="pendingUntick = null"
+    />
+  </div>
+</template>

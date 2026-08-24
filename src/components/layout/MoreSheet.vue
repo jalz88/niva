@@ -3,17 +3,17 @@ import type { Component } from 'vue'
 import { RouterLink } from 'vue-router'
 
 // Bottom sheet for the mobile "More" nav slot — houses every destination
-// that doesn't fit in the always-visible bottom bar (currently Account,
-// Recurring payments, and Administration). Built to grow: Notifications
-// and Housekeeping & Inventory will each just become another entry in
-// `items` once those features actually exist — no shell change needed
-// then.
+// that doesn't fit in the always-visible bottom bar. Grouped (Money,
+// Account, …) rather than a flat list once Reports + Recurring payments +
+// Administration + Account all landed in here together — mirrors the
+// grouping in docs/housekeeping-in-app-prototype.html's moreGroups() /
+// the Screen access sheet's SCREEN_GROUPS (same shape, different job).
 // Decided 2026-08-04 after a 3-pattern visual comparison (bottom nav +
 // More hub vs. bottom nav + swipe-up vs. side drawer) — see
 // docs/09-wireframes.md "Navigation chrome".
 defineProps<{
   open: boolean
-  items: { name: string; label: string; icon: Component }[]
+  groups: { label: string | null; items: { name: string; label: string; icon: Component }[] }[]
 }>()
 
 const emit = defineEmits<{ close: [] }>()
@@ -31,16 +31,19 @@ const emit = defineEmits<{ close: [] }>()
     >
       <div class="w-full rounded-t-2xl bg-white p-4" style="padding-bottom: calc(1rem + env(safe-area-inset-bottom))">
         <div class="mx-auto mb-3 h-1 w-9 rounded-full bg-neutral-200" />
-        <RouterLink
-          v-for="item in items"
-          :key="item.name"
-          :to="{ name: item.name }"
-          class="flex items-center gap-3 rounded-sm px-2 py-3 text-body font-medium text-neutral-800 hover:bg-neutral-100"
-          @click="emit('close')"
-        >
-          <component :is="item.icon" :size="20" class="text-neutral-500" />
-          {{ item.label }}
-        </RouterLink>
+        <template v-for="group in groups" :key="group.label ?? 'ungrouped'">
+          <p v-if="group.label" class="mt-3 mb-1 px-2 text-caption font-semibold tracking-wide text-neutral-400 uppercase first:mt-0">{{ group.label }}</p>
+          <RouterLink
+            v-for="item in group.items"
+            :key="item.name"
+            :to="{ name: item.name }"
+            class="flex items-center gap-3 rounded-sm px-2 py-3 text-body font-medium text-neutral-800 hover:bg-neutral-100"
+            @click="emit('close')"
+          >
+            <component :is="item.icon" :size="20" class="text-neutral-500" />
+            {{ item.label }}
+          </RouterLink>
+        </template>
       </div>
     </div>
   </Transition>

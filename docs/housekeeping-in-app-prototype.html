@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIVA — Housekeeping, in the real app shell</title>
+<style>
+  :root {
+    --color-accent-50: #FBEEE7; --color-accent-100: #F5D6C4; --color-accent-500: #B5542A; --color-accent-600: #954423; --color-accent-700: #74351C;
+    --color-neutral-50: #FAF8F6; --color-neutral-100: #F3EFEA; --color-neutral-200: #E6DFD7; --color-neutral-300: #D3C8BC; --color-neutral-400: #A99C8E; --color-neutral-500: #7D7266; --color-neutral-700: #453F37; --color-neutral-900: #1C1916;
+    --color-positive-50: #EAF4EF; --color-positive-600: #2F7D5A;
+    --color-info-50: #EAF0F8; --color-info-600: #2E5FA3;
+    --color-warn-50: #FCF3E3; --color-warn-600: #A9711C;
+    --color-negative-50: #FBEAE9; --color-negative-600: #B3261E;
+    --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px; --radius-pill: 9999px;
+    --shadow-sm: 0 1px 2px rgba(28,25,22,.06); --shadow-md: 0 4px 12px rgba(28,25,22,.10);
+    --font-sans: -apple-system,"Segoe UI",Roboto,Inter,sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--color-neutral-200); font-family: var(--font-sans); color: var(--color-neutral-900); min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+  .note { max-width: 390px; width: 100%; padding: 10px 20px 4px; font-size: 12px; color: var(--color-neutral-500); text-align: center; box-sizing: border-box; }
+  .note b { color: var(--color-neutral-700); }
+  .demo-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--color-neutral-400); max-width: 390px; width: 100%; padding: 0 20px; box-sizing: border-box; margin: 8px 0 -2px; }
+  .demo-row { display: flex; gap: 8px; max-width: 390px; width: 100%; padding: 8px 20px; box-sizing: border-box; }
+  .demo-btn { flex: 1; border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 9px 6px; font-size: 12px; font-weight: 600; color: var(--color-neutral-700); cursor: pointer; }
+  .demo-btn.active { background: var(--color-accent-500); color: #fff; }
+
+  /* ---- Phone frame = the actual app shell ---- */
+  .phone { width: 390px; max-width: 100%; background: #fff; border-radius: 28px; box-shadow: var(--shadow-md); overflow: hidden; display: flex; flex-direction: column; height: 760px; margin: 10px 0 24px; }
+  .app-header { flex-shrink: 0; padding: 14px 18px 12px; border-bottom: 1px solid var(--color-neutral-100); display: flex; align-items: center; gap: 10px; }
+  .app-header h1 { font-size: 18px; font-weight: 600; margin: 0; }
+  .back-btn { border: none; background: var(--color-neutral-100); border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; color: var(--color-neutral-700); cursor: pointer; flex-shrink: 0; }
+  .app-content { flex: 1; overflow-y: auto; background: var(--color-neutral-50); padding: 16px 18px 24px; }
+  .screen-sub { font-size: 12px; color: var(--color-neutral-500); margin: -8px 0 14px; }
+
+  .bottom-nav { flex-shrink: 0; display: flex; align-items: center; border-top: 1px solid var(--color-neutral-200); background: #fff; padding-bottom: 6px; }
+  /* A housekeeping-only account (visible_areas restricted to just Housekeeping)
+     gets no nav chrome at all - one screen, nothing to tap into by mistake. */
+  .phone.staff-mode .bottom-nav { display: none; }
+  .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0 2px; background: none; border: none; font-size: 10px; color: var(--color-neutral-500); cursor: pointer; font-family: var(--font-sans); }
+  .nav-item.active { color: var(--color-accent-600); font-weight: 700; }
+  .nav-add { display: flex; flex: 1; justify-content: center; }
+  .nav-add button { margin-top: -18px; width: 44px; height: 44px; border-radius: 50%; background: var(--color-accent-500); color: #fff; border: none; box-shadow: var(--shadow-md); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+
+  /* ---- More sheet ---- */
+  .more-overlay { position: absolute; inset: 0; background: rgba(28,25,22,.3); display: none; align-items: flex-end; z-index: 30; border-radius: 28px; overflow: hidden; }
+  .more-overlay.open { display: flex; }
+  .more-sheet { width: 100%; background: #fff; border-radius: 18px 18px 0 0; padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); }
+  .more-handle { width: 36px; height: 4px; border-radius: var(--radius-pill); background: var(--color-neutral-200); margin: 2px auto 10px; }
+  .more-group-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--color-neutral-400); margin: 14px 0 4px 8px; }
+  .more-group-label:first-child { margin-top: 2px; }
+  .more-item { display: flex; align-items: center; gap: 12px; padding: 12px 8px; border-radius: var(--radius-sm); border: none; background: none; width: 100%; text-align: left; font-size: 15px; font-weight: 500; color: var(--color-neutral-800); cursor: pointer; }
+  .more-item:hover { background: var(--color-neutral-100); }
+  .more-icon { color: var(--color-neutral-500); flex-shrink: 0; }
+
+  /* ---- Placeholder screens (already-shipped areas, not remocked here) ---- */
+  .placeholder { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 40px 20px; text-align: center; color: var(--color-neutral-400); font-size: 13px; }
+
+  /* ---- Housekeeping hub ---- */
+  .hub-row { display: flex; align-items: center; justify-content: space-between; background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 15px 16px; margin-bottom: 10px; cursor: pointer; }
+  .hub-row:hover { box-shadow: var(--shadow-md); }
+  .hub-row-title { font-size: 15px; font-weight: 600; margin: 0; }
+  .hub-row-sub { font-size: 12px; color: var(--color-neutral-500); margin: 2px 0 0; }
+  .chev { color: var(--color-neutral-400); }
+
+  /* ---- Rooms / today ---- */
+  .section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--color-neutral-400); margin: 16px 0 8px; }
+  .section-label:first-of-type { margin-top: 0; }
+  .room-card { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 13px 15px; margin-bottom: 9px; cursor: pointer; }
+  .room-card.ready { opacity: .65; }
+  .room-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 9px; }
+  .room-name { font-size: 14px; font-weight: 600; margin: 0; }
+  .room-sub { font-size: 11px; color: var(--color-neutral-500); margin: 2px 0 0; }
+  .room-badge { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: var(--radius-pill); flex-shrink: 0; }
+  .room-badge.checkout { background: var(--color-warn-50); color: var(--color-warn-600); }
+  .room-badge.stayover { background: var(--color-info-50); color: var(--color-info-600); }
+  .progress-track { height: 6px; border-radius: var(--radius-pill); background: var(--color-neutral-100); overflow: hidden; margin-bottom: 5px; }
+  .progress-fill { height: 100%; background: var(--color-accent-500); border-radius: var(--radius-pill); }
+  .progress-fill.complete { background: var(--color-positive-600); }
+  .progress-label { font-size: 11px; color: var(--color-neutral-500); }
+  .progress-label.complete { color: var(--color-positive-600); font-weight: 600; }
+  .last-update { font-size: 10px; color: var(--color-neutral-400); margin: 3px 0 0; }
+  .last-update b { color: var(--color-neutral-500); }
+
+  .assignee-row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-neutral-100); }
+  .assignee-name { font-size: 12px; font-weight: 600; color: var(--color-neutral-700); }
+  .assignee-name .tag { font-size: 9px; font-weight: 600; color: var(--color-accent-600); background: var(--color-accent-50); padding: 1px 6px; border-radius: var(--radius-pill); margin-left: 5px; }
+  .reassign-btn { border: none; background: var(--color-neutral-100); border-radius: var(--radius-pill); padding: 4px 10px; font-size: 10px; font-weight: 600; color: var(--color-neutral-700); cursor: pointer; }
+  .reassign-picker { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .reassign-picker .chip { padding: 6px 11px; font-size: 11px; }
+
+  .empty-state { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 24px 18px; text-align: center; }
+  .empty-state h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+  .empty-state p { font-size: 12px; color: var(--color-neutral-500); margin: 0; }
+
+  /* ---- Rolled-up day-summary bar (Today / Today's schedule) ---- */
+  .day-summary { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 14px 16px; margin-bottom: 14px; }
+  .day-summary-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .day-summary-label { font-size: 12px; font-weight: 600; color: var(--color-neutral-700); margin: 0; }
+  .day-summary-pct { font-size: 17px; font-weight: 700; color: var(--color-accent-600); margin: 0; }
+  .day-summary-pct.complete { color: var(--color-positive-600); }
+  .day-summary .progress-track { height: 7px; margin-bottom: 0; }
+
+  /* ---- Dashboard attention line + Reports Housekeeping section ---- */
+  .attention-strip { display: flex; align-items: center; gap: 12px; background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 13px 15px; margin-bottom: 10px; cursor: pointer; }
+  .attention-strip:hover { box-shadow: var(--shadow-md); }
+  .attention-icon { color: var(--color-accent-500); flex-shrink: 0; }
+  .attention-title { font-size: 13px; font-weight: 600; margin: 0; }
+  .attention-sub { font-size: 11px; color: var(--color-neutral-500); margin: 2px 0 0; }
+  .attention-row { display: flex; align-items: flex-start; gap: 9px; background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 11px 13px; margin-bottom: 8px; }
+  .attention-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-negative-600); flex-shrink: 0; margin-top: 4px; }
+  .attention-row-title { font-size: 13px; font-weight: 600; margin: 0; }
+  .attention-row-sub { font-size: 11px; color: var(--color-neutral-500); margin: 2px 0 0; }
+
+  .task-row { display: flex; align-items: flex-start; gap: 11px; padding: 10px 0; border-bottom: 1px solid var(--color-neutral-200); cursor: pointer; }
+  .task-row:last-of-type { border-bottom: none; }
+  .check { width: 20px; height: 20px; border-radius: var(--radius-sm); border: 2px solid var(--color-neutral-300); flex-shrink: 0; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+  .check.done { background: var(--color-positive-600); border-color: var(--color-positive-600); }
+  .check svg { display: none; color: #fff; }
+  .check.done svg { display: block; }
+  .task-name { font-size: 13px; font-weight: 500; margin: 0; }
+  .task-name.done { text-decoration: line-through; color: var(--color-neutral-400); }
+  .task-attr { font-size: 10px; color: var(--color-positive-600); margin: 2px 0 0; }
+  .cadence-tag { font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: var(--radius-pill); background: var(--color-neutral-100); color: var(--color-neutral-500); flex-shrink: 0; margin-top: 1px; }
+  .cadence-tag.weekly { background: var(--color-info-50); color: var(--color-info-600); }
+  .cadence-tag.monthly { background: var(--color-warn-50); color: var(--color-warn-600); }
+  .cadence-tag.quarterly { background: var(--color-accent-100); color: var(--color-accent-700); }
+  .footer-btn { width: 100%; border: none; border-radius: var(--radius-pill); padding: 12px 0; font-size: 13px; font-weight: 600; color: #fff; background: var(--color-accent-500); cursor: pointer; margin-top: 14px; }
+  .footer-btn:disabled { background: var(--color-neutral-200); color: var(--color-neutral-400); cursor: not-allowed; }
+  .footer-btn.done-state { background: var(--color-positive-600); }
+  .footer-btn.pending-state { background: var(--color-info-50); color: var(--color-info-600); cursor: default; }
+
+  /* ---- Rooms admin, Staff, tabs, forms (shared) ---- */
+  .tabs { display: flex; gap: 6px; background: var(--color-neutral-100); border-radius: var(--radius-pill); padding: 4px; margin-bottom: 16px; }
+  .tab-btn { flex: 1; border: none; background: none; border-radius: var(--radius-pill); padding: 7px 4px; font-size: 12px; font-weight: 600; color: var(--color-neutral-500); cursor: pointer; }
+  .tab-btn.active { background: #fff; color: var(--color-neutral-900); box-shadow: var(--shadow-sm); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  .add-btn { display: flex; align-items: center; gap: 5px; border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 8px 13px; font-size: 12px; font-weight: 500; color: var(--color-neutral-700); cursor: pointer; }
+
+  .wf-card { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 12px 15px; margin-bottom: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .wf-card.inactive { opacity: .5; }
+  .wf-name { font-size: 14px; font-weight: 600; margin: 0; }
+  .wf-meta { font-size: 11px; color: var(--color-neutral-500); margin: 3px 0 0; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .role-chip { font-size: 9px; font-weight: 600; padding: 2px 7px; border-radius: var(--radius-pill); background: var(--color-neutral-100); color: var(--color-neutral-700); }
+  .access-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-positive-600); display: inline-block; }
+  .access-dot.off { background: var(--color-neutral-300); }
+
+  /* ---- Users / screen access (admin-only permission toggle) ---- */
+  .member-row { display: flex; align-items: center; justify-content: space-between; background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 13px 15px; margin-bottom: 8px; cursor: pointer; }
+  .member-row.locked { cursor: default; }
+  .member-name { font-size: 14px; font-weight: 600; margin: 0; display: flex; align-items: center; }
+  .member-meta { font-size: 12px; color: var(--color-neutral-500); margin: 2px 0 0; }
+  .badge-you { font-size: 9px; font-weight: 700; color: var(--color-accent-600); background: var(--color-accent-50); padding: 1px 7px; border-radius: var(--radius-pill); margin-left: 7px; }
+  .access-summary { font-size: 11px; color: var(--color-neutral-400); text-align: right; max-width: 130px; }
+  .access-note { background: var(--color-info-50); color: var(--color-info-600); border-radius: var(--radius-md); padding: 11px 13px; font-size: 12px; line-height: 1.5; margin-bottom: 14px; }
+  .toggle-row.locked .switch { opacity: .4; pointer-events: none; }
+  .toggle-row .row-hint { font-size: 10px; color: var(--color-neutral-400); margin: 2px 0 0; }
+
+  .field { margin-bottom: 15px; }
+  .field-label { font-size: 12px; color: var(--color-neutral-500); margin: 0 0 7px; }
+  .field-hint { font-size: 11px; color: var(--color-neutral-400); margin: 5px 0 0; }
+  .text-input { width: 100%; border: none; border-radius: var(--radius-md); background: #fff; box-shadow: var(--shadow-sm); padding: 10px 12px; font-size: 14px; font-family: var(--font-sans); color: var(--color-neutral-900); }
+  .chip-row { display: flex; gap: 7px; flex-wrap: wrap; }
+  .chip { border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 9px 14px; font-size: 12px; font-weight: 500; color: var(--color-neutral-700); cursor: pointer; }
+  .chip.selected { background: var(--color-accent-100); color: var(--color-accent-700); font-weight: 600; box-shadow: none; }
+  .chip.small { padding: 7px 11px; }
+  .toggle-row { display: flex; justify-content: space-between; align-items: center; background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 12px 13px; margin-bottom: 6px; }
+  .toggle-row .label-col p:first-child { font-size: 13px; font-weight: 500; margin: 0; }
+  .switch { width: 40px; height: 24px; border-radius: var(--radius-pill); background: var(--color-neutral-300); position: relative; cursor: pointer; flex-shrink: 0; border: none; }
+  .switch::after { content: ''; position: absolute; width: 20px; height: 20px; border-radius: 50%; background: #fff; top: 2px; left: 2px; transition: left .15s ease; }
+  .switch.on { background: var(--color-accent-500); }
+  .switch.on::after { left: 18px; }
+  .save-btn { width: 100%; border: none; border-radius: var(--radius-lg); padding: 14px; font-size: 14px; font-weight: 600; color: #fff; background: var(--color-accent-500); cursor: pointer; margin-top: 6px; }
+  .delete-btn { width: 100%; border: 1px solid rgba(179,38,30,.3); background: none; border-radius: var(--radius-lg); padding: 12px; font-size: 13px; font-weight: 600; color: var(--color-negative-600); cursor: pointer; margin-top: 9px; }
+  .cadence-card { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 11px 15px; margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between; }
+  .cadence-card .field-label { margin: 0; }
+  .cadence-input { width: 52px; border: none; background: transparent; font-size: 15px; font-weight: 600; color: var(--color-neutral-900); text-align: right; font-family: var(--font-sans); }
+
+  .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .cal-nav-btn { border: none; background: var(--color-neutral-100); border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; color: var(--color-neutral-700); cursor: pointer; }
+  .cal-month-label { font-size: 14px; font-weight: 600; }
+  .cal-weekday-row { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 4px; }
+  .cal-weekday-row span { text-align: center; font-size: 9px; font-weight: 600; color: var(--color-neutral-400); text-transform: uppercase; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 10px; }
+  .cal-cell { aspect-ratio: 1; border: none; border-radius: var(--radius-sm); background: #fff; box-shadow: var(--shadow-sm); font-size: 12px; font-weight: 600; color: var(--color-neutral-700); cursor: pointer; font-family: var(--font-sans); }
+  .cal-cell.blank { visibility: hidden; box-shadow: none; background: none; cursor: default; }
+  .cal-cell.off { background: var(--color-negative-50); color: var(--color-negative-600); }
+  .cal-cell.today { outline: 2px solid var(--color-accent-500); }
+  .cal-summary { font-size: 11px; color: var(--color-neutral-500); text-align: center; margin: 0 0 16px; }
+  .week-hint { font-size: 10px; color: var(--color-neutral-400); text-align: center; margin: 0 0 16px; }
+  .sync-card { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 13px 15px; margin-bottom: 16px; }
+  .sync-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+  .sync-status { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .sync-status.ok { color: var(--color-positive-600); }
+  .sync-status.issue { color: var(--color-negative-600); }
+  .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-positive-600); }
+  .sync-dot.issue { background: var(--color-negative-600); }
+  .sync-detail { font-size: 11px; color: var(--color-neutral-500); margin: 2px 0 0; }
+  .sync-now-btn { border: none; background: var(--color-neutral-100); border-radius: var(--radius-pill); padding: 5px 11px; font-size: 10px; font-weight: 600; color: var(--color-neutral-700); cursor: pointer; }
+  .linked-badge { font-size: 9px; font-weight: 600; padding: 2px 7px; border-radius: var(--radius-pill); background: var(--color-info-50); color: var(--color-info-600); }
+
+  .overlay { position: absolute; inset: 0; background: rgba(28,25,22,.35); display: none; align-items: flex-end; justify-content: center; z-index: 35; border-radius: 28px; overflow: hidden; }
+  .overlay.open { display: flex; }
+  .sheet { width: 100%; background: var(--color-neutral-100); border-radius: 18px 18px 0 0; padding: 8px 18px 20px; box-sizing: border-box; max-height: 85%; overflow-y: auto; }
+  .handle { width: 34px; height: 4px; border-radius: var(--radius-pill); background: var(--color-neutral-300); margin: 4px auto 14px; }
+  .sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+  .sheet-header h2 { font-size: 16px; font-weight: 600; margin: 0; }
+  .sheet-header p.sub { font-size: 11px; color: var(--color-neutral-500); margin: 2px 0 0; }
+  .close-btn { background: none; border: none; color: var(--color-neutral-500); cursor: pointer; padding: 4px; }
+
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); background: var(--color-neutral-900); color: #fff; padding: 10px 16px; border-radius: var(--radius-md); font-size: 12px; display: flex; align-items: center; gap: 8px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; max-width: 90vw; z-index: 50; text-align: left; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast svg { flex-shrink: 0; color: #6FCF97; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+
+<div class="note">Prototype — Housekeeping wrapped in the <b>real app shell</b>: same bottom nav, same More sheet, same back-header pattern as Administration. Switch "signed in as" below to feel how Jane's and the admin's paths differ. Language toggle and full Sinhala text from the last round aren't re-shown here to keep this file focused on navigation + Staff — still very much part of the plan.</div>
+
+<p class="demo-label">Demo only — simulate who's signed in</p>
+<div class="demo-row">
+  <button class="demo-btn active" id="personaJaneBtn" type="button">Jane — caretaker</button>
+  <button class="demo-btn" id="personaAdminBtn" type="button">Admin (Mom / Jalie)</button>
+</div>
+
+<div class="phone">
+  <div class="app-header">
+    <button class="back-btn" id="backBtn" type="button" style="display:none;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <h1 id="screenTitle" style="flex:1;">Dashboard</h1>
+    <button class="back-btn" id="signOutBtn" type="button" style="display:none;" aria-label="Sign out">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    </button>
+  </div>
+
+  <div class="app-content" id="appContent"></div>
+
+  <nav class="bottom-nav">
+    <button class="nav-item" data-screen="dashboard" type="button">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+      Dashboard
+    </button>
+    <button class="nav-item" data-screen="transactions" type="button">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+      Transactions
+    </button>
+    <div class="nav-add"><button type="button" id="quickAddBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg></button></div>
+    <button class="nav-item" data-screen="housekeeping-hub" type="button">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+      Housekeeping
+    </button>
+    <button class="nav-item" id="moreNavBtn" type="button">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+      More
+    </button>
+  </nav>
+
+  <!-- More sheet -->
+  <div class="more-overlay" id="moreOverlay">
+    <div class="more-sheet">
+      <div class="more-handle"></div>
+      <div id="moreItems"></div>
+    </div>
+  </div>
+
+  <!-- Room checklist sheet (shared by Today + Today's schedule) -->
+  <div class="overlay" id="roomOverlay">
+    <div class="sheet">
+      <div class="handle"></div>
+      <div class="sheet-header">
+        <div><h2 id="roomSheetTitle">Room 1</h2><p class="sub" id="roomSheetSub"></p></div>
+        <button class="close-btn" id="closeRoomBtn" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div id="roomTaskList"></div>
+      <button class="footer-btn" id="footerBtn" disabled></button>
+    </div>
+  </div>
+
+  <!-- Add/edit workforce -->
+  <div class="overlay" id="wfOverlay">
+    <div class="sheet">
+      <div class="handle"></div>
+      <div class="sheet-header">
+        <h2 id="wfFormTitle">Add person</h2>
+        <button class="close-btn" id="closeWfBtn" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="field"><p class="field-label">Name</p><input class="text-input" id="wfNameInput" placeholder="Full name"></div>
+      <div class="field">
+        <p class="field-label">Role</p>
+        <div class="chip-row" id="wfRoleChips">
+          <button type="button" class="chip selected" data-value="Housekeeper">Housekeeper</button>
+          <button type="button" class="chip" data-value="Gardener">Gardener</button>
+          <button type="button" class="chip" data-value="Maintenance">Maintenance</button>
+          <button type="button" class="chip" data-value="More">More</button>
+        </div>
+      </div>
+      <div class="toggle-row">
+        <div class="label-col"><p>Give app access</p><p class="field-hint" style="margin:2px 0 0;">They'll sign in and see their assigned tasks.</p></div>
+        <button class="switch" id="wfAccessSwitch" type="button"></button>
+      </div>
+      <div class="toggle-row"><div class="label-col"><p>Active</p></div><button class="switch on" id="wfActiveSwitch" type="button"></button></div>
+      <div class="field" style="margin-top:15px;">
+        <p class="field-label">Paid via</p>
+        <div class="chip-row" id="wfPayChips">
+          <button type="button" class="chip selected" data-value="none">Not linked</button>
+          <button type="button" class="chip" data-value="jane-wages">Jane — wages</button>
+        </div>
+        <p class="field-hint">Optional — links to an existing Recurring payments entry.</p>
+      </div>
+      <button class="save-btn" id="saveWfBtn">Save person</button>
+      <button class="delete-btn" id="deleteWfBtn" style="display:none;">Remove from staff</button>
+    </div>
+  </div>
+
+  <!-- Screen access (per-person nav-visibility toggle) -->
+  <div class="overlay" id="accessOverlay">
+    <div class="sheet">
+      <div class="handle"></div>
+      <div class="sheet-header">
+        <div><h2 id="accessSheetTitle">Screen access</h2><p class="sub" id="accessSheetSub"></p></div>
+        <button class="close-btn" id="closeAccessBtn" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="access-note">Off just hides it from their menu — it isn't the real lock. Their role still decides what they can actually do; this only keeps their own nav simple.</div>
+      <div id="accessList"></div>
+      <button class="save-btn" id="saveAccessBtn">Save access</button>
+    </div>
+  </div>
+
+  <!-- Add/edit room -->
+  <div class="overlay" id="roomFormOverlay">
+    <div class="sheet">
+      <div class="handle"></div>
+      <div class="sheet-header">
+        <h2 id="roomFormTitle">Add room</h2>
+        <button class="close-btn" id="closeRoomFormBtn" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="field"><p class="field-label">Name</p><input class="text-input" id="roomNameInput" placeholder="Room 1, Garden…"></div>
+      <div class="field">
+        <p class="field-label">Type</p>
+        <div class="chip-row" id="roomTypeChips">
+          <button type="button" class="chip selected" data-value="Bedroom">Bedroom</button>
+          <button type="button" class="chip" data-value="Bathroom">Bathroom</button>
+          <button type="button" class="chip" data-value="Common area">Common area</button>
+          <button type="button" class="chip" data-value="Outdoor">Outdoor</button>
+        </div>
+      </div>
+      <div class="toggle-row">
+        <div class="label-col"><p>Linked to bookings</p><p class="field-hint" style="margin:2px 0 0;">For a room guests actually book.</p></div>
+        <button class="switch" id="roomLinkedSwitch" type="button"></button>
+      </div>
+      <div class="field" id="icalUrlField" style="display:none; margin-top:15px;">
+        <p class="field-label">Calendar export URL</p>
+        <input class="text-input" id="icalUrlInput" placeholder="https://www.airbnb.com/calendar/ical/…">
+        <p class="field-hint">Checked once a day, around 1:00 AM property-local time. Read-only.</p>
+      </div>
+      <button class="save-btn" id="saveRoomBtn">Save room</button>
+      <button class="delete-btn" id="deleteRoomBtn" style="display:none;">Delete this room</button>
+    </div>
+  </div>
+
+  <!-- Add/edit SOP task -->
+  <div class="overlay" id="taskFormOverlay">
+    <div class="sheet">
+      <div class="handle"></div>
+      <div class="sheet-header">
+        <h2 id="taskFormTitle">Add task</h2>
+        <button class="close-btn" id="closeTaskFormBtn" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="field"><p class="field-label">Task</p><input class="text-input" id="taskNameInput" placeholder="Vacuum floor…"></div>
+      <div class="field">
+        <p class="field-label">Repeats</p>
+        <div class="chip-row" id="taskCadenceChips">
+          <button type="button" class="chip selected" data-value="daily">Daily</button>
+          <button type="button" class="chip" data-value="weekly">Weekly</button>
+          <button type="button" class="chip" data-value="monthly">Monthly</button>
+          <button type="button" class="chip" data-value="quarterly">Quarterly</button>
+        </div>
+      </div>
+      <div class="field" id="taskWeekdayField" style="display:none;">
+        <p class="field-label">On</p>
+        <div class="chip-row" id="taskWeekdayChips">
+          <button type="button" class="chip small selected" data-value="Mon">Mon</button>
+          <button type="button" class="chip small" data-value="Tue">Tue</button>
+          <button type="button" class="chip small" data-value="Wed">Wed</button>
+          <button type="button" class="chip small" data-value="Thu">Thu</button>
+          <button type="button" class="chip small" data-value="Fri">Fri</button>
+          <button type="button" class="chip small" data-value="Sat">Sat</button>
+          <button type="button" class="chip small" data-value="Sun">Sun</button>
+        </div>
+      </div>
+      <div class="cadence-card" id="taskMonthDayCard" style="display:none;"><p class="field-label">On day</p><input class="cadence-input" id="taskMonthDayInput" type="number" min="1" max="31" value="1"></div>
+      <button class="save-btn" id="saveTaskBtn">Save task</button>
+      <button class="delete-btn" id="deleteTaskBtn" style="display:none;">Delete this task</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+  <span id="toast-text"></span>
+</div>
+
+<script>
+// =====================================================================
+// Data
+// =====================================================================
+
+var workforce = [
+  { id: 'jane', name: 'Jane', role: 'Housekeeper', access: true, active: true, pay: 'jane-wages', offToday: false },
+  { id: 'priya', name: 'Priya', role: 'Housekeeper', access: true, active: true, pay: 'none', offToday: false },
+  { id: 'sunil', name: 'Sunil', role: 'Gardener', access: false, active: true, pay: 'none', offToday: false },
+  { id: 'kamal', name: 'Kamal', role: 'Maintenance', access: false, active: false, pay: 'none', offToday: false }
+];
+
+// =====================================================================
+// Users / screen access - the visible_areas hint from
+// 07-domain-model-and-schema.md §10, admin-configurable per member.
+// `screens: null` means "sees everything their role permits" (default,
+// no restriction). A person's *role* is still the real security boundary
+// (enforced by RLS) - `screens` only trims what their own nav shows them,
+// so it can only ever narrow, never widen, what the role already allows.
+//
+// Jane is left out of this list on purpose: her account is the
+// already-decided "housekeeping only, no nav chrome at all" case (see the
+// persona switch above) - a single-purpose caretaker account, not a
+// partial admin view. This screen is for the *manager/administrator*
+// case, e.g. Mom needing a trimmed-down view.
+// =====================================================================
+var members = [
+  { id: 'jalie', name: 'Jalie', role: 'administrator', you: true, screens: null },
+  { id: 'maria', name: 'Maria', role: 'administrator', you: false, screens: null },
+  { id: 'mom', name: 'Mom', role: 'manager', you: false,
+    screens: ['dashboard', 'transactions', 'housekeeping-schedule', 'housekeeping-calendar'] }
+];
+
+// Every screen a role can be given, grouped to match the More sheet's
+// Money/Property shape - same structure, different job (this is a
+// checklist, the More sheet is a menu). "Today's schedule" and "Rooms"
+// and the housekeeping "Work calendar"/"Roster & wages" pair are each
+// their own row here even though the last two currently render as tabs
+// on one screen - toggling one off should still be able to hide just
+// that tab. Dashboard and Account aren't listed - both are always
+// reachable regardless of role, same as the real AppShell.
+var SCREEN_GROUPS = [
+  { label: 'Money', roles: ['administrator', 'manager', 'staff'], items: [
+    { id: 'transactions', label: 'Transactions', roles: ['administrator', 'manager', 'staff'] },
+    { id: 'reports', label: 'Reports', roles: ['administrator', 'manager', 'staff'] },
+    { id: 'recurring-payments', label: 'Recurring payments', roles: ['administrator', 'manager'] }
+  ] },
+  { label: 'Housekeeping', roles: ['administrator', 'manager', 'staff'], items: [
+    { id: 'housekeeping-schedule', label: "Today's schedule", roles: ['administrator', 'manager', 'staff'] },
+    { id: 'housekeeping-calendar', label: 'Work calendar', roles: ['administrator', 'manager', 'staff'] },
+    { id: 'housekeeping-rooms', label: 'Rooms', roles: ['administrator', 'manager', 'staff'] },
+    { id: 'housekeeping-roster', label: 'Roster & wages', roles: ['administrator', 'manager'] }
+  ] },
+  { label: 'Account', roles: ['administrator'], items: [
+    { id: 'administration', label: 'Administration', roles: ['administrator'] }
+  ] }
+];
+
+// Work calendar: specific dates marked off, per person — not a recurring
+// weekly pattern (matches the 2026-08-06 decision: "days off are set
+// explicitly on a calendar, week by week, no default pattern to
+// maintain"). No hours/timesheet per Jalie's 2026-08-23 call, but the
+// real schema will still carry a nullable hours_worked column on each
+// day's record so per-hour tracking can switch on later for customers
+// who do want it, without a schema change at that point.
+var TODAY_ISO = '2026-08-19';
+var MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+var calendarYear = 2026, calendarMonth = 7; // 0-indexed; 7 = August
+var daysOffByMember = {
+  jane: { '2026-08-06': true, '2026-08-13': true, '2026-08-20': true, '2026-08-27': true },
+  priya: { '2026-08-01': true, '2026-08-02': true, '2026-08-15': true },
+  sunil: { '2026-08-09': true, '2026-08-16': true, '2026-08-23': true, '2026-08-30': true },
+  kamal: {}
+};
+
+var rooms = [
+  { id: 'room1', name: 'Room 1', type: 'Bedroom', active: true, linked: true, icalUrl: 'https://www.airbnb.com/calendar/ical/111111.ics?s=abc', syncStatus: 'ok', lastSyncedAt: new Date(Date.now() - 9 * 3600000), bookingState: 'checkout',
+    tasks: [
+      { id: 't1', name: 'Remove & replace linen', cadence: 'daily', done: false, doneBy: null, doneAt: null },
+      { id: 't2', name: 'Empty trash', cadence: 'daily', done: false, doneBy: null, doneAt: null },
+      { id: 't3', name: 'Wipe working desk', cadence: 'daily', done: false, doneBy: null, doneAt: null },
+      { id: 't4', name: 'Vacuum floor', cadence: 'daily', done: false, doneBy: null, doneAt: null },
+      { id: 't5', name: 'Deep-clean bathroom tile', cadence: 'weekly', weekday: 'Wed', done: false, doneBy: null, doneAt: null }
+    ], inspectedBy: null, inspectedAt: null },
+  { id: 'room2', name: 'Room 2', type: 'Bedroom', active: true, linked: true, icalUrl: 'https://www.agoda.com/ical/222222.ics', syncStatus: 'issue', lastSyncedAt: new Date(Date.now() - 22 * 3600000), bookingState: 'stayover',
+    tasks: [
+      { id: 't6', name: 'Empty trash', cadence: 'daily', done: true, doneBy: 'priya', doneAt: new Date(Date.now() - 40 * 60000) },
+      { id: 't7', name: 'Tidy up', cadence: 'daily', done: true, doneBy: 'priya', doneAt: new Date(Date.now() - 38 * 60000) }
+    ], inspectedBy: null, inspectedAt: null },
+  { id: 'garden', name: 'Garden', type: 'Outdoor', active: true, linked: false, icalUrl: '', syncStatus: null, lastSyncedAt: null, bookingState: null,
+    tasks: [
+      { id: 't8', name: 'Water plants', cadence: 'weekly', weekday: 'Wed', done: false, doneBy: null, doneAt: null },
+      { id: 't9', name: 'Mow lawn', cadence: 'weekly', weekday: 'Fri', done: false, doneBy: null, doneAt: null }
+    ], inspectedBy: null, inspectedAt: null },
+  { id: 'dining', name: 'Dining room', type: 'Common area', active: true, linked: false, icalUrl: '', syncStatus: null, lastSyncedAt: null, bookingState: null,
+    tasks: [
+      { id: 't12', name: 'Wipe tables', cadence: 'daily', done: false, doneBy: null, doneAt: null },
+      { id: 't13', name: 'Sweep floor', cadence: 'daily', done: false, doneBy: null, doneAt: null }
+    ], inspectedBy: null, inspectedAt: null }
+];
+
+var manualAssignments = {}; // roomId -> workforceId, overrides the round-robin
+
+// =====================================================================
+// Persona + navigation state
+// =====================================================================
+
+var persona = 'jane'; // 'jane' | 'admin'
+var currentScreen = 'dashboard';
+var previousScreen = null; // for the back button, one level deep (matches Administration's pattern)
+var openRoomId = null;
+var roomSheetMode = 'today'; // 'today' | 'schedule' — schedule mode shows assignee chrome under the checklist button context, but the checklist itself is identical
+
+document.getElementById('personaJaneBtn').addEventListener('click', function () { setPersona('jane'); });
+document.getElementById('personaAdminBtn').addEventListener('click', function () { setPersona('admin'); });
+
+function setPersona(p) {
+  persona = p;
+  document.getElementById('personaJaneBtn').classList.toggle('active', p === 'jane');
+  document.getElementById('personaAdminBtn').classList.toggle('active', p === 'admin');
+  document.querySelector('.phone').classList.toggle('staff-mode', p === 'jane');
+  // Jane's account is restricted to Housekeeping only (visible_areas), so
+  // there's nothing else to land on - straight to her own Today, always.
+  navigate(p === 'jane' ? 'housekeeping-today' : 'dashboard');
+}
+
+function isOffToday(memberId) { return !!(daysOffByMember[memberId] || {})[TODAY_ISO]; }
+function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+function firstWeekday(y, m) { return new Date(y, m, 1).getDay(); }
+function isoDate(y, m, day) { return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0'); }
+
+function onShiftHousekeepers() {
+  return workforce.filter(function (w) { return w.role === 'Housekeeper' && w.active && !isOffToday(w.id); });
+}
+
+function roomHasDueTasks(r) { return r.tasks.length > 0; }
+
+function computeAssignments() {
+  var onShift = onShiftHousekeepers();
+  var assignments = {};
+  if (!onShift.length) return assignments;
+  var due = rooms.filter(roomHasDueTasks);
+  due.forEach(function (r, i) {
+    assignments[r.id] = manualAssignments[r.id] || onShift[i % onShift.length].id;
+  });
+  return assignments;
+}
+
+function memberName(id) {
+  if (id === 'mom') return 'Mom'; // acting-as label when the admin persona ticks/inspects a task directly
+  var w = workforce.find(function (x) { return x.id === id; });
+  return w ? w.name : id;
+}
+
+// =====================================================================
+// Shell: bottom nav, header, more sheet
+// =====================================================================
+
+document.querySelectorAll('.nav-item[data-screen]').forEach(function (btn) {
+  btn.addEventListener('click', function () { navigate(btn.dataset.screen); });
+});
+document.getElementById('quickAddBtn').addEventListener('click', function () { showToast('Quick Add — unchanged, not part of this prototype.'); });
+document.getElementById('moreNavBtn').addEventListener('click', function () { openMore(); });
+
+function navigate(screen, opts) {
+  opts = opts || {};
+  previousScreen = opts.back === false ? previousScreen : (opts.from || previousScreen);
+  currentScreen = screen;
+  closeMore();
+  render();
+}
+
+function goBack() { navigate(previousScreen || 'housekeeping-hub', { back: false }); }
+document.getElementById('backBtn').addEventListener('click', goBack);
+document.getElementById('signOutBtn').addEventListener('click', function () { showToast('Sign out (not wired in this prototype).'); });
+
+// Grouped by MONEY / ACCOUNT, echoing the section structure from Jalie's
+// original blueprint screenshots (2026-08-24) rather than one flat list.
+// Only real, built screens appear - no "later" placeholders for
+// Calendar/bookings (dropped - the iCal sync feeding a room's cleaning
+// schedule covers what NIVA needs there for now, see rooms admin),
+// Assets/maintenance, Receipts, Notifications, matching the already-
+// documented "no empty nav for hypothetical modules" call in
+// 05-information-architecture.md. Groups are ready to receive more rows
+// once each actually ships, without needing another nav redesign then.
+// This same grouped shape is also what a future per-person "which screens
+// can they see" admin toggle would present - one structure serving both.
+//
+// Housekeeping moved OUT of here and into the bottom nav itself (2026-08-24)
+// - it's used daily, Reports isn't, so they swapped places. Reports moved
+// in here under Money since that's still its primary content today.
+function moreGroups() {
+  if (persona === 'jane') {
+    return [{ label: null, items: [{ screen: 'housekeeping-today', label: 'Housekeeping', icon: iconHome() }] }];
+  }
+  return [
+    { label: 'Money', items: [
+      { screen: 'reports', label: 'Reports', icon: iconReports() },
+      { screen: 'recurring-payments', label: 'Recurring payments', icon: iconRepeat() }
+    ] },
+    { label: 'Account', items: [{ screen: 'administration', label: 'Administration', icon: iconSettings() }, { screen: 'account', label: 'Account', icon: iconUser() }] }
+  ];
+}
+
+function openMore() {
+  var html = moreGroups().map(function (group) {
+    var header = group.label ? '<p class="more-group-label">' + group.label.toUpperCase() + '</p>' : '';
+    var rows = group.items.map(function (item) {
+      return '<button class="more-item" data-screen="' + item.screen + '" type="button"><span class="more-icon">' + item.icon + '</span>' + item.label + '</button>';
+    }).join('');
+    return header + rows;
+  }).join('');
+  document.getElementById('moreItems').innerHTML = html;
+  document.querySelectorAll('.more-item').forEach(function (btn) {
+    btn.addEventListener('click', function () { navigate(btn.dataset.screen, { from: null }); });
+  });
+  document.getElementById('moreOverlay').classList.add('open');
+}
+function closeMore() { document.getElementById('moreOverlay').classList.remove('open'); }
+
+function iconUser() { return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>'; }
+function iconRepeat() { return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>'; }
+function iconHome() { return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>'; }
+function iconReports() { return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg>'; }
+function iconSettings() { return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>'; }
+
+// =====================================================================
+// Render router
+// =====================================================================
+
+var SCREEN_TITLES = {
+  dashboard: 'Dashboard', transactions: 'Transactions', reports: 'Reports', account: 'Account',
+  'recurring-payments': 'Recurring payments', administration: 'Administration', 'admin-users': 'Users',
+  'housekeeping-hub': 'Housekeeping', 'housekeeping-today': 'Today',
+  'housekeeping-schedule': "Today's schedule", 'housekeeping-rooms': 'Rooms', 'housekeeping-staff': 'Staff'
+};
+var BACK_SCREENS = ['housekeeping-schedule', 'housekeeping-rooms', 'housekeeping-staff', 'admin-users'];
+
+// Housekeeping now lives directly in the bottom nav (2026-08-24 - daily use
+// beats Reports' occasional use, so they swapped slots). The nav-item still
+// only carries the "housekeeping-hub" screen name, so it needs to read as
+// active for every sub-screen underneath it too - mirrors how the real
+// AppShell.vue's `isMoreActive` covers everything tucked into its sheet.
+var HOUSEKEEPING_SCREENS = ['housekeeping-hub', 'housekeeping-today', 'housekeeping-schedule', 'housekeeping-rooms', 'housekeeping-staff'];
+var MORE_SCREENS = ['reports', 'recurring-payments', 'administration', 'account'];
+
+function render() {
+  document.getElementById('screenTitle').textContent = SCREEN_TITLES[currentScreen] || currentScreen;
+  document.getElementById('backBtn').style.display = (persona === 'admin' && BACK_SCREENS.indexOf(currentScreen) !== -1) ? 'flex' : 'none';
+  document.getElementById('signOutBtn').style.display = persona === 'jane' ? 'flex' : 'none';
+  document.querySelectorAll('.nav-item[data-screen]').forEach(function (btn) {
+    var screen = btn.dataset.screen;
+    var isActive = screen === currentScreen || (screen === 'housekeeping-hub' && HOUSEKEEPING_SCREENS.indexOf(currentScreen) !== -1);
+    btn.classList.toggle('active', isActive);
+  });
+  document.getElementById('moreNavBtn').classList.toggle('active', MORE_SCREENS.indexOf(currentScreen) !== -1);
+
+  var content = document.getElementById('appContent');
+  if (currentScreen === 'transactions' || currentScreen === 'account' || currentScreen === 'recurring-payments') {
+    content.innerHTML = '<div class="placeholder">' + SCREEN_TITLES[currentScreen] + ' — already live in the real app, not remocked here.</div>';
+  } else if (currentScreen === 'dashboard') {
+    renderDashboard(content);
+  } else if (currentScreen === 'reports') {
+    renderReportsScreen(content);
+  } else if (currentScreen === 'administration') {
+    renderAdministration(content);
+  } else if (currentScreen === 'admin-users') {
+    renderAdminUsers(content);
+  } else if (currentScreen === 'housekeeping-hub') {
+    renderHub(content);
+  } else if (currentScreen === 'housekeeping-today') {
+    renderTodayOrSchedule(content, 'today');
+  } else if (currentScreen === 'housekeeping-schedule') {
+    renderTodayOrSchedule(content, 'schedule');
+  } else if (currentScreen === 'housekeeping-rooms') {
+    renderRooms(content);
+  } else if (currentScreen === 'housekeeping-staff') {
+    renderWorkforceScreen(content);
+  }
+}
+
+// =====================================================================
+// Administration > Users > Screen access - the rest of Administration
+// (Properties, Categories, Currencies, etc.) is already live in the real
+// app and isn't remocked here; only Users is, to demo the screen-access
+// toggle Jalie asked about.
+// =====================================================================
+
+function renderAdministration(content) {
+  content.innerHTML = '' +
+    '<div class="hub-row" data-screen="admin-users"><div><p class="hub-row-title">Users</p><p class="hub-row-sub">Who has access, their role, and what they see</p></div><span class="chev">›</span></div>' +
+    '<div class="placeholder" style="margin-top:10px;">Properties, Categories, Currencies, and the rest — already live, not remocked here.</div>';
+  content.querySelectorAll('.hub-row').forEach(function (row) {
+    row.addEventListener('click', function () { navigate(row.dataset.screen, { from: 'administration' }); });
+  });
+}
+
+function roleLabel(role) { return role.charAt(0).toUpperCase() + role.slice(1); }
+
+function accessSummary(member) {
+  if (member.you) return 'You';
+  if (!member.screens) return 'Full access';
+  return member.screens.length + ' screen' + (member.screens.length === 1 ? '' : 's');
+}
+
+function renderAdminUsers(content) {
+  var html = members.map(function (m) {
+    var locked = m.you;
+    return '<div class="member-row' + (locked ? ' locked' : '') + '" data-id="' + m.id + '">' +
+      '<div><p class="member-name">' + m.name + (m.you ? '<span class="badge-you">YOU</span>' : '') + '</p>' +
+      '<p class="member-meta">' + roleLabel(m.role) + '</p></div>' +
+      '<div style="display:flex; align-items:center; gap:8px;"><p class="access-summary">' + accessSummary(m) + '</p>' +
+      (locked ? '' : '<span class="chev">›</span>') + '</div></div>';
+  }).join('');
+  content.innerHTML = html;
+  content.querySelectorAll('.member-row:not(.locked)').forEach(function (row) {
+    row.addEventListener('click', function () { openAccessSheet(row.dataset.id); });
+  });
+}
+
+// =====================================================================
+// Screen access sheet - grouped checklist, one row per navigable screen.
+// A screen only appears if the person's role permits it at all (role is
+// still the real boundary via RLS) - unchecking here just trims what
+// their own nav shows, same as Jane's simpler "housekeeping only" case
+// above, but adjustable per-screen instead of all-or-nothing.
+// =====================================================================
+
+var editingMemberId = null;
+
+function openAccessSheet(id) {
+  editingMemberId = id;
+  var m = members.find(function (x) { return x.id === id; });
+  document.getElementById('accessSheetTitle').textContent = m.name;
+  document.getElementById('accessSheetSub').textContent = roleLabel(m.role) + ' — untick anything they don\'t need day to day';
+  var rowsHtml = SCREEN_GROUPS.filter(function (g) { return g.roles.indexOf(m.role) !== -1; }).map(function (group) {
+    var items = group.items.filter(function (item) { return item.roles.indexOf(m.role) !== -1; });
+    if (!items.length) return '';
+    var rows = items.map(function (item) {
+      var on = !m.screens || m.screens.indexOf(item.id) !== -1;
+      return '<div class="toggle-row"><div class="label-col"><p>' + item.label + '</p></div>' +
+        '<button class="switch' + (on ? ' on' : '') + '" data-item="' + item.id + '" type="button"></button></div>';
+    }).join('');
+    return '<p class="section-label">' + group.label.toUpperCase() + '</p>' + rows;
+  }).join('');
+  document.getElementById('accessList').innerHTML = rowsHtml;
+  document.querySelectorAll('#accessList .switch').forEach(function (btn) {
+    btn.addEventListener('click', function () { btn.classList.toggle('on'); });
+  });
+  document.getElementById('accessOverlay').classList.add('open');
+}
+
+function closeAccessSheet() { document.getElementById('accessOverlay').classList.remove('open'); }
+document.getElementById('closeAccessBtn').addEventListener('click', closeAccessSheet);
+document.getElementById('accessOverlay').addEventListener('click', function (e) { if (e.target.id === 'accessOverlay') closeAccessSheet(); });
+
+document.getElementById('saveAccessBtn').addEventListener('click', function () {
+  var m = members.find(function (x) { return x.id === editingMemberId; });
+  var onIds = [];
+  var offIds = [];
+  document.querySelectorAll('#accessList .switch').forEach(function (btn) {
+    (btn.classList.contains('on') ? onIds : offIds).push(btn.dataset.item);
+  });
+  // Only "null" (unrestricted) when every eligible item is left on -
+  // otherwise store the explicit on-list, matching the schema's
+  // null-means-everything / array-means-restricted convention.
+  var eligibleIds = SCREEN_GROUPS.filter(function (g) { return g.roles.indexOf(m.role) !== -1; })
+    .reduce(function (acc, g) { return acc.concat(g.items.filter(function (i) { return i.roles.indexOf(m.role) !== -1; }).map(function (i) { return i.id; })); }, []);
+  m.screens = onIds.length === eligibleIds.length ? null : onIds;
+  closeAccessSheet();
+  renderAdminUsers(document.getElementById('appContent'));
+  showToast('Screen access updated for ' + m.name + '.');
+});
+
+// =====================================================================
+// Housekeeping hub (admin landing)
+// =====================================================================
+
+function renderHub(content) {
+  content.innerHTML = '' +
+    '<div class="hub-row" data-screen="housekeeping-schedule"><div><p class="hub-row-title">Today\'s schedule</p><p class="hub-row-sub">What\'s due today, and who it\'s assigned to</p></div><span class="chev">›</span></div>' +
+    '<div class="hub-row" data-screen="housekeeping-rooms"><div><p class="hub-row-title">Rooms</p><p class="hub-row-sub">Spaces, checklists, booking sync</p></div><span class="chev">›</span></div>' +
+    '<div class="hub-row" data-screen="housekeeping-staff"><div><p class="hub-row-title">Staff</p><p class="hub-row-sub">Roster and the work calendar</p></div><span class="chev">›</span></div>';
+  document.querySelectorAll('.hub-row').forEach(function (row) {
+    row.addEventListener('click', function () { navigate(row.dataset.screen, { from: 'housekeeping-hub' }); });
+  });
+}
+
+// =====================================================================
+// Today (staff) / Today's schedule (admin) — same underlying list+sheet
+// =====================================================================
+
+function roomProgress(room) {
+  var done = room.tasks.filter(function (t) { return t.done; }).length;
+  return { done: done, total: room.tasks.length, complete: room.tasks.length > 0 && done === room.tasks.length };
+}
+function roomLastUpdate(room) {
+  var completed = room.tasks.filter(function (t) { return t.done && t.doneAt; });
+  if (!completed.length) return null;
+  completed.sort(function (a, b) { return b.doneAt - a.doneAt; });
+  return completed[0];
+}
+function fmtRelative(date) {
+  if (!date) return '';
+  var mins = Math.round((Date.now() - date.getTime()) / 60000);
+  if (mins < 60) return mins + ' min' + (mins === 1 ? '' : 's') + ' ago';
+  return Math.round(mins / 60) + ' hr' + (Math.round(mins / 60) === 1 ? '' : 's') + ' ago';
+}
+function fmtTime(date) {
+  if (!date) return '';
+  var h = date.getHours(), m = date.getMinutes();
+  var suffix = h < 12 ? 'AM' : 'PM'; var h12 = h % 12; if (h12 === 0) h12 = 12;
+  return h12 + ':' + (m < 10 ? '0' : '') + m + ' ' + suffix;
+}
+
+// =====================================================================
+// Dashboard glance + Reports trends (2026-08-24) - the "can I tell at a
+// glance how the day's going" ask. Both read off the same underlying
+// room/task state as Today's schedule; for real, both would read from
+// housekeeping_completion_summary / housekeeping_attention_rooms
+// (07-domain-model-and-schema.md §8) instead of the mock `rooms` array.
+// =====================================================================
+
+function todaysRooms() { return rooms.filter(roomHasDueTasks); }
+
+function todaysStats() {
+  var due = todaysRooms();
+  var done = due.filter(function (r) { return roomProgress(r).complete; }).length;
+  return { done: done, total: due.length, pct: due.length ? Math.round(done / due.length * 100) : 100 };
+}
+
+function renderDashboard(content) {
+  var s = todaysStats();
+  content.innerHTML = '' +
+    '<div class="attention-strip" id="dashHousekeepingStrip">' +
+      '<span class="attention-icon">' + iconHome() + '</span>' +
+      '<div><p class="attention-title">Housekeeping: ' + s.done + '/' + s.total + ' done today (' + s.pct + '%)</p>' +
+      '<p class="attention-sub">Tap to see today\'s schedule</p></div>' +
+      '<span class="chev">›</span>' +
+    '</div>' +
+    '<div class="placeholder" style="margin-top:10px;">Balance, recent transactions, "payment due soon" — already live, not remocked here.</div>';
+  document.getElementById('dashHousekeepingStrip').addEventListener('click', function () {
+    navigate('housekeeping-schedule', { from: 'dashboard' });
+  });
+}
+
+function renderReportsScreen(content) {
+  var due = todaysRooms();
+  var needsAttention = due.filter(function (r) { return !roomProgress(r).complete; })
+    .sort(function (a, b) { return roomProgress(a).done - roomProgress(b).done; });
+  var rows = needsAttention.length ? needsAttention.map(function (r) {
+    var p = roomProgress(r);
+    var last = roomLastUpdate(r);
+    var lastLabel = last ? fmtRelative(last.doneAt) : 'not started yet';
+    var remaining = p.total - p.done;
+    return '<div class="attention-row"><span class="attention-dot"></span><div>' +
+      '<p class="attention-row-title">' + r.name + '</p>' +
+      '<p class="attention-row-sub">' + remaining + ' task' + (remaining === 1 ? '' : 's') + ' remaining · last update ' + lastLabel + '</p>' +
+      '</div></div>';
+  }).join('') : '<p class="field-hint">Nothing needing attention right now.</p>';
+
+  content.innerHTML = '' +
+    '<div class="placeholder" style="margin-bottom:16px;">Revenue, Expenses, CSV export — already live, not remocked here.</div>' +
+    '<p class="section-label" style="margin-top:0;">Housekeeping</p>' +
+    '<div class="day-summary"><div class="day-summary-top"><p class="day-summary-label">This week</p><p class="day-summary-pct complete">92%</p></div>' +
+    '<div class="progress-track"><div class="progress-fill complete" style="width:92%;"></div></div></div>' +
+    '<p class="field-hint" style="margin:6px 0 16px;">Illustrative number for now — the real trend comes from housekeeping_completion_summary once this is built (07-domain-model-and-schema.md §8).</p>' +
+    '<p class="section-label">Areas needing attention</p>' + rows;
+}
+
+function renderTodayOrSchedule(content, mode) {
+  roomSheetMode = mode;
+  var assignments = computeAssignments();
+  var visible = mode === 'today'
+    ? rooms.filter(function (r) { return roomHasDueTasks(r) && assignments[r.id] === 'jane'; })
+    : rooms.filter(roomHasDueTasks);
+
+  var sub = mode === 'today'
+    ? '<p class="screen-sub">Wednesday, August 19 · Kandy BnB</p>'
+    : '<p class="screen-sub">' + (onShiftHousekeepers().length ? onShiftHousekeepers().map(function (w) { return w.name; }).join(' & ') + ' on shift today' : 'No one on shift today') + '</p>';
+
+  if (!visible.length) {
+    content.innerHTML = sub + '<div class="empty-state"><h2>' + (mode === 'today' ? 'Nothing due today' : 'Nothing to assign') + '</h2><p>' + (mode === 'today' ? 'Every room is caught up.' : 'No rooms currently need attention.') + '</p></div>';
+    return;
+  }
+
+  // Single-glance rollup at the top - the "can I tell at a glance how the
+  // day's going" ask (2026-08-24). Same roomProgress() math as each card
+  // below, just summed across the rooms actually shown here. Backed for
+  // real by housekeeping_completion_summary (07-domain-model-and-schema.md
+  // §8) once built - today it's computed client-side from the mock rooms.
+  var doneRooms = visible.filter(function (r) { return roomProgress(r).complete; }).length;
+  var pct = Math.round(doneRooms / visible.length * 100);
+  var summaryLabel = mode === 'today' ? "Today's progress" : "Today across the property";
+  var summary = '<div class="day-summary"><div class="day-summary-top">' +
+    '<p class="day-summary-label">' + summaryLabel + '</p>' +
+    '<p class="day-summary-pct' + (pct === 100 ? ' complete' : '') + '">' + doneRooms + ' of ' + visible.length + ' rooms · ' + pct + '%</p></div>' +
+    '<div class="progress-track"><div class="progress-fill' + (pct === 100 ? ' complete' : '') + '" style="width:' + pct + '%;"></div></div></div>';
+
+  var html = sub + summary;
+  visible.forEach(function (r) {
+    var p = roomProgress(r);
+    var inspected = p.complete && r.inspectedBy;
+    var badge = '';
+    if (r.linked) badge = r.bookingState === 'checkout' ? '<span class="room-badge checkout">Checkout today</span>' : '<span class="room-badge stayover">Stayover</span>';
+    var last = roomLastUpdate(r);
+    var lastLine = last ? '<p class="last-update">Last update: <b>' + memberName(last.doneBy) + '</b> · ' + fmtTime(last.doneAt) + '</p>' : '';
+    var progressLabel = !p.complete ? (p.done + ' of ' + p.total + ' tasks done') : inspected ? 'All done' : 'Pending inspection';
+
+    var assigneeRow = '';
+    if (mode === 'schedule') {
+      var assignedId = assignments[r.id];
+      var onShift = onShiftHousekeepers();
+      assigneeRow = '<div class="assignee-row"><span class="assignee-name">' + (assignedId ? memberName(assignedId) : 'Unassigned') + (manualAssignments[r.id] ? '<span class="tag">Reassigned</span>' : '') + '</span>' +
+        (onShift.length > 1 ? '<button class="reassign-btn" data-room="' + r.id + '" type="button">Reassign</button>' : '') + '</div>' +
+        '<div class="reassign-picker" id="reassign-' + r.id + '" style="display:none;">' + onShift.map(function (w) { return '<button type="button" class="chip small' + (w.id === assignedId ? ' selected' : '') + '" data-room="' + r.id + '" data-member="' + w.id + '">' + w.name + '</button>'; }).join('') + '</div>';
+    }
+
+    html += '' +
+      '<div class="room-card' + (inspected ? ' ready' : '') + '" data-id="' + r.id + '">' +
+        '<div class="room-top"><div><p class="room-name">' + r.name + '</p><p class="room-sub">' + r.type + '</p></div>' + badge + '</div>' +
+        '<div class="progress-track"><div class="progress-fill' + (p.complete ? ' complete' : '') + '" style="width:' + (p.total ? Math.round(p.done / p.total * 100) : 0) + '%;"></div></div>' +
+        '<p class="progress-label' + (inspected ? ' complete' : '') + '">' + progressLabel + '</p>' + lastLine + assigneeRow +
+      '</div>';
+  });
+  content.innerHTML = html;
+
+  document.querySelectorAll('.room-card').forEach(function (card) {
+    card.addEventListener('click', function (e) {
+      if (e.target.closest('.reassign-btn') || e.target.closest('.reassign-picker')) return;
+      openRoomSheet(card.dataset.id);
+    });
+  });
+  document.querySelectorAll('.reassign-btn').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var picker = document.getElementById('reassign-' + btn.dataset.room);
+      picker.style.display = picker.style.display === 'none' ? 'flex' : 'none';
+    });
+  });
+  document.querySelectorAll('.reassign-picker .chip').forEach(function (chip) {
+    chip.addEventListener('click', function (e) {
+      e.stopPropagation();
+      manualAssignments[chip.dataset.room] = chip.dataset.member;
+      renderTodayOrSchedule(content, mode);
+      showToast('Reassigned to ' + memberName(chip.dataset.member) + '.');
+    });
+  });
+}
+
+function openRoomSheet(id) {
+  openRoomId = id;
+  var room = rooms.find(function (r) { return r.id === id; });
+  document.getElementById('roomSheetTitle').textContent = room.name;
+  document.getElementById('roomSheetSub').textContent = room.linked ? (room.bookingState === 'checkout' ? 'Checkout today — full turnover' : 'Guest staying — light service') : room.type;
+  renderRoomTasks();
+  document.getElementById('roomOverlay').classList.add('open');
+}
+
+function renderRoomTasks() {
+  var room = rooms.find(function (r) { return r.id === openRoomId; });
+  var html = '';
+  room.tasks.forEach(function (task) {
+    var attr = task.done && task.doneBy ? '<p class="task-attr">Done by ' + memberName(task.doneBy) + ' · ' + fmtTime(task.doneAt) + '</p>' : '';
+    html += '' +
+      '<div class="task-row" data-id="' + task.id + '">' +
+        '<div class="check' + (task.done ? ' done' : '') + '"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>' +
+        '<div style="flex:1;"><p class="task-name' + (task.done ? ' done' : '') + '">' + task.name + '</p>' + attr + '</div>' +
+        '<span class="cadence-tag ' + task.cadence + '">' + task.cadence.charAt(0).toUpperCase() + task.cadence.slice(1) + '</span>' +
+      '</div>';
+  });
+  document.getElementById('roomTaskList').innerHTML = html;
+  document.querySelectorAll('#roomTaskList .task-row').forEach(function (row) {
+    row.addEventListener('click', function () { toggleTask(room, row.dataset.id); });
+  });
+  renderFooter(room);
+}
+
+function toggleTask(room, taskId) {
+  var task = room.tasks.find(function (t) { return t.id === taskId; });
+  var actingAs = persona === 'jane' ? 'jane' : 'mom';
+  if (task.done && task.doneBy && task.doneBy !== actingAs) {
+    if (!window.confirm(memberName(task.doneBy) + ' marked this done. Un-tick it?')) return;
+  }
+  if (task.done) { task.done = false; task.doneBy = null; task.doneAt = null; }
+  else { task.done = true; task.doneBy = actingAs; task.doneAt = new Date(); }
+  renderRoomTasks();
+}
+
+function renderFooter(room) {
+  var p = roomProgress(room);
+  var btn = document.getElementById('footerBtn');
+  btn.className = 'footer-btn';
+  if (!p.complete) { btn.style.display = 'none'; return; }
+  btn.style.display = 'block';
+  if (room.inspectedBy) {
+    btn.disabled = true; btn.classList.add('done-state');
+    btn.textContent = 'Inspected by ' + memberName(room.inspectedBy) + ' · ' + fmtTime(room.inspectedAt);
+  } else if (persona === 'admin') {
+    btn.disabled = false; btn.textContent = 'Mark inspected';
+  } else {
+    btn.disabled = true; btn.classList.add('pending-state'); btn.textContent = 'Pending inspection';
+  }
+}
+
+document.getElementById('closeRoomBtn').addEventListener('click', function () {
+  document.getElementById('roomOverlay').classList.remove('open');
+  openRoomId = null;
+  render();
+});
+document.getElementById('footerBtn').addEventListener('click', function () {
+  var room = rooms.find(function (r) { return r.id === openRoomId; });
+  var p = roomProgress(room);
+  if (!p.complete || room.inspectedBy || persona !== 'admin') return;
+  room.inspectedBy = 'mom'; room.inspectedAt = new Date();
+  document.getElementById('roomOverlay').classList.remove('open');
+  showToast(room.name + ' marked inspected.');
+  openRoomId = null;
+  render();
+});
+
+// =====================================================================
+// Rooms admin
+// =====================================================================
+
+var editingRoomId = null, editingTaskId = null;
+
+function renderRooms(content) {
+  var html = '';
+  rooms.forEach(function (r) {
+    var meta = r.linked
+      ? '<span class="sync-dot' + (r.syncStatus === 'issue' ? ' issue' : '') + '"></span><span>' + (r.syncStatus === 'issue' ? 'Sync issue' : 'Synced ' + fmtRelative(r.lastSyncedAt)) + '</span>'
+      : '<span>' + r.tasks.length + ' checklist item' + (r.tasks.length === 1 ? '' : 's') + '</span>';
+    html += '' +
+      '<div class="room-card" data-id="' + r.id + '">' +
+        '<div class="room-top"><div><p class="room-name">' + r.name + '</p><p class="room-sub">' + r.type + '</p></div>' + (r.linked ? '<span class="linked-badge">Booking-linked</span>' : '') + '</div>' +
+        '<p class="last-update" style="display:flex; gap:5px; align-items:center;">' + meta + '</p>' +
+      '</div>';
+  });
+  content.innerHTML = '<div style="display:flex; justify-content:flex-end; margin-bottom:10px;"><button class="add-btn" id="openAddRoomBtn" type="button">+ Add room</button></div>' + html;
+  document.getElementById('openAddRoomBtn').addEventListener('click', openAddRoom);
+  document.querySelectorAll('#appContent .room-card').forEach(function (card) {
+    card.addEventListener('click', function () { openRoomDetail(card.dataset.id); });
+  });
+}
+
+function openRoomDetail(id) {
+  editingRoomId = id;
+  var room = rooms.find(function (r) { return r.id === id; });
+  var sync = '';
+  if (room.linked) {
+    var isOk = room.syncStatus === 'ok';
+    sync = '<div class="sync-card"><div class="sync-row"><span class="sync-status ' + (isOk ? 'ok' : 'issue') + '"><span class="sync-dot' + (isOk ? '' : ' issue') + '"></span>' + (isOk ? 'Booking sync OK' : "Couldn't reach this calendar") + '</span><button class="sync-now-btn" id="syncNowBtn" type="button">Sync now</button></div><p class="sync-detail">Last checked ' + fmtRelative(room.lastSyncedAt) + ' · next check ~1:00 AM daily</p></div>';
+  }
+  var tasksHtml = room.tasks.map(function (t) {
+    return '<div class="wf-card" data-task="' + t.id + '"><p class="wf-name" style="font-size:13px;">' + t.name + '</p><span class="cadence-tag ' + t.cadence + '">' + cadenceLabel(t) + '</span></div>';
+  }).join('') || '<div class="empty-state"><p>No tasks yet.</p></div>';
+
+  var content = document.getElementById('appContent');
+  content.innerHTML = '' +
+    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;"><div><p style="font-weight:600; font-size:15px; margin:0;">' + room.name + '</p><p class="screen-sub" style="margin:2px 0 0;">' + room.type + '</p></div><button class="add-btn" id="editRoomBtn" type="button">Edit</button></div>' +
+    sync +
+    '<div style="display:flex; justify-content:space-between; align-items:center;"><p class="section-label" style="margin-top:0;">Cleaning checklist</p><button class="add-btn" id="openAddTaskBtn" type="button">+ Add task</button></div>' +
+    tasksHtml +
+    '<button class="ghost-btn" id="backToRoomsBtn" style="margin-top:16px; border:1px solid var(--color-neutral-200); background:#fff; border-radius:var(--radius-lg); padding:11px; font-size:12px; font-weight:600; color:var(--color-neutral-700); width:100%; cursor:pointer;">‹ All rooms</button>';
+
+  document.getElementById('backToRoomsBtn').addEventListener('click', function () { renderRooms(content); });
+  document.getElementById('editRoomBtn').addEventListener('click', function () { openEditRoom(room); });
+  document.getElementById('openAddTaskBtn').addEventListener('click', function () { openAddTask(room); });
+  if (room.linked) document.getElementById('syncNowBtn').addEventListener('click', function () { room.syncStatus = 'ok'; room.lastSyncedAt = new Date(); openRoomDetail(id); showToast('Synced ' + room.name + '.'); });
+  document.querySelectorAll('#appContent [data-task]').forEach(function (row) { row.addEventListener('click', function () { openEditTask(room, row.dataset.task); }); });
+}
+
+function cadenceLabel(t) {
+  if (t.cadence === 'daily') return 'Daily';
+  if (t.cadence === 'weekly') return 'Weekly · ' + t.weekday;
+  if (t.cadence === 'monthly') return 'Monthly · day ' + t.monthDay;
+  return 'Quarterly · day ' + t.monthDay;
+}
+
+function openAddRoom() {
+  editingRoomId = null;
+  document.getElementById('roomFormTitle').textContent = 'Add room';
+  document.getElementById('deleteRoomBtn').style.display = 'none';
+  document.getElementById('roomNameInput').value = '';
+  selectChip('roomTypeChips', 'Bedroom');
+  setSwitch('roomLinkedSwitch', false);
+  document.getElementById('icalUrlField').style.display = 'none';
+  document.getElementById('icalUrlInput').value = '';
+  document.getElementById('roomFormOverlay').classList.add('open');
+}
+function openEditRoom(room) {
+  editingRoomId = room.id;
+  document.getElementById('roomFormTitle').textContent = 'Edit room';
+  document.getElementById('deleteRoomBtn').style.display = 'block';
+  document.getElementById('roomNameInput').value = room.name;
+  selectChip('roomTypeChips', room.type);
+  setSwitch('roomLinkedSwitch', room.linked);
+  document.getElementById('icalUrlField').style.display = room.linked ? 'block' : 'none';
+  document.getElementById('icalUrlInput').value = room.icalUrl || '';
+  document.getElementById('roomFormOverlay').classList.add('open');
+}
+document.getElementById('roomLinkedSwitch').addEventListener('click', function () {
+  toggleSwitch('roomLinkedSwitch');
+  document.getElementById('icalUrlField').style.display = document.getElementById('roomLinkedSwitch').classList.contains('on') ? 'block' : 'none';
+});
+document.getElementById('closeRoomFormBtn').addEventListener('click', function () { document.getElementById('roomFormOverlay').classList.remove('open'); });
+document.querySelectorAll('#roomTypeChips .chip').forEach(function (c) { c.addEventListener('click', function () { selectChip('roomTypeChips', c.dataset.value); }); });
+document.getElementById('saveRoomBtn').addEventListener('click', function () {
+  var name = document.getElementById('roomNameInput').value || 'New room';
+  var type = document.querySelector('#roomTypeChips .chip.selected').dataset.value;
+  var linked = document.getElementById('roomLinkedSwitch').classList.contains('on');
+  var icalUrl = document.getElementById('icalUrlInput').value;
+  if (editingRoomId) {
+    var room = rooms.find(function (r) { return r.id === editingRoomId; });
+    room.name = name; room.type = type; room.linked = linked; room.icalUrl = linked ? icalUrl : '';
+    if (linked && !room.syncStatus) { room.syncStatus = 'ok'; room.lastSyncedAt = new Date(); }
+    showToast('Room updated.');
+  } else {
+    rooms.push({ id: 'room' + Date.now(), name: name, type: type, active: true, linked: linked, icalUrl: linked ? icalUrl : '', syncStatus: linked ? 'ok' : null, lastSyncedAt: linked ? new Date() : null, bookingState: linked ? 'stayover' : null, tasks: [], inspectedBy: null, inspectedAt: null });
+    showToast(name + ' added.');
+  }
+  document.getElementById('roomFormOverlay').classList.remove('open');
+  renderRooms(document.getElementById('appContent'));
+});
+document.getElementById('deleteRoomBtn').addEventListener('click', function () {
+  rooms = rooms.filter(function (r) { return r.id !== editingRoomId; });
+  document.getElementById('roomFormOverlay').classList.remove('open');
+  renderRooms(document.getElementById('appContent'));
+  showToast('Room deleted.');
+});
+
+function openAddTask(room) {
+  editingRoomId = room.id; editingTaskId = null;
+  document.getElementById('taskFormTitle').textContent = 'Add task';
+  document.getElementById('deleteTaskBtn').style.display = 'none';
+  document.getElementById('taskNameInput').value = '';
+  selectChip('taskCadenceChips', 'daily'); toggleCadenceFields('daily');
+  document.getElementById('taskMonthDayInput').value = 1;
+  selectChip('taskWeekdayChips', 'Mon');
+  document.getElementById('taskFormOverlay').classList.add('open');
+}
+function openEditTask(room, taskId) {
+  editingRoomId = room.id; editingTaskId = taskId;
+  var task = room.tasks.find(function (t) { return t.id === taskId; });
+  document.getElementById('taskFormTitle').textContent = 'Edit task';
+  document.getElementById('deleteTaskBtn').style.display = 'block';
+  document.getElementById('taskNameInput').value = task.name;
+  selectChip('taskCadenceChips', task.cadence); toggleCadenceFields(task.cadence);
+  if (task.weekday) selectChip('taskWeekdayChips', task.weekday);
+  if (task.monthDay) document.getElementById('taskMonthDayInput').value = task.monthDay;
+  document.getElementById('taskFormOverlay').classList.add('open');
+}
+document.querySelectorAll('#taskCadenceChips .chip').forEach(function (c) { c.addEventListener('click', function () { selectChip('taskCadenceChips', c.dataset.value); toggleCadenceFields(c.dataset.value); }); });
+document.querySelectorAll('#taskWeekdayChips .chip').forEach(function (c) { c.addEventListener('click', function () { selectChip('taskWeekdayChips', c.dataset.value); }); });
+function toggleCadenceFields(cadence) {
+  document.getElementById('taskWeekdayField').style.display = cadence === 'weekly' ? 'block' : 'none';
+  document.getElementById('taskMonthDayCard').style.display = (cadence === 'monthly' || cadence === 'quarterly') ? 'flex' : 'none';
+}
+document.getElementById('closeTaskFormBtn').addEventListener('click', function () { document.getElementById('taskFormOverlay').classList.remove('open'); });
+document.getElementById('saveTaskBtn').addEventListener('click', function () {
+  var room = rooms.find(function (r) { return r.id === editingRoomId; });
+  var name = document.getElementById('taskNameInput').value || 'New task';
+  var cadence = document.querySelector('#taskCadenceChips .chip.selected').dataset.value;
+  var weekday = document.querySelector('#taskWeekdayChips .chip.selected').dataset.value;
+  var monthDay = parseInt(document.getElementById('taskMonthDayInput').value || '1', 10);
+  if (editingTaskId) {
+    var task = room.tasks.find(function (t) { return t.id === editingTaskId; });
+    task.name = name; task.cadence = cadence; task.weekday = weekday; task.monthDay = monthDay;
+    showToast('Task updated.');
+  } else {
+    room.tasks.push({ id: 't' + Date.now(), name: name, cadence: cadence, weekday: weekday, monthDay: monthDay, done: false, doneBy: null, doneAt: null });
+    showToast('Task added.');
+  }
+  document.getElementById('taskFormOverlay').classList.remove('open');
+  openRoomDetail(room.id);
+});
+document.getElementById('deleteTaskBtn').addEventListener('click', function () {
+  var room = rooms.find(function (r) { return r.id === editingRoomId; });
+  room.tasks = room.tasks.filter(function (t) { return t.id !== editingTaskId; });
+  document.getElementById('taskFormOverlay').classList.remove('open');
+  openRoomDetail(room.id);
+  showToast('Task deleted.');
+});
+
+// =====================================================================
+// Staff screen: Roster + Work calendar (no timesheet)
+// =====================================================================
+
+var selectedCalMember = 'jane';
+var editingWfId = null;
+
+function renderWorkforceScreen(content) {
+  content.innerHTML = '' +
+    '<div class="tabs"><button class="tab-btn active" data-tab="calTab" type="button">Work calendar</button><button class="tab-btn" data-tab="rosterTab" type="button">Roster</button></div>' +
+    '<div class="tab-panel" id="rosterTab"><div style="display:flex; justify-content:flex-end; margin-bottom:10px;"><button class="add-btn" id="openAddWfBtn" type="button">+ Add person</button></div><div id="wfList"></div></div>' +
+    '<div class="tab-panel active" id="calTab"><div class="chip-row" id="calMemberChips" style="margin-bottom:14px;"></div>' +
+      '<div class="cal-nav"><button class="cal-nav-btn" id="calPrevBtn" type="button">‹</button><span class="cal-month-label" id="calMonthLabel"></span><button class="cal-nav-btn" id="calNextBtn" type="button">›</button></div>' +
+      '<div class="cal-weekday-row"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>' +
+      '<div class="cal-grid" id="calGrid"></div>' +
+      '<p class="cal-summary" id="calSummary"></p>' +
+      '<p class="week-hint">Tap a day to mark it worked or off. Today is outlined. A yearly leave summary per worker will live in Reports once this is real.</p></div>';
+
+  document.querySelectorAll('#appContent .tab-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('#appContent .tab-btn').forEach(function (b) { b.classList.remove('active'); });
+      document.querySelectorAll('#appContent .tab-panel').forEach(function (p) { p.classList.remove('active'); });
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.tab).classList.add('active');
+    });
+  });
+  document.getElementById('openAddWfBtn').addEventListener('click', openAddWf);
+  document.getElementById('calPrevBtn').addEventListener('click', function () {
+    calendarMonth--; if (calendarMonth < 0) { calendarMonth = 11; calendarYear--; }
+    renderCalendarGrid();
+  });
+  document.getElementById('calNextBtn').addEventListener('click', function () {
+    calendarMonth++; if (calendarMonth > 11) { calendarMonth = 0; calendarYear++; }
+    renderCalendarGrid();
+  });
+  renderWfList();
+  renderCalMemberChips();
+  renderCalendarGrid();
+}
+
+function renderWfList() {
+  var html = workforce.map(function (w) {
+    return '<div class="wf-card' + (w.active ? '' : ' inactive') + '" data-id="' + w.id + '"><div><p class="wf-name">' + w.name + '</p><p class="wf-meta"><span class="role-chip">' + w.role + '</span><span><span class="access-dot' + (w.access ? '' : ' off') + '"></span> ' + (w.access ? 'App access' : 'No app access') + '</span>' + (w.active ? '' : ' · Inactive') + '</p></div></div>';
+  }).join('');
+  document.getElementById('wfList').innerHTML = html;
+  document.querySelectorAll('#wfList .wf-card').forEach(function (card) { card.addEventListener('click', function () { openEditWf(card.dataset.id); }); });
+}
+
+function openAddWf() {
+  editingWfId = null;
+  document.getElementById('wfFormTitle').textContent = 'Add person';
+  document.getElementById('deleteWfBtn').style.display = 'none';
+  document.getElementById('wfNameInput').value = '';
+  selectChip('wfRoleChips', 'Housekeeper');
+  setSwitch('wfAccessSwitch', false); setSwitch('wfActiveSwitch', true);
+  selectChip('wfPayChips', 'none');
+  document.getElementById('wfOverlay').classList.add('open');
+}
+function openEditWf(id) {
+  var w = workforce.find(function (x) { return x.id === id; });
+  editingWfId = id;
+  document.getElementById('wfFormTitle').textContent = 'Edit person';
+  document.getElementById('deleteWfBtn').style.display = 'block';
+  document.getElementById('wfNameInput').value = w.name;
+  selectChip('wfRoleChips', w.role);
+  setSwitch('wfAccessSwitch', w.access); setSwitch('wfActiveSwitch', w.active);
+  selectChip('wfPayChips', w.pay);
+  document.getElementById('wfOverlay').classList.add('open');
+}
+document.getElementById('closeWfBtn').addEventListener('click', function () { document.getElementById('wfOverlay').classList.remove('open'); });
+document.getElementById('wfAccessSwitch').addEventListener('click', function () { toggleSwitch('wfAccessSwitch'); });
+document.getElementById('wfActiveSwitch').addEventListener('click', function () { toggleSwitch('wfActiveSwitch'); });
+document.querySelectorAll('#wfRoleChips .chip, #wfPayChips .chip').forEach(function (c) { c.addEventListener('click', function () { selectChip(c.parentElement.id, c.dataset.value); }); });
+document.getElementById('saveWfBtn').addEventListener('click', function () {
+  var name = document.getElementById('wfNameInput').value || 'New person';
+  var role = document.querySelector('#wfRoleChips .chip.selected').dataset.value;
+  var access = document.getElementById('wfAccessSwitch').classList.contains('on');
+  var active = document.getElementById('wfActiveSwitch').classList.contains('on');
+  var pay = document.querySelector('#wfPayChips .chip.selected').dataset.value;
+  if (editingWfId) {
+    var w = workforce.find(function (x) { return x.id === editingWfId; });
+    w.name = name; w.role = role; w.access = access; w.active = active; w.pay = pay;
+    showToast('Staff entry updated.');
+  } else {
+    var id = 'w' + Date.now();
+    workforce.push({ id: id, name: name, role: role, access: access, active: active, pay: pay, offToday: false });
+    daysOffByMember[id] = {};
+    showToast(name + ' added to the roster.');
+  }
+  document.getElementById('wfOverlay').classList.remove('open');
+  renderWfList(); renderCalMemberChips();
+});
+document.getElementById('deleteWfBtn').addEventListener('click', function () {
+  workforce = workforce.filter(function (x) { return x.id !== editingWfId; });
+  document.getElementById('wfOverlay').classList.remove('open');
+  renderWfList(); renderCalMemberChips();
+  showToast('Removed from staff.');
+});
+
+function renderCalMemberChips() {
+  var html = workforce.filter(function (w) { return w.active; }).map(function (w) {
+    return '<button type="button" class="chip small' + (w.id === selectedCalMember ? ' selected' : '') + '" data-id="' + w.id + '">' + w.name + '</button>';
+  }).join('');
+  document.getElementById('calMemberChips').innerHTML = html;
+  document.querySelectorAll('#calMemberChips .chip').forEach(function (c) {
+    c.addEventListener('click', function () { selectedCalMember = c.dataset.id; renderCalMemberChips(); renderCalendarGrid(); });
+  });
+}
+function renderCalendarGrid() {
+  document.getElementById('calMonthLabel').textContent = MONTH_NAMES[calendarMonth] + ' ' + calendarYear;
+  var off = daysOffByMember[selectedCalMember] || {};
+  var lead = firstWeekday(calendarYear, calendarMonth);
+  var total = daysInMonth(calendarYear, calendarMonth);
+  var html = '';
+  for (var i = 0; i < lead; i++) html += '<button class="cal-cell blank" type="button" disabled></button>';
+  var offCount = 0;
+  for (var day = 1; day <= total; day++) {
+    var iso = isoDate(calendarYear, calendarMonth, day);
+    var isOff = !!off[iso];
+    if (isOff) offCount++;
+    html += '<button class="cal-cell' + (isOff ? ' off' : '') + (iso === TODAY_ISO ? ' today' : '') + '" data-iso="' + iso + '" type="button">' + day + '</button>';
+  }
+  document.getElementById('calGrid').innerHTML = html;
+  document.getElementById('calSummary').textContent = offCount + ' day' + (offCount === 1 ? '' : 's') + ' off in ' + MONTH_NAMES[calendarMonth] + '.';
+  document.querySelectorAll('#calGrid .cal-cell:not(.blank)').forEach(function (cell) {
+    cell.addEventListener('click', function () {
+      var iso = cell.dataset.iso;
+      var member = daysOffByMember[selectedCalMember];
+      member[iso] = !member[iso];
+      renderCalendarGrid();
+      showToast(member[iso] ? 'Marked off.' : 'Marked as a working day again.');
+    });
+  });
+}
+
+// =====================================================================
+// Shared helpers
+// =====================================================================
+
+function selectChip(containerId, value) {
+  document.getElementById(containerId).querySelectorAll('.chip').forEach(function (c) { c.classList.toggle('selected', c.dataset.value === value); });
+}
+function setSwitch(id, on) { document.getElementById(id).classList.toggle('on', on); }
+function toggleSwitch(id) { document.getElementById(id).classList.toggle('on'); }
+
+var toastTimer;
+function showToast(text) {
+  document.getElementById('toast-text').textContent = text;
+  var toast = document.getElementById('toast');
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { toast.classList.remove('show'); }, 3000);
+}
+
+document.querySelector('.phone').classList.add('staff-mode');
+currentScreen = 'housekeeping-today';
+render();
+</script>
+</body>
+</html>

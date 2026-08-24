@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIVA — Housekeeping, inventory &amp; staff prototype</title>
+<style>
+  :root {
+    --color-accent-50: #FBEEE7;
+    --color-accent-100: #F5D6C4;
+    --color-accent-500: #B5542A;
+    --color-accent-600: #954423;
+    --color-accent-700: #74351C;
+    --color-neutral-50: #FAF8F6;
+    --color-neutral-100: #F3EFEA;
+    --color-neutral-200: #E6DFD7;
+    --color-neutral-300: #D3C8BC;
+    --color-neutral-400: #A99C8E;
+    --color-neutral-500: #7D7266;
+    --color-neutral-700: #453F37;
+    --color-neutral-900: #1C1916;
+    --color-positive-50: #EAF4EF;
+    --color-positive-600: #2F7D5A;
+    --color-warn-50: #FCF3E3;
+    --color-warn-600: #A9711C;
+    --color-negative-50: #FBEAE9;
+    --color-negative-600: #B3261E;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --radius-pill: 9999px;
+    --shadow-sm: 0 1px 2px rgba(28, 25, 22, 0.06);
+    --shadow-md: 0 4px 12px rgba(28, 25, 22, 0.10);
+    --font-sans: -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--color-neutral-200);
+    font-family: var(--font-sans);
+    color: var(--color-neutral-900);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .note {
+    max-width: 430px;
+    width: 100%;
+    padding: 10px 20px 4px;
+    font-size: 12px;
+    color: var(--color-neutral-500);
+    text-align: center;
+    box-sizing: border-box;
+  }
+
+  .mode-switch { display: flex; gap: 8px; max-width: 430px; width: 100%; padding: 10px 20px; box-sizing: border-box; }
+  .mode-btn { flex: 1; border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 9px 6px; font-size: 12px; font-weight: 600; color: var(--color-neutral-700); cursor: pointer; }
+  .mode-btn.active { background: var(--color-accent-500); color: #fff; }
+
+  .stage { width: 100%; max-width: 430px; flex: 1; min-height: 680px; }
+  .screen { width: 100%; background: var(--color-neutral-50); min-height: 680px; padding: 18px 20px 24px; box-sizing: border-box; display: none; }
+  .screen.active { display: block; }
+
+  .screen-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .screen-header h1 { font-size: 22px; font-weight: 600; margin: 0; }
+  .screen-sub { font-size: 13px; color: var(--color-neutral-500); margin: 0 0 16px; }
+  .add-btn { display: flex; align-items: center; gap: 6px; border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 9px 15px; font-size: 13px; font-weight: 500; color: var(--color-neutral-700); cursor: pointer; }
+
+  .sim-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  .sim-btn { border: none; background: var(--color-neutral-100); border-radius: var(--radius-pill); padding: 7px 12px; font-size: 11px; font-weight: 600; color: var(--color-neutral-500); cursor: pointer; }
+  .sim-btn.active { background: var(--color-neutral-900); color: #fff; }
+
+  .dayoff-card { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 28px 20px; text-align: center; margin-bottom: 16px; }
+  .dayoff-card .emoji { font-size: 28px; }
+  .dayoff-card h2 { font-size: 17px; font-weight: 600; margin: 8px 0 4px; }
+  .dayoff-card p { font-size: 13px; color: var(--color-neutral-500); margin: 0; }
+
+  .section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-neutral-400); margin: 18px 0 8px; }
+  .section-label:first-of-type { margin-top: 0; }
+
+  .task-card { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 13px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; cursor: pointer; }
+  .task-card:hover { box-shadow: var(--shadow-md); }
+  .check { width: 22px; height: 22px; border-radius: var(--radius-sm); border: 2px solid var(--color-neutral-300); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .check.done { background: var(--color-positive-600); border-color: var(--color-positive-600); }
+  .check svg { display: none; color: #fff; }
+  .check.done svg { display: block; }
+  .task-body { flex: 1; min-width: 0; }
+  .task-name { font-size: 14px; font-weight: 600; margin: 0; }
+  .task-name.done { text-decoration: line-through; color: var(--color-neutral-400); }
+  .task-sub { font-size: 12px; color: var(--color-neutral-500); margin: 2px 0 0; }
+  .task-badge { font-size: 10px; font-weight: 600; padding: 3px 7px; border-radius: var(--radius-pill); background: var(--color-neutral-100); color: var(--color-neutral-500); flex-shrink: 0; }
+  .task-badge.overdue { background: var(--color-negative-50); color: var(--color-negative-600); }
+
+  .inv-row { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+  .inv-name { font-size: 14px; font-weight: 500; }
+  .status-pill { border: none; border-radius: var(--radius-pill); padding: 6px 13px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .status-pill.good { background: var(--color-positive-50); color: var(--color-positive-600); }
+  .status-pill.low { background: var(--color-warn-50); color: var(--color-warn-600); }
+  .status-pill.out { background: var(--color-negative-50); color: var(--color-negative-600); }
+
+  .inv-summary { font-size: 12px; color: var(--color-neutral-500); margin: 0 0 12px; }
+
+  .tabs { display: flex; gap: 6px; background: var(--color-neutral-100); border-radius: var(--radius-pill); padding: 4px; margin-bottom: 18px; }
+  .tab-btn { flex: 1; border: none; background: none; border-radius: var(--radius-pill); padding: 8px 4px; font-size: 12px; font-weight: 600; color: var(--color-neutral-500); cursor: pointer; }
+  .tab-btn.active { background: #fff; color: var(--color-neutral-900); box-shadow: var(--shadow-sm); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .today-board { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 14px 16px; margin-bottom: 18px; }
+  .today-board-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .today-board-head h3 { font-size: 13px; font-weight: 600; margin: 0; }
+  .today-count { font-size: 12px; color: var(--color-neutral-500); }
+  .today-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 13px; }
+  .today-item .name { color: var(--color-neutral-700); }
+  .today-item .who { color: var(--color-neutral-400); font-size: 11px; }
+  .today-item .stat { font-size: 11px; font-weight: 600; }
+  .today-item .stat.done { color: var(--color-positive-600); }
+  .today-item .stat.pending { color: var(--color-neutral-400); }
+
+  .empty-state { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 28px 20px; text-align: center; }
+  .empty-state h2 { font-size: 16px; font-weight: 600; margin: 0 0 6px; }
+  .empty-state p { font-size: 13px; color: var(--color-neutral-500); margin: 0; }
+
+  .inline-add { display: flex; gap: 8px; margin-top: 12px; }
+  .inline-add input { flex: 1; border: none; border-radius: var(--radius-md); background: #fff; box-shadow: var(--shadow-sm); padding: 10px 13px; font-size: 14px; font-family: var(--font-sans); }
+  .inline-add button { border: none; background: var(--color-accent-500); color: #fff; border-radius: var(--radius-md); padding: 0 16px; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+  .staff-chip-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  .week-total { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 14px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+  .week-total .label { font-size: 12px; color: var(--color-neutral-500); }
+  .week-total .value { font-size: 20px; font-weight: 700; }
+
+  .week-strip { display: flex; gap: 6px; margin-bottom: 18px; }
+  .day-chip { flex: 1; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-md); padding: 10px 4px; text-align: center; cursor: pointer; border: none; font-family: var(--font-sans); }
+  .day-chip .dow { display: block; font-size: 10px; color: var(--color-neutral-400); font-weight: 600; text-transform: uppercase; }
+  .day-chip .num { display: block; font-size: 14px; font-weight: 600; margin-top: 3px; color: var(--color-neutral-900); }
+  .day-chip.off { background: var(--color-negative-50); }
+  .day-chip.off .num { color: var(--color-negative-600); }
+  .week-hint { font-size: 11px; color: var(--color-neutral-400); text-align: center; margin: 0 0 18px; }
+
+  .hours-row { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 12px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+  .hours-date { font-size: 13px; font-weight: 500; }
+  .hours-value { font-size: 13px; font-weight: 600; color: var(--color-neutral-700); }
+
+  .tap-hint { font-size: 11px; color: var(--color-neutral-400); margin: 12px 0 0; text-align: center; }
+
+  .overlay { position: fixed; inset: 0; background: rgba(28, 25, 22, 0.35); display: none; align-items: flex-end; justify-content: center; z-index: 20; }
+  .overlay.open { display: flex; }
+  .sheet { width: 100%; max-width: 430px; background: var(--color-neutral-100); border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 10px 22px 24px; box-sizing: border-box; max-height: 88vh; overflow-y: auto; }
+  .handle { width: 36px; height: 4px; border-radius: var(--radius-pill); background: var(--color-neutral-300); margin: 4px auto 16px; }
+  .sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+  .sheet-header h2 { font-size: 17px; font-weight: 600; margin: 0; }
+  .close-btn { background: none; border: none; color: var(--color-neutral-500); cursor: pointer; padding: 4px; }
+
+  .field { margin-bottom: 16px; }
+  .field-label { font-size: 13px; color: var(--color-neutral-500); margin: 0 0 8px; }
+  .text-input { width: 100%; border: none; border-radius: var(--radius-md); background: #fff; box-shadow: var(--shadow-sm); padding: 11px 13px; font-size: 15px; font-family: var(--font-sans); color: var(--color-neutral-900); }
+
+  .chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--color-neutral-700); cursor: pointer; }
+  .chip.selected { background: var(--color-accent-100); color: var(--color-accent-700); font-weight: 600; box-shadow: none; }
+  .chip.small { padding: 8px 13px; }
+
+  .cadence-card { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+  .cadence-card .field-label { margin: 0; }
+  .cadence-input { width: 56px; border: none; background: transparent; font-size: 16px; font-weight: 600; color: var(--color-neutral-900); text-align: right; font-family: var(--font-sans); }
+
+  .save-btn { width: 100%; border: none; border-radius: var(--radius-lg); padding: 15px; font-size: 15px; font-weight: 600; color: #fff; background: var(--color-accent-500); cursor: pointer; margin-top: 6px; }
+  .delete-btn { width: 100%; border: 1px solid rgba(179, 38, 30, 0.3); background: none; border-radius: var(--radius-lg); padding: 13px; font-size: 14px; font-weight: 600; color: var(--color-negative-600); cursor: pointer; margin-top: 10px; }
+  .delete-btn:hover { background: rgba(179, 38, 30, 0.05); }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
+    background: var(--color-neutral-900); color: #fff; padding: 10px 16px; border-radius: var(--radius-md);
+    font-size: 13px; display: flex; align-items: center; gap: 8px; opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease; max-width: 90vw; z-index: 30; text-align: left;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast svg { flex-shrink: 0; color: #6FCF97; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+
+<div class="note">Prototype — Housekeeping, inventory &amp; staff hours. Nothing here is saved. Scheduled/assigned tasks (Option B), Good/Low/Out inventory and admin-entered hours/day-off are already decided — the task shapes and layout below are what's up for discussion.</div>
+
+<div class="mode-switch">
+  <button class="mode-btn active" id="staffModeBtn" type="button">Maria — staff view</button>
+  <button class="mode-btn" id="adminModeBtn" type="button">Jalie — admin view</button>
+</div>
+
+<div class="stage">
+
+  <!-- ============ STAFF SCREEN ============ -->
+  <div class="screen active" id="staffScreen">
+    <div class="screen-header"><h1>Today</h1></div>
+    <p class="screen-sub" id="staffDateLabel">Wednesday, August 19</p>
+
+    <div class="sim-row">
+      <button class="sim-btn active" id="simWorkingBtn" type="button">Simulate: working day</button>
+      <button class="sim-btn" id="simDayoffBtn" type="button">Simulate: day off</button>
+    </div>
+
+    <div id="dayoffCard" class="dayoff-card" style="display:none;">
+      <div class="emoji">☀️</div>
+      <h2>You're off today</h2>
+      <p>No tasks assigned. Enjoy the day.</p>
+    </div>
+
+    <div id="staffTasksWrap">
+      <p class="section-label">Assigned to you</p>
+      <div id="staffTaskList"></div>
+    </div>
+
+    <p class="section-label">Supplies</p>
+    <div id="staffInventoryList"></div>
+    <p class="tap-hint">Tap a task to mark it done. Tap a supply status to update it.</p>
+  </div>
+
+  <!-- ============ ADMIN SCREEN ============ -->
+  <div class="screen" id="adminScreen">
+    <div class="screen-header">
+      <h1>Housekeeping</h1>
+    </div>
+    <p class="screen-sub">Tasks, supplies, and staff hours.</p>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="tasksTab" type="button">Tasks</button>
+      <button class="tab-btn" data-tab="invTab" type="button">Inventory</button>
+      <button class="tab-btn" data-tab="hoursTab" type="button">Hours &amp; days off</button>
+    </div>
+
+    <!-- Tasks tab -->
+    <div class="tab-panel active" id="tasksTab">
+      <div class="today-board">
+        <div class="today-board-head">
+          <h3>Today's board</h3>
+          <span class="today-count" id="todayCount"></span>
+        </div>
+        <div id="todayBoardList"></div>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <p class="section-label" style="margin-top:0;">Recurring tasks</p>
+        <button class="add-btn" id="openAddRecurringBtn" type="button">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          Add
+        </button>
+      </div>
+      <div id="recurringTaskList"></div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <p class="section-label">One-off tasks</p>
+        <button class="add-btn" id="openAddOnceBtn" type="button">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          Add
+        </button>
+      </div>
+      <div id="onceTaskList"></div>
+    </div>
+
+    <!-- Inventory tab -->
+    <div class="tab-panel" id="invTab">
+      <p class="inv-summary" id="invSummary"></p>
+      <div id="adminInventoryList"></div>
+      <div class="inline-add">
+        <input type="text" id="newInvItem" placeholder="Add a supply item…">
+        <button id="addInvItemBtn" type="button">Add</button>
+      </div>
+    </div>
+
+    <!-- Hours & days off tab -->
+    <div class="tab-panel" id="hoursTab">
+      <div class="staff-chip-row">
+        <button class="chip small selected" type="button">Maria</button>
+      </div>
+
+      <p class="section-label" style="margin-top:0;">This week's days off</p>
+      <div class="week-strip" id="weekStrip"></div>
+      <p class="week-hint">Tap a day to mark it as her day off.</p>
+
+      <div class="week-total">
+        <span class="label">This week's hours</span>
+        <span class="value" id="weekHoursTotal">0.0 h</span>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <p class="section-label" style="margin-top:0;">Timesheet</p>
+        <button class="add-btn" id="openAddHoursBtn" type="button">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          Add
+        </button>
+      </div>
+      <div id="hoursList"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Add/edit task sheet -->
+<div class="overlay" id="taskOverlay">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="sheet-header">
+      <h2 id="taskFormTitle">Add task</h2>
+      <button class="close-btn" id="closeTaskBtn" aria-label="Close" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="field">
+      <p class="field-label">Task</p>
+      <input class="text-input" id="taskNameInput" placeholder="Room 1 — clean, Restock towels…">
+    </div>
+
+    <div class="field">
+      <p class="field-label">Assign to</p>
+      <div class="chip-row" id="taskAssigneeChips">
+        <button type="button" class="chip selected" data-value="Maria">Maria</button>
+      </div>
+    </div>
+
+    <div class="field" id="taskTypeField">
+      <p class="field-label">Repeats</p>
+      <div class="chip-row" id="taskTypeChips">
+        <button type="button" class="chip selected" data-value="once">One-off</button>
+        <button type="button" class="chip" data-value="recurring">Recurring</button>
+      </div>
+    </div>
+
+    <div class="field" id="onceDueField">
+      <p class="field-label">Due date</p>
+      <input type="date" class="text-input" id="taskDueInput">
+    </div>
+
+    <div class="field" id="recurringCadenceField" style="display:none;">
+      <p class="field-label">Cadence</p>
+      <div class="chip-row" id="taskCadenceChips">
+        <button type="button" class="chip selected" data-value="daily">Daily</button>
+        <button type="button" class="chip" data-value="weekly">Weekly</button>
+        <button type="button" class="chip" data-value="monthly">Monthly</button>
+      </div>
+    </div>
+
+    <div class="cadence-card" id="taskWeeklyDayCard" style="display:none;">
+      <p class="field-label">On</p>
+      <div class="chip-row" id="taskWeekdayChips">
+        <button type="button" class="chip small selected" data-value="Mon">Mon</button>
+        <button type="button" class="chip small" data-value="Tue">Tue</button>
+        <button type="button" class="chip small" data-value="Wed">Wed</button>
+        <button type="button" class="chip small" data-value="Thu">Thu</button>
+        <button type="button" class="chip small" data-value="Fri">Fri</button>
+        <button type="button" class="chip small" data-value="Sat">Sat</button>
+        <button type="button" class="chip small" data-value="Sun">Sun</button>
+      </div>
+    </div>
+
+    <button class="save-btn" id="saveTaskBtn">Save task</button>
+    <button class="delete-btn" id="deleteTaskBtn" style="display:none;">Delete this task</button>
+  </div>
+</div>
+
+<!-- Add hours sheet -->
+<div class="overlay" id="hoursOverlay">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="sheet-header">
+      <h2>Log hours</h2>
+      <button class="close-btn" id="closeHoursBtn" aria-label="Close" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="field">
+      <p class="field-label">Date</p>
+      <input type="date" class="text-input" id="hoursDateInput">
+    </div>
+    <div class="field">
+      <p class="field-label">Hours worked</p>
+      <input type="text" inputmode="decimal" class="text-input" id="hoursValueInput" placeholder="8">
+    </div>
+    <button class="save-btn" id="saveHoursBtn">Save entry</button>
+  </div>
+</div>
+
+<div id="toast" class="toast">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+  <span id="toast-text"></span>
+</div>
+
+<script>
+// ---- Data (in-memory only) -------------------------------------------------
+
+var recurringTasks = [
+  { id: 'r1', name: 'Room 1 — clean', assignee: 'Maria', cadence: 'daily', cadenceLabel: 'Every day' },
+  { id: 'r2', name: 'Room 2 — clean', assignee: 'Maria', cadence: 'daily', cadenceLabel: 'Every day' },
+  { id: 'r3', name: 'Change bedsheets', assignee: 'Maria', cadence: 'weekly', cadenceLabel: 'Weekly on Mon', weekday: 'Mon' },
+  { id: 'r4', name: 'Deep clean kitchen', assignee: 'Maria', cadence: 'monthly', cadenceLabel: 'Monthly' }
+];
+
+var onceTasks = [
+  { id: 'o1', name: 'Fix broken shower head — flag if she can’t', assignee: 'Maria', due: 'Today', overdue: false, done: false },
+  { id: 'o2', name: 'Restock first-aid kit', assignee: 'Maria', due: '2 days overdue', overdue: true, done: false }
+];
+
+// Today's board = every recurring task that's "due today" (mocked as all of them for the demo) + one-offs due/overdue today
+var todayItems = [
+  { name: 'Room 1 — clean', who: 'Maria', done: true },
+  { name: 'Room 2 — clean', who: 'Maria', done: false },
+  { name: 'Fix broken shower head', who: 'Maria', done: false },
+  { name: 'Restock first-aid kit', who: 'Maria', done: false }
+];
+
+var inventory = [
+  { id: 'i1', name: 'Toilet paper', status: 'good' },
+  { id: 'i2', name: 'Bath towels', status: 'low' },
+  { id: 'i3', name: 'Hand soap', status: 'good' },
+  { id: 'i4', name: 'Bedsheets (queen)', status: 'good' },
+  { id: 'i5', name: 'Coffee sachets', status: 'out' }
+];
+
+var daysOff = { Thu: true }; // mocked: this Thursday is her day off
+
+var hoursLog = [
+  { id: 'h1', date: 'Mon, Aug 17', hours: 6 },
+  { id: 'h2', date: 'Tue, Aug 18', hours: 8 }
+];
+
+var editingTaskId = null;
+var editingTaskType = null; // 'recurring' | 'once'
+
+// ---- Mode switch ------------------------------------------------------------
+
+document.getElementById('staffModeBtn').addEventListener('click', function () { setMode('staff'); });
+document.getElementById('adminModeBtn').addEventListener('click', function () { setMode('admin'); });
+
+function setMode(mode) {
+  document.getElementById('staffModeBtn').classList.toggle('active', mode === 'staff');
+  document.getElementById('adminModeBtn').classList.toggle('active', mode === 'admin');
+  document.getElementById('staffScreen').classList.toggle('active', mode === 'staff');
+  document.getElementById('adminScreen').classList.toggle('active', mode === 'admin');
+}
+
+// ---- Staff screen -----------------------------------------------------------
+
+var simulatingDayOff = false;
+
+document.getElementById('simWorkingBtn').addEventListener('click', function () { setSim(false); });
+document.getElementById('simDayoffBtn').addEventListener('click', function () { setSim(true); });
+
+function setSim(isDayOff) {
+  simulatingDayOff = isDayOff;
+  document.getElementById('simWorkingBtn').classList.toggle('active', !isDayOff);
+  document.getElementById('simDayoffBtn').classList.toggle('active', isDayOff);
+  document.getElementById('dayoffCard').style.display = isDayOff ? 'block' : 'none';
+  document.getElementById('staffTasksWrap').style.display = isDayOff ? 'none' : 'block';
+  renderStaffTasks();
+}
+
+function renderStaffTasks() {
+  var html = '';
+  todayItems.forEach(function (t, idx) {
+    html += '' +
+      '<div class="task-card" data-idx="' + idx + '">' +
+        '<div class="check' + (t.done ? ' done' : '') + '"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>' +
+        '<div class="task-body"><p class="task-name' + (t.done ? ' done' : '') + '">' + t.name + '</p></div>' +
+      '</div>';
+  });
+  document.getElementById('staffTaskList').innerHTML = html;
+  document.querySelectorAll('#staffTaskList .task-card').forEach(function (card) {
+    card.addEventListener('click', function () {
+      var idx = Number(card.dataset.idx);
+      todayItems[idx].done = !todayItems[idx].done;
+      renderStaffTasks();
+      renderTodayBoard();
+    });
+  });
+
+  var invHtml = '';
+  inventory.forEach(function (item, idx) {
+    invHtml += '' +
+      '<div class="inv-row">' +
+        '<span class="inv-name">' + item.name + '</span>' +
+        '<button class="status-pill ' + item.status + '" data-idx="' + idx + '" type="button">' + statusLabel(item.status) + '</button>' +
+      '</div>';
+  });
+  document.getElementById('staffInventoryList').innerHTML = invHtml;
+  wireInventoryTaps('#staffInventoryList');
+}
+
+function statusLabel(s) { return s === 'good' ? 'Good' : s === 'low' ? 'Low' : 'Out'; }
+function nextStatus(s) { return s === 'good' ? 'low' : s === 'low' ? 'out' : 'good'; }
+
+function wireInventoryTaps(scope) {
+  document.querySelectorAll(scope + ' .status-pill').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var idx = Number(btn.dataset.idx);
+      inventory[idx].status = nextStatus(inventory[idx].status);
+      renderStaffTasks();
+      renderAdminInventory();
+    });
+  });
+}
+
+// ---- Admin: tabs --------------------------------------------------------------
+
+document.querySelectorAll('.tab-btn').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+    document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ---- Admin: today's board ------------------------------------------------------
+
+function renderTodayBoard() {
+  var doneCount = todayItems.filter(function (t) { return t.done; }).length;
+  document.getElementById('todayCount').textContent = doneCount + ' of ' + todayItems.length + ' done';
+  var html = '';
+  todayItems.forEach(function (t) {
+    html += '' +
+      '<div class="today-item">' +
+        '<span class="name">' + t.name + ' <span class="who">— ' + t.who + '</span></span>' +
+        '<span class="stat ' + (t.done ? 'done' : 'pending') + '">' + (t.done ? 'Done' : 'Pending') + '</span>' +
+      '</div>';
+  });
+  document.getElementById('todayBoardList').innerHTML = html;
+}
+
+// ---- Admin: task lists ----------------------------------------------------------
+
+function renderTaskLists() {
+  var rHtml = '';
+  recurringTasks.forEach(function (t) {
+    rHtml += '' +
+      '<div class="task-card" data-id="' + t.id + '" data-type="recurring">' +
+        '<div class="task-body"><p class="task-name">' + t.name + '</p><p class="task-sub">' + t.cadenceLabel + ' · ' + t.assignee + '</p></div>' +
+      '</div>';
+  });
+  document.getElementById('recurringTaskList').innerHTML = rHtml || '<div class="empty-state"><p>No recurring tasks yet.</p></div>';
+
+  var oHtml = '';
+  onceTasks.forEach(function (t) {
+    oHtml += '' +
+      '<div class="task-card" data-id="' + t.id + '" data-type="once">' +
+        '<div class="check' + (t.done ? ' done' : '') + '"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>' +
+        '<div class="task-body"><p class="task-name' + (t.done ? ' done' : '') + '">' + t.name + '</p><p class="task-sub">' + t.assignee + '</p></div>' +
+        '<span class="task-badge' + (t.overdue && !t.done ? ' overdue' : '') + '">' + (t.done ? 'Done' : t.due) + '</span>' +
+      '</div>';
+  });
+  document.getElementById('onceTaskList').innerHTML = oHtml || '<div class="empty-state"><p>No one-off tasks right now.</p></div>';
+
+  document.querySelectorAll('#recurringTaskList .task-card, #onceTaskList .task-card').forEach(function (card) {
+    card.addEventListener('click', function () { openEditTask(card.dataset.id, card.dataset.type); });
+  });
+}
+
+// ---- Admin: inventory ------------------------------------------------------------
+
+function renderAdminInventory() {
+  var low = inventory.filter(function (i) { return i.status === 'low'; }).length;
+  var out = inventory.filter(function (i) { return i.status === 'out'; }).length;
+  document.getElementById('invSummary').textContent = (low + out === 0)
+    ? 'Everything is stocked.'
+    : [low ? low + ' low' : null, out ? out + ' out' : null].filter(Boolean).join(', ') + '.';
+
+  var html = '';
+  inventory.forEach(function (item, idx) {
+    html += '' +
+      '<div class="inv-row">' +
+        '<span class="inv-name">' + item.name + '</span>' +
+        '<button class="status-pill ' + item.status + '" data-idx="' + idx + '" type="button">' + statusLabel(item.status) + '</button>' +
+      '</div>';
+  });
+  document.getElementById('adminInventoryList').innerHTML = html;
+  wireInventoryTaps('#adminInventoryList');
+}
+
+document.getElementById('addInvItemBtn').addEventListener('click', function () {
+  var input = document.getElementById('newInvItem');
+  if (!input.value.trim()) return;
+  inventory.push({ id: 'i' + Date.now(), name: input.value.trim(), status: 'good' });
+  input.value = '';
+  renderAdminInventory();
+  renderStaffTasks();
+  showToast('Item added.');
+});
+
+// ---- Admin: hours & days off ---------------------------------------------------
+
+var weekDays = [
+  { dow: 'Sun', num: 16 }, { dow: 'Mon', num: 17 }, { dow: 'Tue', num: 18 },
+  { dow: 'Wed', num: 19 }, { dow: 'Thu', num: 20 }, { dow: 'Fri', num: 21 }, { dow: 'Sat', num: 22 }
+];
+
+function renderWeekStrip() {
+  var html = '';
+  weekDays.forEach(function (d) {
+    var off = !!daysOff[d.dow];
+    html += '<button class="day-chip' + (off ? ' off' : '') + '" data-dow="' + d.dow + '" type="button"><span class="dow">' + d.dow + '</span><span class="num">' + d.num + '</span></button>';
+  });
+  document.getElementById('weekStrip').innerHTML = html;
+  document.querySelectorAll('.day-chip').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      var dow = chip.dataset.dow;
+      daysOff[dow] = !daysOff[dow];
+      renderWeekStrip();
+      showToast(daysOff[dow] ? dow + ' marked as a day off.' : dow + ' is a working day again.');
+    });
+  });
+}
+
+function renderHours() {
+  var total = hoursLog.reduce(function (sum, h) { return sum + h.hours; }, 0);
+  document.getElementById('weekHoursTotal').textContent = total.toFixed(1) + ' h';
+  var html = '';
+  hoursLog.forEach(function (h) {
+    html += '<div class="hours-row"><span class="hours-date">' + h.date + '</span><span class="hours-value">' + h.hours.toFixed(1) + ' h</span></div>';
+  });
+  document.getElementById('hoursList').innerHTML = html;
+}
+
+document.getElementById('openAddHoursBtn').addEventListener('click', function () {
+  document.getElementById('hoursDateInput').valueAsDate = new Date();
+  document.getElementById('hoursValueInput').value = '';
+  document.getElementById('hoursOverlay').classList.add('open');
+});
+document.getElementById('closeHoursBtn').addEventListener('click', function () {
+  document.getElementById('hoursOverlay').classList.remove('open');
+});
+document.getElementById('saveHoursBtn').addEventListener('click', function () {
+  var dateInput = document.getElementById('hoursDateInput');
+  var val = parseFloat(document.getElementById('hoursValueInput').value || '0');
+  var label = dateInput.value ? new Date(dateInput.value + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : 'New entry';
+  hoursLog.push({ id: 'h' + Date.now(), date: label, hours: val });
+  document.getElementById('hoursOverlay').classList.remove('open');
+  renderHours();
+  showToast('Hours logged.');
+});
+
+// ---- Task add/edit sheet ---------------------------------------------------------
+
+document.getElementById('openAddRecurringBtn').addEventListener('click', function () { openAddTask('recurring'); });
+document.getElementById('openAddOnceBtn').addEventListener('click', function () { openAddTask('once'); });
+document.getElementById('closeTaskBtn').addEventListener('click', function () {
+  document.getElementById('taskOverlay').classList.remove('open');
+});
+
+function openAddTask(type) {
+  editingTaskId = null;
+  editingTaskType = type;
+  document.getElementById('taskFormTitle').textContent = type === 'recurring' ? 'Add recurring task' : 'Add one-off task';
+  document.getElementById('deleteTaskBtn').style.display = 'none';
+  document.getElementById('taskNameInput').value = '';
+  document.getElementById('taskDueInput').valueAsDate = new Date();
+  selectChip('taskAssigneeChips', 'Maria');
+  document.getElementById('taskTypeField').style.display = 'none';
+  document.getElementById('onceDueField').style.display = type === 'once' ? 'block' : 'none';
+  document.getElementById('recurringCadenceField').style.display = type === 'recurring' ? 'block' : 'none';
+  selectChip('taskCadenceChips', 'daily');
+  toggleWeekdayCard('daily');
+  document.getElementById('taskOverlay').classList.add('open');
+}
+
+function openEditTask(id, type) {
+  editingTaskId = id;
+  editingTaskType = type;
+  document.getElementById('deleteTaskBtn').style.display = 'block';
+  document.getElementById('taskTypeField').style.display = 'none';
+  if (type === 'recurring') {
+    var t = recurringTasks.find(function (x) { return x.id === id; });
+    document.getElementById('taskFormTitle').textContent = 'Edit recurring task';
+    document.getElementById('taskNameInput').value = t.name;
+    selectChip('taskAssigneeChips', t.assignee);
+    document.getElementById('onceDueField').style.display = 'none';
+    document.getElementById('recurringCadenceField').style.display = 'block';
+    selectChip('taskCadenceChips', t.cadence);
+    toggleWeekdayCard(t.cadence);
+    if (t.weekday) selectChip('taskWeekdayChips', t.weekday);
+  } else {
+    var o = onceTasks.find(function (x) { return x.id === id; });
+    document.getElementById('taskFormTitle').textContent = 'Edit one-off task';
+    document.getElementById('taskNameInput').value = o.name;
+    selectChip('taskAssigneeChips', o.assignee);
+    document.getElementById('onceDueField').style.display = 'block';
+    document.getElementById('recurringCadenceField').style.display = 'none';
+  }
+  document.getElementById('taskOverlay').classList.add('open');
+}
+
+document.querySelectorAll('#taskAssigneeChips .chip, #taskWeekdayChips .chip').forEach(function (chip) {
+  chip.addEventListener('click', function () { selectChip(chip.parentElement.id, chip.dataset.value); });
+});
+document.querySelectorAll('#taskCadenceChips .chip').forEach(function (chip) {
+  chip.addEventListener('click', function () {
+    selectChip('taskCadenceChips', chip.dataset.value);
+    toggleWeekdayCard(chip.dataset.value);
+  });
+});
+
+function toggleWeekdayCard(cadence) {
+  document.getElementById('taskWeeklyDayCard').style.display = cadence === 'weekly' ? 'flex' : 'none';
+}
+
+function selectChip(containerId, value) {
+  var container = document.getElementById(containerId);
+  container.querySelectorAll('.chip').forEach(function (c) {
+    c.classList.toggle('selected', c.dataset.value === value);
+  });
+}
+
+document.getElementById('saveTaskBtn').addEventListener('click', function () {
+  var name = document.getElementById('taskNameInput').value || 'New task';
+  var assignee = document.querySelector('#taskAssigneeChips .chip.selected').dataset.value;
+
+  if (editingTaskType === 'recurring') {
+    var cadence = document.querySelector('#taskCadenceChips .chip.selected').dataset.value;
+    var weekday = document.querySelector('#taskWeekdayChips .chip.selected').dataset.value;
+    var cadenceLabel = cadence === 'daily' ? 'Every day' : cadence === 'weekly' ? ('Weekly on ' + weekday) : 'Monthly';
+    if (editingTaskId) {
+      var t = recurringTasks.find(function (x) { return x.id === editingTaskId; });
+      t.name = name; t.assignee = assignee; t.cadence = cadence; t.cadenceLabel = cadenceLabel; t.weekday = weekday;
+      showToast('Task updated.');
+    } else {
+      recurringTasks.push({ id: 'r' + Date.now(), name: name, assignee: assignee, cadence: cadence, cadenceLabel: cadenceLabel, weekday: weekday });
+      showToast('Recurring task added.');
+    }
+  } else {
+    var dueInput = document.getElementById('taskDueInput');
+    var dueLabel = dueInput.value ? new Date(dueInput.value + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'No date';
+    if (editingTaskId) {
+      var o = onceTasks.find(function (x) { return x.id === editingTaskId; });
+      o.name = name; o.assignee = assignee; o.due = dueLabel;
+      showToast('Task updated.');
+    } else {
+      onceTasks.push({ id: 'o' + Date.now(), name: name, assignee: assignee, due: dueLabel, overdue: false, done: false });
+      showToast('One-off task added.');
+    }
+  }
+  document.getElementById('taskOverlay').classList.remove('open');
+  renderTaskLists();
+});
+
+document.getElementById('deleteTaskBtn').addEventListener('click', function () {
+  if (editingTaskType === 'recurring') {
+    recurringTasks = recurringTasks.filter(function (x) { return x.id !== editingTaskId; });
+  } else {
+    onceTasks = onceTasks.filter(function (x) { return x.id !== editingTaskId; });
+  }
+  document.getElementById('taskOverlay').classList.remove('open');
+  renderTaskLists();
+  showToast('Task deleted.');
+});
+
+// ---- Toast -----------------------------------------------------------------------
+
+var toastTimer;
+function showToast(text) {
+  document.getElementById('toast-text').textContent = text;
+  var toast = document.getElementById('toast');
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { toast.classList.remove('show'); }, 3200);
+}
+
+// ---- Init ---------------------------------------------------------------------
+
+renderStaffTasks();
+renderTodayBoard();
+renderTaskLists();
+renderAdminInventory();
+renderWeekStrip();
+renderHours();
+</script>
+</body>
+</html>

@@ -7,6 +7,8 @@ import type { Role } from '@/types/database'
 const session = ref<Session | null>(null)
 const currentRole = ref<Role | null>(null)
 const currentWorkspaceId = ref<string | null>(null)
+const currentMembershipId = ref<string | null>(null)
+const currentVisibleAreas = ref<string[] | null>(null)
 const currentDisplayName = ref<string | null>(null)
 const ready = ref(false)
 
@@ -15,7 +17,7 @@ async function loadMembership(user: User) {
   // docs/10-api-data-access-spec.md §2 "Workspace and membership".
   const { data, error } = await supabase
     .from('workspace_memberships')
-    .select('workspace_id, role')
+    .select('id, workspace_id, role, visible_areas')
     .eq('user_id', user.id)
     .limit(1)
     .maybeSingle()
@@ -23,11 +25,21 @@ async function loadMembership(user: User) {
   if (error || !data) {
     currentRole.value = null
     currentWorkspaceId.value = null
+    currentMembershipId.value = null
+    currentVisibleAreas.value = null
     return
   }
 
   currentRole.value = data.role as Role
   currentWorkspaceId.value = data.workspace_id
+  // Used to find "my own" workforce_members row (membership_id fk,
+  // migration 0012) — e.g. Housekeeping's Today view filtering to just the
+  // signed-in person's assigned rooms.
+  currentMembershipId.value = data.id
+  // Nav-filtering hint only (docs §10) — null means unrestricted. AppShell
+  // uses this to trim which destinations an administrator/manager sees;
+  // it never widens what RLS already permits, only narrows what's shown.
+  currentVisibleAreas.value = data.visible_areas
 }
 
 async function loadProfile(user: User) {
@@ -60,6 +72,8 @@ function init(): Promise<void> {
         } else {
           currentRole.value = null
           currentWorkspaceId.value = null
+          currentMembershipId.value = null
+          currentVisibleAreas.value = null
           currentDisplayName.value = null
         }
       })
@@ -97,6 +111,8 @@ async function signOut() {
   session.value = null
   currentRole.value = null
   currentWorkspaceId.value = null
+  currentMembershipId.value = null
+  currentVisibleAreas.value = null
   currentDisplayName.value = null
 }
 
@@ -124,6 +140,9 @@ export function useAuth() {
     isAuthenticated: computed(() => !!session.value),
     role: currentRole,
     workspaceId: currentWorkspaceId,
+    membershipId: currentMembershipId,
+    /** Nav-filtering hint only — null means unrestricted. */
+    visibleAreas: currentVisibleAreas,
     /** null until a real name (distinct from the email fallback) is set. */
     displayName: currentDisplayName,
     /** True once the initial session + membership lookup has resolved. */

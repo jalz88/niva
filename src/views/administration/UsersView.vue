@@ -1,16 +1,124 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Trash2, Pencil, Check, X } from 'lucide-vue-next'
 import AdminBackHeader from '@/components/admin/AdminBackHeader.vue'
-import { useMembers } from '@/composables/useMembers'
+import BottomSheet from '@/components/ui/BottomSheet.vue'
+import { useMembers, type MemberRow } from '@/composables/useMembers'
 import { useAuth } from '@/composables/useAuth'
+import { useToastStore } from '@/stores/toastStore'
 import type { NivaError } from '@/lib/errors'
 import type { Role } from '@/types/database'
 
 const { workspaceId, user } = useAuth()
 const members = useMembers()
+const toast = useToastStore()
 
 const roles: Role[] = ['administrator', 'manager', 'staff', 'viewer']
+
+// Screen access — per docs/07-domain-model-and-schema.md §10: `null` means
+// "sees everything their role permits" (default), an array narrows what
+// their own nav shows. Role stays the real boundary via RLS; this only
+// ever narrows, never widens, what the role already allows. Mirrors
+// docs/housekeeping-in-app-prototype.html's SCREEN_GROUPS. Dashboard and
+// Account aren't listed — both are always reachable regardless of role.
+// "Work calendar" and "Roster & wages" are tabs of one Staff screen
+// (StaffView.vue), not separate routes, but each stays independently
+// toggleable — untick one and StaffView hides just that tab.
+interface ScreenItem {
+  id: string
+  label: string
+  roles: Role[]
+}
+interface ScreenGroup {
+  label: string
+  roles: Role[]
+  items: ScreenItem[]
+}
+// 'staff' isn't listed on any item — a staff-role account is the
+// caretaker/housekeeper case (decided 2026-08-24): AppShell.vue gives it no
+// nav chrome at all and routes it straight to its own Today view,
+// regardless of what's toggled here. Screen access is only ever adjustable
+// for administrator/manager. Someone who needs bookkeeping access should be
+// 'manager', not 'staff'.
+const SCREEN_GROUPS: ScreenGroup[] = [
+  {
+    label: 'Money',
+    roles: ['administrator', 'manager'],
+    items: [
+      { id: 'transactions', label: 'Transactions', roles: ['administrator', 'manager'] },
+      { id: 'reports', label: 'Reports', roles: ['administrator', 'manager'] },
+      { id: 'recurring-payments', label: 'Recurring payments', roles: ['administrator', 'manager'] },
+    ],
+  },
+  {
+    label: 'Housekeeping',
+    roles: ['administrator', 'manager'],
+    items: [
+      { id: 'housekeeping-schedule', label: "Today's schedule", roles: ['administrator', 'manager'] },
+      { id: 'housekeeping-calendar', label: 'Work calendar', roles: ['administrator', 'manager'] },
+      { id: 'housekeeping-rooms', label: 'Rooms', roles: ['administrator', 'manager'] },
+      { id: 'housekeeping-roster', label: 'Roster & wages', roles: ['administrator', 'manager'] },
+    ],
+  },
+  {
+    label: 'Account',
+    roles: ['administrator'],
+    items: [{ id: 'administration', label: 'Administration', roles: ['administrator'] }],
+  },
+]
+
+function groupsForRole(role: Role): ScreenGroup[] {
+  return SCREEN_GROUPS.filter((g) => g.roles.includes(role))
+    .map((g) => ({ ...g, items: g.items.filter((i) => i.roles.includes(role)) }))
+    .filter((g) => g.items.length)
+}
+
+function accessSummary(m: MemberRow): string {
+  if (m.userId === user.value?.id) return 'You'
+  if (!m.visibleAreas) return 'Full access'
+  return `${m.visibleAreas.length} screen${m.visibleAreas.length === 1 ? '' : 's'}`
+}
+
+const accessSheetOpen = ref(false)
+const accessMemberId = ref<string | null>(null)
+const accessSelections = ref<Record<string, boolean>>({})
+const accessSaving = ref(false)
+const accessError = ref<NivaError | null>(null)
+
+const accessMember = computed(() => members.members.value.find((m) => m.membershipId === accessMemberId.value) ?? null)
+const accessGroups = computed(() => (accessMember.value ? groupsForRole(accessMember.value.role) : []))
+
+function openAccessSheet(m: MemberRow) {
+  accessMemberId.value = m.membershipId
+  accessError.value = null
+  const sel: Record<string, boolean> = {}
+  for (const group of groupsForRole(m.role)) {
+    for (const item of group.items) sel[item.id] = !m.visibleAreas || m.visibleAreas.includes(item.id)
+  }
+  accessSelections.value = sel
+  accessSheetOpen.value = true
+}
+
+async function saveAccess() {
+  if (!accessMember.value || !workspaceId.value) return
+  const eligible = accessGroups.value.flatMap((g) => g.items.map((i) => i.id))
+  const onIds = eligible.filter((id) => accessSelections.value[id])
+  // Only store an explicit array when it's a real restriction — leaving
+  // every eligible item on means "unrestricted", stored as null, same
+  // null-means-everything convention as the rest of this column.
+  const areas = onIds.length === eligible.length ? null : onIds
+
+  accessSaving.value = true
+  accessError.value = null
+  const err = await members.updateVisibleAreas(accessMember.value.membershipId, workspaceId.value, areas)
+  accessSaving.value = false
+  if (err) {
+    accessError.value = err
+    return
+  }
+  toast.show(`Screen access updated for ${accessMember.value.displayName || accessMember.value.email || 'this person'}.`)
+  accessSheetOpen.value = false
+}
 
 const savingId = ref<string | null>(null)
 const rowError = ref<NivaError | null>(null)
@@ -183,6 +291,15 @@ async function onAdd() {
         </select>
 
         <button
+          v-if="member.userId !== user?.id"
+          type="button"
+          class="shrink-0 rounded-pill bg-neutral-100 px-3 py-1.5 text-caption font-medium text-neutral-600 hover:bg-neutral-200"
+          @click="openAccessSheet(member)"
+        >
+          {{ accessSummary(member) }}
+        </button>
+
+        <button
           type="button"
           aria-label="Remove member"
           :disabled="member.userId === user?.id || savingId === member.membershipId"
@@ -194,5 +311,51 @@ async function onAdd() {
       </li>
     </ul>
     <p v-if="rowError" class="mt-2 text-body-sm text-negative-600" role="alert">{{ rowError.message }}</p>
+
+    <!-- Screen access sheet -->
+    <BottomSheet :open="accessSheetOpen" :title="accessMember?.displayName || accessMember?.email || 'Screen access'" @close="accessSheetOpen = false">
+      <div v-if="accessMember">
+        <p class="mb-4 text-body-sm text-neutral-500">
+          {{ accessMember.role.charAt(0).toUpperCase() + accessMember.role.slice(1) }} — untick anything they don't need day to day.
+        </p>
+
+        <div v-if="!accessGroups.length" class="rounded-md bg-neutral-50 p-4 text-body-sm text-neutral-500">No adjustable screens for this role.</div>
+
+        <div v-for="group in accessGroups" :key="group.label" class="mb-4">
+          <p class="mb-1.5 text-caption font-semibold tracking-wide text-neutral-400 uppercase">{{ group.label }}</p>
+          <div class="rounded-md bg-white shadow-sm">
+            <div
+              v-for="item in group.items"
+              :key="item.id"
+              class="flex items-center justify-between border-b border-neutral-100 px-3.5 py-3 last:border-b-0"
+            >
+              <p class="text-body-sm text-neutral-900">{{ item.label }}</p>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="accessSelections[item.id]"
+                class="h-6 w-10 shrink-0 rounded-pill transition-colors"
+                :class="accessSelections[item.id] ? 'bg-accent-500' : 'bg-neutral-300'"
+                @click="accessSelections[item.id] = !accessSelections[item.id]"
+              >
+                <span class="block h-5 w-5 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform" :class="{ 'translate-x-[18px]': accessSelections[item.id] }" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <p v-if="accessError" class="mb-3 text-caption text-negative-600">{{ accessError.message }}</p>
+
+        <button
+          v-if="accessGroups.length"
+          type="button"
+          :disabled="accessSaving"
+          class="w-full rounded-lg bg-accent-500 py-3.5 text-body font-semibold text-white hover:bg-accent-600 disabled:opacity-60"
+          @click="saveAccess"
+        >
+          {{ accessSaving ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
+    </BottomSheet>
   </div>
 </template>

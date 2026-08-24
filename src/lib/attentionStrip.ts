@@ -2,6 +2,7 @@ import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import type { TransactionWithLabels, Role } from '@/types/database'
 import type { WorkspaceCurrencyRow } from '@/composables/useCurrencies'
+import type { TodaySummary } from '@/composables/useHousekeepingReports'
 import { dueLabel } from './recurringPayments'
 
 dayjs.extend(relativeTime)
@@ -88,4 +89,22 @@ export function buildDuePaymentItems(payments: DuePaymentSource[], role: Role | 
     })
   }
   return items
+}
+
+// housekeeping_completion_summary's today row (useHousekeepingReports.ts) —
+// the single-glance "how's today going" ask from 2026-08-23. Quiet once
+// everything's done, same "no news is good news" reasoning as the rest of
+// this strip; shows every day it isn't, which is expected and useful right
+// up until the last room's checked off. Gated to administrator/manager —
+// its link goes to housekeeping-schedule, which is role-gated the same way
+// (viewer would just bounce straight back), and staff never reaches
+// Dashboard at all (kiosk mode, see AppShell.vue).
+export function buildHousekeepingAttentionItem(today: TodaySummary | null, role: Role | null): AttentionStripItem | null {
+  if (role !== 'administrator' && role !== 'manager') return null
+  if (!today || today.total === 0 || today.pct === 100) return null
+  return {
+    key: 'housekeeping-today',
+    text: `Housekeeping: ${today.done} of ${today.total} rooms done today (${today.pct}%)`,
+    linkTo: { name: 'housekeeping-schedule' },
+  }
 }

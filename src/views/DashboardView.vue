@@ -8,11 +8,12 @@ import { useCurrencies } from '@/composables/useCurrencies'
 import { useReports } from '@/composables/useReports'
 import { useTransactions } from '@/composables/useTransactions'
 import { useRecurringPayments } from '@/composables/useRecurringPayments'
+import { useHousekeepingReports } from '@/composables/useHousekeepingReports'
 import { useQuickAddStore } from '@/stores/quickAddStore'
 import { periodRange, periodLabel, periodQueryParams, type PeriodSelection } from '@/lib/period'
 import { formatMoney } from '@/lib/money'
 import { approxCombinedTotal } from '@/lib/currencyApprox'
-import { buildLastEntryItem, buildStaleRateItems, buildDuePaymentItems } from '@/lib/attentionStrip'
+import { buildLastEntryItem, buildStaleRateItems, buildDuePaymentItems, buildHousekeepingAttentionItem } from '@/lib/attentionStrip'
 import ApproxTotalCard from '@/components/shared/ApproxTotalCard.vue'
 
 // Redesigned 2026-08-19 per docs/12-ux-options-review.md C.1: attention
@@ -45,6 +46,9 @@ const { items: latestItems, list: listLatest, revision } = useTransactions()
 // RLS) — fetched only for those roles so staff/viewer never issue a
 // request that RLS would just return empty for anyway.
 const { items: recurringPayments, list: listRecurringPayments } = useRecurringPayments()
+// Same admin/manager-only reasoning as recurring payments above — see
+// buildHousekeepingAttentionItem's own gating note in lib/attentionStrip.ts.
+const { today: housekeepingToday, loadToday: loadHousekeepingToday } = useHousekeepingReports()
 
 async function fetchAll() {
   if (!workspaceId.value) return
@@ -62,6 +66,7 @@ async function fetchAll() {
   await listLatest({ workspaceId: workspaceId.value, page: 1, pageSize: 1 })
   if (role.value === 'administrator' || role.value === 'manager') {
     await listRecurringPayments(workspaceId.value)
+    await loadHousekeepingToday(workspaceId.value)
   }
 }
 
@@ -81,6 +86,7 @@ const attentionItems = computed(() => {
     buildLastEntryItem(latestItems.value[0] ?? null),
     ...buildStaleRateItems(currencies.rows.value, role.value),
     ...buildDuePaymentItems(recurringPayments.value, role.value),
+    buildHousekeepingAttentionItem(housekeepingToday.value, role.value),
   ]
   return items.filter((item) => item !== null)
 })

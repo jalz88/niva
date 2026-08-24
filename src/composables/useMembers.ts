@@ -9,6 +9,11 @@ export interface MemberRow {
   email: string | null
   displayName: string | null
   role: Role
+  // null/empty = sees everything permitted by role (default). Non-null =
+  // the specific screen ids this person's nav is trimmed to — see
+  // docs/07-domain-model-and-schema.md §10 and the Screen access sheet in
+  // UsersView.vue.
+  visibleAreas: string[] | null
 }
 
 // Session-scoped cache — see useConfigItems.ts for why.
@@ -34,7 +39,7 @@ export function useMembers() {
     // this join automatically — fetch and merge client-side instead.
     const membershipResult = await supabase
       .from('workspace_memberships')
-      .select('id, user_id, role')
+      .select('id, user_id, role, visible_areas')
       .eq('workspace_id', workspaceId)
       .order('role')
 
@@ -62,6 +67,7 @@ export function useMembers() {
       role: m.role as Role,
       email: profileById.get(m.user_id)?.email ?? null,
       displayName: profileById.get(m.user_id)?.display_name ?? null,
+      visibleAreas: m.visible_areas,
     }))
     cache.set(workspaceId, members.value)
   }
@@ -119,5 +125,22 @@ export function useMembers() {
     return null
   }
 
-  return { members, loading, error, list, updateRole, addByUserId, remove, updateDisplayName }
+  // `areas: null` means "unrestricted, sees everything permitted by role" —
+  // the Screen access sheet sends null when every eligible screen is left
+  // on, and an explicit array otherwise (see UsersView.vue's
+  // ScreenAccessSheet). This is a navigation-filtering hint only; it never
+  // widens what RLS already permits, only narrows what the client shows.
+  async function updateVisibleAreas(membershipId: string, workspaceId: string, areas: string[] | null): Promise<NivaError | null> {
+    const { error: dbError } = await supabase
+      .from('workspace_memberships')
+      .update({ visible_areas: areas })
+      .eq('id', membershipId)
+
+    if (dbError) return toNivaError(dbError)
+    members.value = members.value.map((m) => (m.membershipId === membershipId ? { ...m, visibleAreas: areas } : m))
+    cache.set(workspaceId, members.value)
+    return null
+  }
+
+  return { members, loading, error, list, updateRole, addByUserId, remove, updateDisplayName, updateVisibleAreas }
 }

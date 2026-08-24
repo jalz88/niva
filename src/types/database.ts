@@ -18,6 +18,11 @@ export interface WorkspaceMembership {
   user_id: string
   role: Role
   created_at: string
+  // migration 0012 — a navigation-filtering hint only (07-domain-model-
+  // and-schema.md §10). null/empty means "see everything permitted by
+  // role"; a non-null array restricts which screen ids the client's nav
+  // shows this specific person. RLS is the real security boundary, not this.
+  visible_areas: string[] | null
 }
 
 export interface Profile {
@@ -131,4 +136,116 @@ export interface RecurringPayment {
 export interface RecurringPaymentWithLabels extends RecurringPayment {
   category_name: string
   payment_method_name: string
+}
+
+// ---------------------------------------------------------------------------
+// Housekeeping, rooms & staff — migration 0012, docs/07-domain-model-and-
+// schema.md §3/§10/§11. Designed and prototyped 2026-08-19 to 2026-08-24
+// (docs/housekeeping-in-app-prototype.html).
+// ---------------------------------------------------------------------------
+
+export type RoomType = 'bedroom' | 'bathroom' | 'common_area' | 'outdoor'
+export type SopCadenceType = 'daily' | 'weekly' | 'monthly' | 'quarterly'
+export type CrewRole = 'housekeeper' | 'gardener' | 'maintenance' | 'other'
+
+export interface Room {
+  id: string
+  workspace_id: string
+  property_id: string
+  name: string
+  room_type: RoomType
+  is_active: boolean
+  linked_to_bookings: boolean
+  ical_url: string | null
+  ical_last_synced_at: string | null
+  ical_sync_status: 'ok' | 'error' | 'pending' | null
+  created_by: string
+  created_at: string
+  updated_by: string | null
+  updated_at: string
+}
+
+export interface SopTask {
+  id: string
+  workspace_id: string
+  room_id: string
+  name: string
+  cadence_type: SopCadenceType
+  // 0 (Sunday) - 6 (Saturday); set only when cadence_type is 'weekly'.
+  cadence_day_of_week: number | null
+  // 1-31; set only when cadence_type is 'monthly' or 'quarterly'.
+  cadence_day_of_month: number | null
+  is_active: boolean
+  created_by: string
+  created_at: string
+  updated_by: string | null
+  updated_at: string
+}
+
+// One row per (room, task) for a given day — the shape
+// housekeeping_today_checklist() returns, already joined against that
+// occurrence's completion and the room's inspection for the day. Not a
+// plain table row; see useHousekeepingToday.ts.
+export interface TodayChecklistRow {
+  room_id: string
+  room_name: string
+  room_type: RoomType
+  linked_to_bookings: boolean
+  task_id: string
+  task_name: string
+  cadence_type: SopCadenceType
+  due_on: string
+  is_done: boolean
+  completed_by: string | null
+  completed_at: string | null
+  inspected_by: string | null
+  inspected_at: string | null
+}
+
+export interface WorkforceMember {
+  id: string
+  workspace_id: string
+  membership_id: string | null
+  name: string
+  crew_role: CrewRole
+  is_active: boolean
+  recurring_payment_id: string | null
+  created_by: string
+  created_at: string
+  updated_by: string | null
+  updated_at: string
+}
+
+export interface WorkforceDayOff {
+  id: string
+  workspace_id: string
+  workforce_member_id: string
+  day_off: string
+  hours_worked: string | null
+}
+
+export interface RoomAssignment {
+  id: string
+  workspace_id: string
+  room_id: string
+  assigned_on: string
+  workforce_member_id: string
+}
+
+// housekeeping_completion_summary() row — see docs §8.
+export interface HousekeepingCompletionDay {
+  report_date: string
+  tasks_due: number
+  tasks_completed: number
+  tasks_on_time: number
+  tasks_late: number
+}
+
+// housekeeping_attention_rooms() row — see docs §8.
+export interface HousekeepingAttentionRoom {
+  room_id: string
+  room_name: string
+  tasks_overdue: number
+  last_completed_at: string | null
+  last_inspected_at: string | null
 }

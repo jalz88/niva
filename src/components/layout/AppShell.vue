@@ -1,48 +1,88 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import type { Component } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
-import { LayoutDashboard, Receipt, BarChart3, User, Settings, Repeat, Plus, Menu } from 'lucide-vue-next'
+import { LayoutDashboard, Receipt, BarChart3, User, Settings, Repeat, ClipboardCheck, Plus, Menu } from 'lucide-vue-next'
 import { useAuth } from '@/composables/useAuth'
 import { useQuickAddStore } from '@/stores/quickAddStore'
 import MoreSheet from './MoreSheet.vue'
 
 const route = useRoute()
-const { role, user, displayName } = useAuth()
+const { role, user, displayName, visibleAreas } = useAuth()
 const quickAdd = useQuickAddStore()
 const moreOpen = ref(false)
 
+// A 'staff' account is the housekeeping caretaker case (decided
+// 2026-08-24, e.g. Jane in docs/housekeeping-in-app-prototype.html) — no
+// nav chrome at all, just their own Today checklist full-bleed. The
+// redirect off any other route lives in router/index.ts's global guard;
+// this only controls what renders around <RouterView>.
+const isKiosk = computed(() => role.value === 'staff')
+
+// visible_areas (workspace_memberships, migration 0012) is a nav-filtering
+// hint only — RLS is the real boundary. `null` means unrestricted; an
+// array narrows nav to just those screen ids. Same ids as the Screen
+// access sheet's SCREEN_GROUPS in administration/UsersView.vue.
+function allowed(screenId: string): boolean {
+  return !visibleAreas.value || visibleAreas.value.includes(screenId)
+}
+const HOUSEKEEPING_SCREENS = ['housekeeping-schedule', 'housekeeping-calendar', 'housekeeping-rooms', 'housekeeping-roster']
+const housekeepingAllowed = computed(() => HOUSEKEEPING_SCREENS.some(allowed))
+
+// Housekeeping is used daily, Reports isn't — they swapped places
+// 2026-08-24. Reports moved into the More sheet's Money group instead.
 // Mobile bottom bar keeps only the 3 destinations used every day, with Add
-// raised in the middle. Everything else — Account, Recurring payments
-// today, Notifications / Housekeeping & Inventory later — lives in the
-// "More" sheet so the bar never has to grow past 5 slots. Desktop has room
-// to spare, so its sidebar keeps showing every destination inline (below).
+// raised in the middle; everything else lives in the "More" sheet so the
+// bar never has to grow past 5 slots. Desktop has room to spare, so its
+// sidebar keeps showing every destination inline (below).
 // Decided 2026-08-04 — see docs/09-wireframes.md "Navigation chrome".
-const leftItems = computed(() => [
-  { name: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { name: 'transactions', label: 'Transactions', icon: Receipt },
-])
-const rightItems = computed(() => [{ name: 'reports', label: 'Reports', icon: BarChart3 }])
+const leftItems = computed(() => {
+  const items = [{ name: 'dashboard', label: 'Dashboard', icon: LayoutDashboard as Component }]
+  if (allowed('transactions')) items.push({ name: 'transactions', label: 'Transactions', icon: Receipt })
+  return items
+})
+const rightItems = computed(() => (housekeepingAllowed.value ? [{ name: 'housekeeping', label: 'Housekeeping', icon: ClipboardCheck as Component }] : []))
+// Every sub-screen under the hub reads as active for this one nav slot —
+// same reasoning as isMoreActive covering everything tucked into its sheet.
+const HOUSEKEEPING_ROUTE_NAMES = ['housekeeping', 'housekeeping-schedule', 'housekeeping-rooms', 'housekeeping-staff']
+function isRightItemActive(name: string): boolean {
+  return name === 'housekeeping' ? HOUSEKEEPING_ROUTE_NAMES.includes(route.name as string) : route.name === name
+}
 
-// Account is reachable by every role, not just administrator — signing out
-// or setting your own name isn't an admin-only capability. Recurring
-// payments is manager/administrator only — staff and viewer don't see the
-// entry at all, matching the RLS on the underlying table (migration 0011).
-const moreItems = computed(() =>
-  [
-    { name: 'account', label: 'Account', icon: User },
-    { name: 'recurring-payments', label: 'Recurring payments', icon: Repeat, roles: ['administrator', 'manager'] },
-    { name: 'administration', label: 'Administration', icon: Settings, roles: ['administrator'] },
-  ].filter((item) => !item.roles || (role.value && item.roles.includes(role.value))),
-)
+// Account is reachable by every role — signing out or setting your own
+// name isn't an admin-only capability. Recurring payments and
+// Administration stay role-gated, matching the RLS on their underlying
+// tables (migrations 0006/0011).
+const moreGroups = computed(() => {
+  const moneyItems: { name: string; label: string; icon: Component }[] = []
+  if (allowed('reports')) moneyItems.push({ name: 'reports', label: 'Reports', icon: BarChart3 })
+  if ((role.value === 'administrator' || role.value === 'manager') && allowed('recurring-payments')) {
+    moneyItems.push({ name: 'recurring-payments', label: 'Recurring payments', icon: Repeat })
+  }
 
-const desktopItems = computed(() => [...leftItems.value, ...rightItems.value, ...moreItems.value])
-const isMoreActive = computed(() => moreItems.value.some((item) => item.name === route.name))
+  const accountItems: { name: string; label: string; icon: Component }[] = []
+  if (role.value === 'administrator' && allowed('administration')) accountItems.push({ name: 'administration', label: 'Administration', icon: Settings })
+  accountItems.push({ name: 'account', label: 'Account', icon: User })
+
+  return [
+    ...(moneyItems.length ? [{ label: 'Money', items: moneyItems }] : []),
+    { label: 'Account', items: accountItems },
+  ]
+})
+const moreItemNames = computed(() => moreGroups.value.flatMap((g) => g.items.map((i) => i.name)))
+const isMoreActive = computed(() => moreItemNames.value.includes(route.name as string))
+
+const desktopItems = computed(() => [...leftItems.value, ...rightItems.value, ...moreGroups.value.flatMap((g) => g.items)])
 
 const identityLabel = computed(() => displayName.value ?? user.value?.email ?? '')
 </script>
 
 <template>
-  <div class="flex min-h-screen flex-col bg-neutral-50 md:flex-row">
+  <!-- Kiosk mode: a staff/caretaker account gets its own Today checklist,
+       full-bleed, no sidebar/bottom-nav/More sheet at all. -->
+  <RouterView v-if="isKiosk" />
+
+  <div v-else class="flex min-h-screen flex-col bg-neutral-50 md:flex-row">
     <!-- Desktop sidebar — hidden when printing (e.g. Reports' "Print / Save
          as PDF") so only the actual report content ends up on the page. -->
     <aside
@@ -57,7 +97,7 @@ const identityLabel = computed(() => displayName.value ?? user.value?.email ?? '
         :key="item.name"
         :to="{ name: item.name }"
         class="flex items-center gap-2 rounded-sm px-2 py-2 text-body-sm font-medium text-neutral-700 hover:bg-neutral-100"
-        :class="{ 'bg-accent-50 text-accent-600': route.name === item.name }"
+        :class="{ 'bg-accent-50 text-accent-600': isRightItemActive(item.name) }"
       >
         <component :is="item.icon" :size="18" />
         {{ item.label }}
@@ -114,7 +154,7 @@ const identityLabel = computed(() => displayName.value ?? user.value?.email ?? '
           :key="item.name"
           :to="{ name: item.name }"
           class="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-caption text-neutral-500"
-          :class="{ 'font-semibold text-accent-600': route.name === item.name }"
+          :class="{ 'font-semibold text-accent-600': isRightItemActive(item.name) }"
         >
           <component :is="item.icon" :size="20" />
           {{ item.label }}
@@ -131,7 +171,7 @@ const identityLabel = computed(() => displayName.value ?? user.value?.email ?? '
         </button>
       </nav>
 
-      <MoreSheet :open="moreOpen" :items="moreItems" @close="moreOpen = false" />
+      <MoreSheet :open="moreOpen" :groups="moreGroups" @close="moreOpen = false" />
     </div>
   </div>
 </template>

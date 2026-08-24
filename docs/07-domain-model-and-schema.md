@@ -38,6 +38,18 @@ workspaces
     └── has a cadence: monthly (day of month) or weekly (day of week)
 
 iso_currencies (global reference table, not workspace-scoped)
+
+rooms (belongs to one property — migration 0012)
+├── sop_tasks (the cleaning checklist for that room; cadence: daily/weekly/monthly/quarterly)
+│   └── sop_task_completions (append-only — one row per time a task is actually ticked)
+└── room_inspections (append-only — one row per room per day Mom spot-checks it, optional/non-blocking)
+
+workforce_members (the operational roster — Housekeepers, Gardeners, Maintenance)
+├── separate from workspace_memberships — not everyone on the roster signs into NIVA
+├── may reference one workspace_membership (only when "Give app access" is on)
+├── may reference one recurring_payment (the wage link, "Paid via")
+├── workforce_days_off (explicit dates, no recurring weekly pattern)
+└── room_assignments (who owes which room, per day — only manual overrides are stored)
 ```
 
 ## 3. Table specifications
@@ -181,6 +193,119 @@ A check constraint enforces exactly one of `cadence_day_of_month`/`cadence_day_o
 
 `mark_recurring_payment_paid(p_recurring_payment_id, p_amount, p_occurred_on, p_notes)` — `SECURITY DEFINER`, manager/administrator only (checked explicitly inside, same pattern as `set_default_workspace_currency`). Atomically inserts the expense transaction (stamping `recurring_payment_id`) and advances `next_due_on`. Advancement is computed from the *previous scheduled* `next_due_on`, not `p_occurred_on` — paying a few days early or late never drifts the future schedule. Monthly advancement clamps to the last day of the target month when `cadence_day_of_month` doesn't exist there (e.g. day 31 into a 30-day month). Returns the new transaction's id.
 
+### `rooms` (migration 0012)
+
+Physical spaces to clean — bedrooms, bathrooms, common areas, outdoor. A bedroom guests actually book can be linked to its booking calendar; other room types can't (the UI hides the iCal field unless `linked_to_bookings` is on).
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | uuid, pk | |
+| workspace_id | uuid, not null, fk → workspaces.id | |
+| property_id | uuid, not null, fk → properties.id | silently assigned, same single-active-property convention as `transactions` |
+| name | text, not null | "Room 1", "Garden" |
+| room_type | text, not null | check in (`bedroom`,`bathroom`,`common_area`,`outdoor`) |
+| is_active | boolean, not null | default `true` |
+| linked_to_bookings | boolean, not null | default `false`; only `true` rooms may have `ical_url` set |
+| ical_url | text, null | calendar export URL from the booking platform/Home Assistant; read-only from NIVA's side |
+| ical_last_synced_at | timestamptz, null | |
+| ical_sync_status | text, null | check in (`ok`,`error`,`pending`); null until first sync attempt |
+| created_by / created_at / updated_by / updated_at | | standard audit columns |
+
+Check constraint: `ical_url is null when linked_to_bookings = false`.
+
+### `sop_tasks` (migration 0012)
+
+The cleaning checklist for a room, admin-defined per room rather than per room *type* — Release 1 has too few rooms for a shared-template layer to earn its complexity; a similar room's list gets copied by hand. Recurs on a schedule, same cadence shape as `recurring_payments`.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | uuid, pk | |
+| workspace_id | uuid, not null, fk → workspaces.id | |
+| room_id | uuid, not null, fk → rooms.id | |
+| name | text, not null | "Remove & replace linen" |
+| cadence_type | text, not null | check in (`daily`,`weekly`,`monthly`,`quarterly`) |
+| cadence_day_of_week | smallint, null | 0 (Sunday) – 6 (Saturday); set only when `cadence_type = 'weekly'` |
+| cadence_day_of_month | smallint, null | 1–31; set only when `cadence_type` is `monthly` or `quarterly` |
+| is_active | boolean, not null | default `true`; archive rather than delete once a task has completion history |
+| created_by / created_at / updated_by / updated_at | | standard audit columns |
+
+Same one-of-two-cadence-columns check as `recurring_payments` (§5 rule 6). `quarterly` reuses `cadence_day_of_month`, evaluated every three months from the task's `created_at` — good enough for a handful of admin-eyeballed tasks a year; not worth a separate month-offset column.
+
+### `sop_task_completions` (migration 0012)
+
+One row per time a task actually gets ticked — append-only, not an editable record. This is what the daily/weekly completion percentage and on-time-vs-delayed reporting (§8, §11) are computed from; there's no history before this migration.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | uuid, pk | |
+| workspace_id | uuid, not null, fk → workspaces.id | |
+| room_id | uuid, not null, fk → rooms.id | denormalized off `sop_tasks.room_id` so reports can query by room without a join, and the row still means something if the task is later archived |
+| task_id | uuid, not null, fk → sop_tasks.id | |
+| due_on | date, not null | the occurrence's due date, computed from the task's cadence at the moment of completion and stored, not recomputed later — protects history if the cadence rule changes afterward |
+| completed_at | timestamptz, not null | default `now()` |
+| completed_by | uuid, not null, fk → auth.users.id | |
+| is_late | boolean, not null, generated | `due_on < completed_at::date` |
+
+Un-ticking a task in the app deletes its most recent completion row for today, rather than leaving a "reversed" record — matches how the prototype already treats ticking as reversible right up until inspection.
+
+### `room_inspections` (migration 0012)
+
+Mom's optional, non-mandatory spot-check — "Pending Inspection" is soft, never blocking (decided 2026-08-23). One row per room per day, at most.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | uuid, pk | |
+| workspace_id | uuid, not null, fk → workspaces.id | |
+| room_id | uuid, not null, fk → rooms.id | |
+| inspected_on | date, not null | |
+| inspected_at | timestamptz, not null | default `now()` |
+| inspected_by | uuid, not null, fk → auth.users.id | |
+
+Unique on `(room_id, inspected_on)`.
+
+### `workforce_members` (migration 0012)
+
+The operational roster — who gets rooms assigned. Deliberately separate from `workspace_memberships`: some workforce members never sign into NIVA at all (a gardener or maintenance person who's just tracked for pay and days off), so a roster entry can't require a login to exist.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | uuid, pk | |
+| workspace_id | uuid, not null, fk → workspaces.id | |
+| membership_id | uuid, null, fk → workspace_memberships.id | set only when "Give app access" is on for this person |
+| name | text, not null | independent of `profiles.display_name` — doesn't require `membership_id` to be set |
+| crew_role | text, not null | check in (`housekeeper`,`gardener`,`maintenance`,`other`) |
+| is_active | boolean, not null | default `true` |
+| recurring_payment_id | uuid, null, fk → recurring_payments.id, on delete set null | the "Paid via" link |
+| created_by / created_at / updated_by / updated_at | | standard audit columns |
+
+### `workforce_days_off` (migration 0012)
+
+Explicit dates, not a recurring weekly pattern — matches the 2026-08-23 decision that days off are set week by week with no default to maintain. No reason/type field: flagging or tracking why someone was off was explicitly ruled out for this version.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | uuid, pk | |
+| workspace_id | uuid, not null, fk → workspaces.id | |
+| workforce_member_id | uuid, not null, fk → workforce_members.id | |
+| day_off | date, not null | |
+| hours_worked | numeric(4,1), null | unused in Release 1 — kept so a future per-hour tracking feature (raised as a possible ask from later customers) doesn't need a schema change to switch on |
+
+Unique on `(workforce_member_id, day_off)`.
+
+### `room_assignments` (migration 0012)
+
+Who owes which room, per day. Only manual overrides are stored — the default round-robin (active Housekeepers not off today, distributed by index across today's due rooms) is deterministic and computed live, so most days generate zero rows here.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | uuid, pk | |
+| workspace_id | uuid, not null, fk → workspaces.id | |
+| room_id | uuid, not null, fk → rooms.id | |
+| assigned_on | date, not null | |
+| workforce_member_id | uuid, not null, fk → workforce_members.id | |
+
+Unique on `(room_id, assigned_on)`. Deleting a row reverts that room, that day, back to the computed default.
+
 ## 4. Indexes
 
 - `transactions (workspace_id, occurred_on)` — dashboard/report period queries.
@@ -191,6 +316,14 @@ A check constraint enforces exactly one of `cadence_day_of_month`/`cadence_day_o
 - `recurring_payments (workspace_id, next_due_on)` — the Overdue/Upcoming grouping and Dashboard's "due soon" attention-strip item.
 - `workspace_memberships (user_id)` — RLS lookups.
 - Partial unique index on `workspace_currencies (workspace_id) WHERE is_default` — one default currency per workspace.
+- `sop_tasks (workspace_id, room_id)` — the per-room checklist query.
+- `sop_task_completions (workspace_id, room_id, due_on)` — daily/weekly rollups and the "areas needing attention" report.
+- `sop_task_completions (task_id, due_on)` — per-task history.
+- `room_inspections (workspace_id, room_id, inspected_on)`.
+- `workforce_members (workspace_id, is_active)`.
+- `workforce_days_off (workforce_member_id, day_off)`.
+- `room_assignments (workspace_id, assigned_on)`.
+- Partial index on `rooms (workspace_id) WHERE linked_to_bookings` — the daily iCal sync job's scan.
 
 ## 5. Data integrity beyond column constraints
 
@@ -210,6 +343,12 @@ Three more rules, added by migration 0005 for the favorites/sub-category columns
 One more, added by migration 0011 on `recurring_payments`:
 
 6. **Category must be expense, currency must be enabled.** Same two checks as the `transactions` trigger (rules 1–2 above), applied on insert/update of a recurring payment definition rather than the transaction it eventually generates.
+
+Three more, added by migration 0012 for housekeeping:
+
+7. **Completion room/task match.** `sop_task_completions.room_id` must equal the `room_id` of the referenced `task_id` — trigger-enforced since it's denormalized (§3).
+8. **iCal fields.** `rooms.ical_url` must be null when `linked_to_bookings = false` (check constraint).
+9. **Cadence column pairing.** `sop_tasks` enforces exactly one of `cadence_day_of_week`/`cadence_day_of_month` set, matching `cadence_type` — same pattern as rule 6.
 
 ## 6. Row Level Security
 
@@ -236,6 +375,10 @@ Policy pattern applied per table (illustrative, not exhaustive):
 | `recurring_payments` | administrator, manager only | administrator, manager | administrator, manager | administrator, manager (real hard delete, not archive) |
 | `workspace_memberships` | any member of the workspace | administrator | administrator | administrator |
 | `profiles` | self, and any workspace co-member | self (own row) | self (own row) | n/a |
+| `rooms`, `sop_tasks` | any member of the workspace | administrator | administrator | administrator (archive via `is_active`) |
+| `sop_task_completions` | any member of the workspace | administrator, manager, staff | n/a — append-only | the completing user (own same-day rows only); administrator/manager may delete any |
+| `room_inspections` | any member of the workspace | administrator, manager | n/a — append-only | administrator, manager |
+| `workforce_members`, `workforce_days_off`, `room_assignments` | any member of the workspace | administrator, manager | administrator, manager | administrator, manager |
 
 Every policy's `USING`/`WITH CHECK` clause is scoped by `workspace_id = <row's workspace> AND current_role_in_workspace(workspace_id) = ANY(<allowed roles>)`. `viewer` never appears in an INSERT/UPDATE/DELETE allow-list.
 
@@ -247,6 +390,8 @@ Archiving a configuration item that is referenced by an existing transaction is 
 
 `created_by`/`created_at`/`updated_by`/`updated_at` on every business table is the Release 1 audit baseline. A dedicated `transaction_history` table (full field-level change log) is deferred — it is not required to meet the blueprint's "financial records deserve care" guardrail at this scale, but is a natural post-release candidate if reviewers need to see who changed what value.
 
+`sop_task_completions` and `room_inspections` (migration 0012) deliberately use a lighter shape — a single `completed_by`/`completed_at` or `inspected_by`/`inspected_at` pair, no separate `created_by`/`updated_by`. Both tables are append-only logs of one action each; there's nothing to "update," so the full four-column pattern would just be unused columns.
+
 ## 8. Reporting functions (Phase 4, migrations 0007–0008)
 
 Three read-only `SECURITY DEFINER` functions back the Dashboard and Reports screens — see `10-api-data-access-spec.md` §2 "Reporting" for their exact call shape. All three share a signature: `(p_workspace_id uuid, p_property_id uuid, p_period_start date, p_period_end date)`, with `p_property_id` nullable for "all properties," and are guarded by `where is_workspace_member(p_workspace_id)` in the same style as `current_role_in_workspace` — a caller for a workspace they're not a member of gets zero rows, not an error and not another workspace's data.
@@ -257,6 +402,12 @@ Three read-only `SECURITY DEFINER` functions back the Dashboard and Reports scre
 
 `EXECUTE` on all three is revoked from `anon`/`PUBLIC` and granted only to `authenticated`, matching `set_default_workspace_currency`'s existing grant pattern.
 
+Two more, added by migration 0012, same `is_workspace_member` guard and `authenticated`-only grant:
+
+- `housekeeping_completion_summary(p_workspace_id, p_period_start, p_period_end)` — per-day counts of tasks due, completed, completed-on-time, and completed-late, grouped by `due_on`. The Dashboard glance line and the Reports trend chart read from the same function, just at different granularities — today only vs. the selected period.
+- `housekeeping_attention_rooms(p_workspace_id)` — one row per room currently overdue or un-inspected for more than a day, with `last_completed_at` and days-since. Backs the "Areas needing attention" list. Deliberately has no per-person breakdown — Jalie was explicit this isn't meant to be a staff performance metric (§11).
+- `housekeeping_today_checklist(p_workspace_id, p_as_of default current_date)` — one row per (room, task) with that task's current occurrence's due date and done/not-done state, already joined against the day's completion and inspection rows. Backs Today / Today's schedule directly, so the cadence math (`sop_task_current_due_on`) lives in one place instead of being duplicated in the client.
+
 ## 9. Open items for Phase 1 implementation
 
 - Confirm decimal precision `numeric(14,2)` is sufficient for all currencies in scope (2 decimal places covers LKR/USD/EUR; revisit if a zero-decimal or 3-decimal currency is enabled).
@@ -264,11 +415,22 @@ Three read-only `SECURITY DEFINER` functions back the Dashboard and Reports scre
 - Write the actual seed migration for `iso_currencies` (ISO 4217 list, or a trimmed list covering only realistically needed codes).
 - Confirm sort/display order for configuration lists (e.g. an `sort_order` column) is needed for Release 1 or can wait.
 
-## 10. Staff nav visibility — decided, not yet built (2026-08-04)
+## 10. Staff nav visibility — decided 2026-08-04, built alongside migration 0012
 
-Prompted by a real case: a housekeeping/inventory staff member (Jalie's employee) who should mostly see only that area, once it exists (`06-development-roadmap.md` post-release item 5). Decision, to apply when Housekeeping & Inventory is actually built:
+Prompted by a real case: a housekeeping/inventory staff member (Jalie's employee) who should mostly see only that area, once it exists (`06-development-roadmap.md` post-release item 5). Decision, applied now that Housekeeping is actually being built (§11):
 
 - Keep the existing `staff` role exactly as-is for permissions — it already restricts transaction editing/deletion and all configuration access at the RLS layer (§6). No security change needed.
-- Add a new nullable column, `workspace_memberships.visible_areas` (e.g. `text[]`), scoped per membership row. `null`/empty means "see everything permitted by role" (today's behavior — no migration-day impact on existing members). A non-null value restricts which nav areas the client shows that specific person, administrator-configurable per member in the Users admin screen.
+- Add a new nullable column, `workspace_memberships.visible_areas` (e.g. `text[]`), scoped per membership row. `null`/empty means "see everything permitted by role" (today's behavior — no migration-day impact on existing members). A non-null value restricts which nav areas the client shows that specific person, administrator-configurable per member in the Users admin screen (prototyped 2026-08-24, `docs/housekeeping-in-app-prototype.html`).
 - This is a **navigation-filtering hint only** — it changes what the More sheet (see `09-wireframes.md` "Navigation chrome") renders for that person, nothing else. RLS remains the actual security boundary and is untouched; a restricted staff member who somehow opened a hidden route would still be bound by their role's existing RLS grants, not by `visible_areas`.
-- Deliberately not built now — there's no Housekeeping & Inventory feature yet for it to gate. Build the column, the admin UI toggle, and the nav filtering together when that feature ships, not before.
+- Values are per-screen, not just per top-level nav item — e.g. `housekeeping-schedule` and `housekeeping-calendar` can be granted independently of `housekeeping-roster`, so a manager like Mom can see the work calendar without also getting roster/wage-editing. See the prototype's `SCREEN_GROUPS` for the exact catalogue of toggleable screen ids.
+
+## 11. Housekeeping, staff & rooms — implementation notes (migration 0012)
+
+Schema above (rooms, `sop_tasks`, `sop_task_completions`, `room_inspections`, `workforce_members`, `workforce_days_off`, `room_assignments`) covers the module designed and prototyped through 2026-08-19 to 2026-08-24 (`docs/housekeeping-in-app-prototype.html`). Loose ends to settle during Phase 1 implementation, not before:
+
+- **Occurrence computation isn't a stored schedule.** "What's due today" for monthly/quarterly tasks is evaluated in application/RPC code from `sop_tasks.created_at` + the cadence columns, not a generated occurrences table. Revisit only if a real task ever needs a one-off exception date.
+- **"Overdue" definition.** A task is overdue when today is past its computed `due_on` and no `sop_task_completions` row exists for that occurrence yet. Daily tasks are only "overdue" within the same day — tomorrow is a fresh occurrence, not a carried-over debt, matching the "not forcing" tone of the inspection status.
+- **iCal sync mechanism not yet picked.** Once a day at 1:00 AM property-local time (Jalie's 2026-08-23 call, to stay clear of Cloudflare/Supabase free-tier limits). Either Supabase `pg_cron` calling an Edge Function, or a Cloudflare Worker Cron Trigger hitting an RPC, would work — pick whichever has less operational overhead when this phase starts.
+- **No per-person completion metrics.** `housekeeping_completion_summary`/`housekeeping_attention_rooms` (§8) report at the room/property level only. Jalie was explicit (2026-08-24) that this isn't meant to track individual staff performance, matching the earlier no-hourly-timesheets decision (§3 `workforce_days_off`). A per-person breakdown is an additive query, not a schema change, if a future customer asks for it.
+- **`crew_role`/room type enums are intentionally small.** Both are plain `check` constraints, not lookup tables — Release 1 doesn't need admin-editable crew roles or room types, and adding either later is a simple constraint change, not a migration of existing data.
+- **`workforce_members`/`workforce_days_off`/`room_assignments` SELECT is any workspace member, not administrator/manager only** (corrected from the first draft of §6, which scoped read the same as write). Jane's own Today view has to read the roster and today's assignments to know which rooms are hers — that's the same "any member reads" shape as `rooms`/`sop_tasks`/`sop_task_completions`. Only the wage amount itself stays hidden from her, via `recurring_payments`' existing administrator/manager-only policy (0011) — `workforce_members.recurring_payment_id` is just an opaque id to her.

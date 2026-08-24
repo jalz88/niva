@@ -2,11 +2,18 @@
 import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
 import { TrendingUp, TrendingDown, Minus, Download, Printer } from 'lucide-vue-next'
+
+// Extended here (not just in lib/attentionStrip.ts, whose own dayjs.extend
+// wouldn't have run yet if this view's chunk loads first) — dayjs.extend is
+// idempotent, safe to call from both.
+dayjs.extend(relativeTime)
 import { useAuth } from '@/composables/useAuth'
 import { useConfigItems } from '@/composables/useConfigItems'
 import { useCurrencies } from '@/composables/useCurrencies'
 import { useReports } from '@/composables/useReports'
+import { useHousekeepingReports } from '@/composables/useHousekeepingReports'
 import { periodRange, periodLabel, periodQueryParams, previousPeriodRange, type PeriodSelection } from '@/lib/period'
 import { formatMoney } from '@/lib/money'
 import { approxCombinedTotal } from '@/lib/currencyApprox'
@@ -15,10 +22,19 @@ import { buildReportInsight } from '@/lib/reportInsight'
 import PeriodPicker from '@/components/shared/PeriodPicker.vue'
 import ApproxTotalCard from '@/components/shared/ApproxTotalCard.vue'
 
-const { workspaceId } = useAuth()
+const { workspaceId, role } = useAuth()
 const properties = useConfigItems('properties')
 const currencies = useCurrencies()
 const { summary, platformRevenue, categoryExpenses, loading, error, load } = useReports()
+// Admin/manager only — same reasoning as the Dashboard attention item
+// (buildHousekeepingAttentionItem's note in lib/attentionStrip.ts). Follows
+// the same period/property-independent date range as the financial report
+// above it, rather than a separate "this week" concept, so the page has one
+// selector instead of two competing ones. Jalie flagged 2026-08-23 that
+// this section might read as confusing/long against real data and asked to
+// ship it anyway and improve it later — kept deliberately simple for that
+// reason: one completion number, on-time vs late, a short attention list.
+const { completionByDay, attentionRooms, loadTrend: loadHousekeepingTrend, loadAttentionRooms } = useHousekeepingReports()
 // Second, independent instance — the insight line (below) needs the prior
 // comparable period's numbers too, fetched via the same RPCs Reports
 // already calls rather than a new endpoint. Its own loading/error state is
@@ -47,6 +63,11 @@ function fetchReports() {
   previousLabel.value = previous?.label ?? ''
   if (previous) {
     loadPrevious({ workspaceId: workspaceId.value, propertyId: propertyId.value || undefined, dateFrom: previous.dateFrom, dateTo: previous.dateTo })
+  }
+
+  if (role.value === 'administrator' || role.value === 'manager') {
+    loadHousekeepingTrend(workspaceId.value, dateFrom, dateTo)
+    loadAttentionRooms(workspaceId.value)
   }
 }
 
@@ -120,6 +141,19 @@ function withBarPct<T extends { currencyCode: string; total: string }>(rows: T[]
 
 const platformGroups = computed(() => withBarPct(platformRevenue.value))
 const categoryGroups = computed(() => withBarPct(categoryExpenses.value))
+
+const housekeepingSummary = computed(() => {
+  const due = completionByDay.value.reduce((sum, d) => sum + d.tasksDue, 0)
+  const done = completionByDay.value.reduce((sum, d) => sum + d.tasksCompleted, 0)
+  const onTime = completionByDay.value.reduce((sum, d) => sum + d.tasksOnTime, 0)
+  const late = completionByDay.value.reduce((sum, d) => sum + d.tasksLate, 0)
+  return { due, done, onTime, late, pct: due ? Math.round((done / due) * 100) : null }
+})
+
+function fmtRelativeDate(iso: string | null): string {
+  if (!iso) return 'Never'
+  return dayjs(iso).fromNow()
+}
 </script>
 
 <template>
@@ -281,6 +315,44 @@ const categoryGroups = computed(() => withBarPct(categoryExpenses.value))
              categories (migration 0007/0008). The drill-down link carries
              every contributing sub-category id, not just the top one, so
              the Transactions list underneath matches this total exactly. -->
+        <!-- Housekeeping — completion rate for the selected period plus
+             rooms that need attention right now. Kept deliberately simple
+             (one number, on-time/late split, a short list) per Jalie's
+             2026-08-23 call to ship this and refine once real data's in. -->
+        <section v-if="housekeepingSummary.due > 0 || attentionRooms.length" class="mb-4 rounded-md bg-white p-4 shadow-sm">
+          <h2 class="mb-3 text-h3 font-semibold text-neutral-900">Housekeeping</h2>
+
+          <div v-if="housekeepingSummary.due > 0" class="mb-4">
+            <p class="text-body-sm text-neutral-500">{{ periodLabel(period) }} · tasks completed</p>
+            <p class="text-amount font-semibold" :class="(housekeepingSummary.pct ?? 0) === 100 ? 'text-positive-600' : 'text-neutral-900'">
+              {{ housekeepingSummary.pct }}%
+              <span class="text-body-sm font-normal text-neutral-500">({{ housekeepingSummary.done }} of {{ housekeepingSummary.due }})</span>
+            </p>
+            <div class="mt-2 grid grid-cols-2 gap-2">
+              <div class="min-w-0 rounded-md bg-neutral-50 p-2.5">
+                <p class="text-caption text-neutral-500">On time</p>
+                <p class="text-body-sm font-semibold text-positive-600">{{ housekeepingSummary.onTime }}</p>
+              </div>
+              <div class="min-w-0 rounded-md bg-neutral-50 p-2.5">
+                <p class="text-caption text-neutral-500">Late</p>
+                <p class="text-body-sm font-semibold" :class="housekeepingSummary.late > 0 ? 'text-negative-600' : 'text-neutral-700'">{{ housekeepingSummary.late }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="attentionRooms.length">
+            <p class="mb-2 text-body-sm font-medium text-neutral-700">Areas needing attention</p>
+            <RouterLink :to="{ name: 'housekeeping-schedule' }" class="block">
+              <div v-for="room in attentionRooms" :key="room.roomId" class="flex items-center justify-between gap-2 border-b border-neutral-100 py-2 last:border-b-0">
+                <span class="truncate text-body-sm text-neutral-700">{{ room.roomName }}</span>
+                <span class="shrink-0 text-caption text-neutral-500">
+                  {{ room.tasksOverdue }} overdue · last cleaned {{ fmtRelativeDate(room.lastCompletedAt) }}
+                </span>
+              </div>
+            </RouterLink>
+          </div>
+        </section>
+
         <section v-if="categoryGroups.length" class="rounded-md bg-white p-4 shadow-sm">
           <h2 class="mb-3 text-h3 font-semibold text-neutral-900">Expenses by category</h2>
           <div v-for="group in categoryGroups" :key="group.currencyCode" class="mb-4 last:mb-0">

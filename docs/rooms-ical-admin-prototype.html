@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIVA — Rooms admin + iCal sync prototype</title>
+<style>
+  :root {
+    --color-accent-50: #FBEEE7;
+    --color-accent-100: #F5D6C4;
+    --color-accent-500: #B5542A;
+    --color-accent-600: #954423;
+    --color-accent-700: #74351C;
+    --color-neutral-50: #FAF8F6;
+    --color-neutral-100: #F3EFEA;
+    --color-neutral-200: #E6DFD7;
+    --color-neutral-300: #D3C8BC;
+    --color-neutral-400: #A99C8E;
+    --color-neutral-500: #7D7266;
+    --color-neutral-700: #453F37;
+    --color-neutral-900: #1C1916;
+    --color-positive-50: #EAF4EF;
+    --color-positive-600: #2F7D5A;
+    --color-info-50: #EAF0F8;
+    --color-info-600: #2E5FA3;
+    --color-warn-50: #FCF3E3;
+    --color-warn-600: #A9711C;
+    --color-negative-50: #FBEAE9;
+    --color-negative-600: #B3261E;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --radius-pill: 9999px;
+    --shadow-sm: 0 1px 2px rgba(28, 25, 22, 0.06);
+    --shadow-md: 0 4px 12px rgba(28, 25, 22, 0.10);
+    --font-sans: -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--color-neutral-200); font-family: var(--font-sans); color: var(--color-neutral-900); min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+  .note { max-width: 430px; width: 100%; padding: 10px 20px 4px; font-size: 12px; color: var(--color-neutral-500); text-align: center; box-sizing: border-box; }
+  .note b { color: var(--color-neutral-700); }
+
+  .stage { width: 100%; max-width: 430px; flex: 1; min-height: 720px; }
+  .screen { width: 100%; background: var(--color-neutral-50); min-height: 720px; padding: 18px 20px 24px; box-sizing: border-box; }
+  .screen-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .screen-header h1 { font-size: 22px; font-weight: 600; margin: 0; }
+  .screen-sub { font-size: 13px; color: var(--color-neutral-500); margin: 0 0 16px; }
+  .add-btn { display: flex; align-items: center; gap: 6px; border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 9px 15px; font-size: 13px; font-weight: 500; color: var(--color-neutral-700); cursor: pointer; }
+
+  .section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-neutral-400); margin: 18px 0 8px; }
+  .section-label:first-of-type { margin-top: 0; }
+
+  .room-card { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 14px 16px; margin-bottom: 10px; cursor: pointer; }
+  .room-card:hover { box-shadow: var(--shadow-md); }
+  .room-card.inactive { opacity: 0.5; }
+  .room-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .room-name { font-size: 15px; font-weight: 600; margin: 0; }
+  .room-sub { font-size: 12px; color: var(--color-neutral-500); margin: 2px 0 0; }
+  .room-meta { font-size: 11px; color: var(--color-neutral-400); margin: 8px 0 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .sync-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; background: var(--color-positive-600); }
+  .sync-dot.issue { background: var(--color-negative-600); }
+  .linked-badge { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: var(--radius-pill); background: var(--color-info-50); color: var(--color-info-600); flex-shrink: 0; }
+
+  .empty-state { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 28px 20px; text-align: center; }
+  .empty-state h2 { font-size: 16px; font-weight: 600; margin: 0 0 6px; }
+  .empty-state p { font-size: 13px; color: var(--color-neutral-500); margin: 0; }
+
+  .field { margin-bottom: 16px; }
+  .field-label { font-size: 13px; color: var(--color-neutral-500); margin: 0 0 8px; }
+  .field-hint { font-size: 12px; color: var(--color-neutral-400); margin: 6px 0 0; }
+  .text-input { width: 100%; border: none; border-radius: var(--radius-md); background: #fff; box-shadow: var(--shadow-sm); padding: 11px 13px; font-size: 15px; font-family: var(--font-sans); color: var(--color-neutral-900); }
+
+  .chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--color-neutral-700); cursor: pointer; }
+  .chip.selected { background: var(--color-accent-100); color: var(--color-accent-700); font-weight: 600; box-shadow: none; }
+  .chip.small { padding: 8px 13px; }
+
+  .toggle-row { display: flex; justify-content: space-between; align-items: center; background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 13px 14px; margin-bottom: 6px; }
+  .toggle-row .label-col p:first-child { font-size: 14px; font-weight: 500; margin: 0; }
+  .switch { width: 42px; height: 25px; border-radius: var(--radius-pill); background: var(--color-neutral-300); position: relative; cursor: pointer; flex-shrink: 0; border: none; }
+  .switch::after { content: ''; position: absolute; width: 21px; height: 21px; border-radius: 50%; background: #fff; top: 2px; left: 2px; transition: left .15s ease; box-shadow: var(--shadow-sm); }
+  .switch.on { background: var(--color-accent-500); }
+  .switch.on::after { left: 19px; }
+
+  .cadence-card { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+  .cadence-card .field-label { margin: 0; }
+  .cadence-input { width: 56px; border: none; background: transparent; font-size: 16px; font-weight: 600; color: var(--color-neutral-900); text-align: right; font-family: var(--font-sans); }
+
+  .save-btn { width: 100%; border: none; border-radius: var(--radius-lg); padding: 15px; font-size: 15px; font-weight: 600; color: #fff; background: var(--color-accent-500); cursor: pointer; margin-top: 6px; }
+  .delete-btn { width: 100%; border: 1px solid rgba(179, 38, 30, 0.3); background: none; border-radius: var(--radius-lg); padding: 13px; font-size: 14px; font-weight: 600; color: var(--color-negative-600); cursor: pointer; margin-top: 10px; }
+  .delete-btn:hover { background: rgba(179, 38, 30, 0.05); }
+  .ghost-btn { width: 100%; border: 1px solid var(--color-neutral-200); background: #fff; border-radius: var(--radius-lg); padding: 12px; font-size: 13px; font-weight: 600; color: var(--color-neutral-700); cursor: pointer; }
+
+  /* Room detail */
+  .rd-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+  .rd-title { font-size: 18px; font-weight: 600; margin: 0; }
+  .rd-sub { font-size: 12px; color: var(--color-neutral-500); margin: 2px 0 0; }
+  .icon-btn { border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 8px 14px; font-size: 12px; font-weight: 600; color: var(--color-neutral-700); cursor: pointer; }
+
+  .sync-card { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 14px 16px; margin-bottom: 18px; }
+  .sync-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .sync-status { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .sync-status.ok { color: var(--color-positive-600); }
+  .sync-status.issue { color: var(--color-negative-600); }
+  .sync-detail { font-size: 12px; color: var(--color-neutral-500); margin: 2px 0 0; }
+  .sync-now-btn { border: none; background: var(--color-neutral-100); border-radius: var(--radius-pill); padding: 6px 12px; font-size: 11px; font-weight: 600; color: var(--color-neutral-700); cursor: pointer; }
+  .sync-url { font-size: 11px; color: var(--color-neutral-400); margin: 8px 0 0; word-break: break-all; }
+
+  .sop-task-row { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 12px 14px; margin-bottom: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .sop-task-row:hover { box-shadow: var(--shadow-md); }
+  .sop-task-name { font-size: 14px; font-weight: 500; margin: 0; }
+  .cadence-tag { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: var(--radius-pill); background: var(--color-neutral-100); color: var(--color-neutral-500); flex-shrink: 0; }
+  .cadence-tag.weekly { background: var(--color-info-50); color: var(--color-info-600); }
+  .cadence-tag.monthly { background: var(--color-warn-50); color: var(--color-warn-600); }
+  .cadence-tag.quarterly { background: var(--color-accent-100); color: var(--color-accent-700); }
+
+  .overlay { position: fixed; inset: 0; background: rgba(28, 25, 22, 0.35); display: none; align-items: flex-end; justify-content: center; z-index: 20; }
+  .overlay.open { display: flex; }
+  .overlay.layer2 { z-index: 25; }
+  .sheet { width: 100%; max-width: 430px; background: var(--color-neutral-100); border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 10px 22px 24px; box-sizing: border-box; max-height: 88vh; overflow-y: auto; }
+  .handle { width: 36px; height: 4px; border-radius: var(--radius-pill); background: var(--color-neutral-300); margin: 4px auto 16px; }
+  .sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+  .sheet-header h2 { font-size: 17px; font-weight: 600; margin: 0; }
+  .close-btn { background: none; border: none; color: var(--color-neutral-500); cursor: pointer; padding: 4px; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
+    background: var(--color-neutral-900); color: #fff; padding: 10px 16px; border-radius: var(--radius-md);
+    font-size: 13px; display: flex; align-items: center; gap: 8px; opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease; max-width: 90vw; z-index: 40; text-align: left;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast svg { flex-shrink: 0; color: #6FCF97; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+
+<div class="note">Prototype — admin <b>Rooms</b>: creating spaces, each room's own checklist, and the iCal booking link. Nothing here is saved or actually fetches a real calendar. Reads only, twice a day (1:00 AM &amp; 12:30 PM) once real — NIVA never writes back to Airbnb/Agoda.</div>
+
+<div class="stage">
+  <div class="screen" id="roomsScreen">
+    <div class="screen-header">
+      <h1>Rooms</h1>
+      <button class="add-btn" id="openAddRoomBtn" type="button">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        Add room
+      </button>
+    </div>
+    <p class="screen-sub">Kandy BnB · every space with its own cleaning checklist.</p>
+    <div id="roomsList"></div>
+  </div>
+</div>
+
+<!-- Room detail -->
+<div class="overlay" id="roomDetailOverlay">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="rd-header">
+      <div>
+        <p class="rd-title" id="rdTitle">Room 1</p>
+        <p class="rd-sub" id="rdSub">Bedroom</p>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button class="icon-btn" id="rdEditBtn" type="button">Edit</button>
+        <button class="close-btn" id="closeRoomDetailBtn" aria-label="Close" type="button">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="syncCardWrap"></div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <p class="section-label" style="margin-top:0;">Cleaning checklist</p>
+      <button class="add-btn" id="openAddTaskBtn" type="button">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        Add task
+      </button>
+    </div>
+    <div id="sopTaskList"></div>
+  </div>
+</div>
+
+<!-- Add/edit room -->
+<div class="overlay layer2" id="roomFormOverlay">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="sheet-header">
+      <h2 id="roomFormTitle">Add room</h2>
+      <button class="close-btn" id="closeRoomFormBtn" aria-label="Close" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="field">
+      <p class="field-label">Name</p>
+      <input class="text-input" id="roomNameInput" placeholder="Room 1, Garden, Dining room…">
+    </div>
+
+    <div class="field">
+      <p class="field-label">Type</p>
+      <div class="chip-row" id="roomTypeChips">
+        <button type="button" class="chip selected" data-value="Bedroom">Bedroom</button>
+        <button type="button" class="chip" data-value="Bathroom">Bathroom</button>
+        <button type="button" class="chip" data-value="Common area">Common area</button>
+        <button type="button" class="chip" data-value="Outdoor">Outdoor</button>
+        <button type="button" class="chip" data-value="More">More</button>
+      </div>
+      <p class="field-hint">Just for labeling — each room keeps its own checklist either way.</p>
+    </div>
+
+    <div class="toggle-row">
+      <div class="label-col">
+        <p>Linked to bookings</p>
+        <p class="field-hint" style="margin:2px 0 0;">Turn on for a room guests actually book (usually a bedroom) to show checkout/stayover status.</p>
+      </div>
+      <button class="switch" id="roomLinkedSwitch" type="button"></button>
+    </div>
+
+    <div class="field" id="icalUrlField" style="display:none; margin-top:16px;">
+      <p class="field-label">Calendar export URL (Airbnb/Agoda)</p>
+      <input class="text-input" id="icalUrlInput" placeholder="https://www.airbnb.com/calendar/ical/…">
+      <p class="field-hint">Checked twice a day, around 1:00 AM and 12:30 PM. Read-only — NIVA never changes anything on the platform side.</p>
+    </div>
+
+    <div class="toggle-row" style="margin-top:16px;">
+      <div class="label-col"><p>Active</p></div>
+      <button class="switch on" id="roomActiveSwitch" type="button"></button>
+    </div>
+
+    <button class="save-btn" id="saveRoomBtn">Save room</button>
+    <button class="delete-btn" id="deleteRoomBtn" style="display:none;">Delete this room</button>
+  </div>
+</div>
+
+<!-- Add/edit SOP task -->
+<div class="overlay layer2" id="taskFormOverlay">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="sheet-header">
+      <h2 id="taskFormTitle">Add task</h2>
+      <button class="close-btn" id="closeTaskFormBtn" aria-label="Close" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="field">
+      <p class="field-label">Task</p>
+      <input class="text-input" id="taskNameInput" placeholder="Vacuum floor, water plants…">
+    </div>
+
+    <div class="field">
+      <p class="field-label">Repeats</p>
+      <div class="chip-row" id="taskCadenceChips">
+        <button type="button" class="chip selected" data-value="daily">Daily</button>
+        <button type="button" class="chip" data-value="weekly">Weekly</button>
+        <button type="button" class="chip" data-value="monthly">Monthly</button>
+        <button type="button" class="chip" data-value="quarterly">Quarterly</button>
+      </div>
+    </div>
+
+    <div class="field" id="taskWeekdayField" style="display:none;">
+      <p class="field-label">On</p>
+      <div class="chip-row" id="taskWeekdayChips">
+        <button type="button" class="chip small selected" data-value="Mon">Mon</button>
+        <button type="button" class="chip small" data-value="Tue">Tue</button>
+        <button type="button" class="chip small" data-value="Wed">Wed</button>
+        <button type="button" class="chip small" data-value="Thu">Thu</button>
+        <button type="button" class="chip small" data-value="Fri">Fri</button>
+        <button type="button" class="chip small" data-value="Sat">Sat</button>
+        <button type="button" class="chip small" data-value="Sun">Sun</button>
+      </div>
+    </div>
+
+    <div class="cadence-card" id="taskMonthDayCard" style="display:none;">
+      <p class="field-label">On day</p>
+      <input class="cadence-input" id="taskMonthDayInput" type="number" min="1" max="31" value="1">
+    </div>
+    <p class="field-hint" id="quarterlyHint" style="display:none; margin-top:-10px; margin-bottom:16px;">Runs in January, April, July and October.</p>
+
+    <button class="save-btn" id="saveTaskBtn">Save task</button>
+    <button class="delete-btn" id="deleteTaskBtn" style="display:none;">Delete this task</button>
+  </div>
+</div>
+
+<div id="toast" class="toast">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+  <span id="toast-text"></span>
+</div>
+
+<script>
+// ---- Data (in-memory only) -------------------------------------------------
+// linked rooms carry their own iCal URL + last-sync state, matching the
+// "each bedroom already has its own calendar export URL" reality Jalie
+// confirmed. Sync is read-only, twice daily (1:00 AM / 12:30 PM).
+
+var rooms = [
+  {
+    id: 'room1', name: 'Room 1', type: 'Bedroom', active: true,
+    linked: true, icalUrl: 'https://www.airbnb.com/calendar/ical/111111.ics?s=abc',
+    syncStatus: 'ok', lastSyncedAt: new Date(Date.now() - 90 * 60000),
+    tasks: [
+      { id: 't1', name: 'Remove & replace linen', cadence: 'daily' },
+      { id: 't2', name: 'Empty trash', cadence: 'daily' },
+      { id: 't3', name: 'Wipe working desk', cadence: 'daily' },
+      { id: 't4', name: 'Vacuum floor', cadence: 'daily' },
+      { id: 't5', name: 'Deep-clean bathroom tile', cadence: 'weekly', weekday: 'Mon' },
+      { id: 't6', name: 'Deep-clean curtains', cadence: 'quarterly', monthDay: 1 }
+    ]
+  },
+  {
+    id: 'room2', name: 'Room 2', type: 'Bedroom', active: true,
+    linked: true, icalUrl: 'https://www.agoda.com/ical/222222.ics',
+    syncStatus: 'issue', lastSyncedAt: new Date(Date.now() - 14 * 3600000),
+    tasks: [
+      { id: 't7', name: 'Empty trash', cadence: 'daily' },
+      { id: 't8', name: 'Tidy up', cadence: 'daily' },
+      { id: 't9', name: 'Check smoke detector battery', cadence: 'monthly', monthDay: 1 }
+    ]
+  },
+  {
+    id: 'garden', name: 'Garden', type: 'Outdoor', active: true,
+    linked: false, icalUrl: '', syncStatus: null, lastSyncedAt: null,
+    tasks: [
+      { id: 't10', name: 'Water plants', cadence: 'weekly', weekday: 'Mon' },
+      { id: 't11', name: 'Mow lawn', cadence: 'weekly', weekday: 'Fri' }
+    ]
+  },
+  {
+    id: 'dining', name: 'Dining room', type: 'Common area', active: true,
+    linked: false, icalUrl: '', syncStatus: null, lastSyncedAt: null,
+    tasks: [
+      { id: 't12', name: 'Wipe tables', cadence: 'daily' },
+      { id: 't13', name: 'Sweep floor', cadence: 'daily' }
+    ]
+  }
+];
+
+var openRoomId = null;
+var editingRoomId = null;
+var editingTaskId = null;
+
+// ---- Rooms list --------------------------------------------------------------
+
+function fmtTime(date) {
+  if (!date) return '';
+  var h = date.getHours(), m = date.getMinutes();
+  var suffix = h < 12 ? 'AM' : 'PM';
+  var h12 = h % 12; if (h12 === 0) h12 = 12;
+  return h12 + ':' + (m < 10 ? '0' : '') + m + ' ' + suffix;
+}
+function fmtRelative(date) {
+  if (!date) return '';
+  var mins = Math.round((Date.now() - date.getTime()) / 60000);
+  if (mins < 60) return mins + ' min' + (mins === 1 ? '' : 's') + ' ago';
+  var hrs = Math.round(mins / 60);
+  return hrs + ' hr' + (hrs === 1 ? '' : 's') + ' ago';
+}
+
+function renderRoomsList() {
+  var html = '';
+  rooms.forEach(function (r) {
+    var meta = r.linked
+      ? '<span class="sync-dot' + (r.syncStatus === 'issue' ? ' issue' : '') + '"></span><span>' + (r.syncStatus === 'issue' ? 'Sync issue' : 'Synced ' + fmtRelative(r.lastSyncedAt)) + '</span>'
+      : '<span>' + r.tasks.length + ' checklist item' + (r.tasks.length === 1 ? '' : 's') + '</span>';
+    html += '' +
+      '<div class="room-card' + (r.active ? '' : ' inactive') + '" data-id="' + r.id + '">' +
+        '<div class="room-top">' +
+          '<div><p class="room-name">' + r.name + '</p><p class="room-sub">' + r.type + (r.active ? '' : ' · Inactive') + '</p></div>' +
+          (r.linked ? '<span class="linked-badge">Booking-linked</span>' : '') +
+        '</div>' +
+        '<p class="room-meta">' + meta + '</p>' +
+      '</div>';
+  });
+  document.getElementById('roomsList').innerHTML = html || '<div class="empty-state"><h2>No rooms yet</h2><p>Add your first space to start building its checklist.</p></div>';
+  document.querySelectorAll('.room-card').forEach(function (card) {
+    card.addEventListener('click', function () { openRoomDetail(card.dataset.id); });
+  });
+}
+
+// ---- Room detail ---------------------------------------------------------------
+
+function openRoomDetail(id) {
+  openRoomId = id;
+  var room = rooms.find(function (r) { return r.id === id; });
+  document.getElementById('rdTitle').textContent = room.name;
+  document.getElementById('rdSub').textContent = room.type + (room.active ? '' : ' · Inactive');
+  renderSyncCard(room);
+  renderSopTaskList(room);
+  document.getElementById('roomDetailOverlay').classList.add('open');
+}
+
+function renderSyncCard(room) {
+  var wrap = document.getElementById('syncCardWrap');
+  if (!room.linked) { wrap.innerHTML = ''; return; }
+  var isOk = room.syncStatus === 'ok';
+  wrap.innerHTML = '' +
+    '<div class="sync-card">' +
+      '<div class="sync-row">' +
+        '<span class="sync-status ' + (isOk ? 'ok' : 'issue') + '">' +
+          '<span class="sync-dot' + (isOk ? '' : ' issue') + '"></span>' + (isOk ? 'Booking sync OK' : "Couldn't reach this calendar") +
+        '</span>' +
+        '<button class="sync-now-btn" id="syncNowBtn" type="button">Sync now</button>' +
+      '</div>' +
+      '<p class="sync-detail">Last checked ' + fmtRelative(room.lastSyncedAt) + ' · next check ~1:00 AM / 12:30 PM daily</p>' +
+      '<p class="sync-url">' + room.icalUrl + '</p>' +
+    '</div>';
+  document.getElementById('syncNowBtn').addEventListener('click', function () {
+    room.syncStatus = 'ok';
+    room.lastSyncedAt = new Date();
+    renderSyncCard(room);
+    renderRoomsList();
+    showToast('Synced ' + room.name + '.');
+  });
+}
+
+function renderSopTaskList(room) {
+  var html = '';
+  room.tasks.forEach(function (task) {
+    html += '' +
+      '<div class="sop-task-row" data-id="' + task.id + '">' +
+        '<p class="sop-task-name">' + task.name + '</p>' +
+        '<span class="cadence-tag ' + task.cadence + '">' + cadenceLabel(task) + '</span>' +
+      '</div>';
+  });
+  document.getElementById('sopTaskList').innerHTML = html || '<div class="empty-state"><p>No tasks yet — add the first one.</p></div>';
+  document.querySelectorAll('#sopTaskList .sop-task-row').forEach(function (row) {
+    row.addEventListener('click', function () { openEditTask(row.dataset.id); });
+  });
+}
+
+function cadenceLabel(task) {
+  if (task.cadence === 'daily') return 'Daily';
+  if (task.cadence === 'weekly') return 'Weekly · ' + task.weekday;
+  if (task.cadence === 'monthly') return 'Monthly · day ' + task.monthDay;
+  return 'Quarterly · day ' + task.monthDay;
+}
+
+document.getElementById('closeRoomDetailBtn').addEventListener('click', function () {
+  document.getElementById('roomDetailOverlay').classList.remove('open');
+  openRoomId = null;
+  renderRoomsList();
+});
+
+// ---- Add/edit room ---------------------------------------------------------------
+
+document.getElementById('openAddRoomBtn').addEventListener('click', function () {
+  editingRoomId = null;
+  document.getElementById('roomFormTitle').textContent = 'Add room';
+  document.getElementById('deleteRoomBtn').style.display = 'none';
+  document.getElementById('roomNameInput').value = '';
+  selectChip('roomTypeChips', 'Bedroom');
+  setSwitch('roomLinkedSwitch', false);
+  document.getElementById('icalUrlField').style.display = 'none';
+  document.getElementById('icalUrlInput').value = '';
+  setSwitch('roomActiveSwitch', true);
+  document.getElementById('roomFormOverlay').classList.add('open');
+});
+
+document.getElementById('rdEditBtn').addEventListener('click', function () {
+  var room = rooms.find(function (r) { return r.id === openRoomId; });
+  editingRoomId = room.id;
+  document.getElementById('roomFormTitle').textContent = 'Edit room';
+  document.getElementById('deleteRoomBtn').style.display = 'block';
+  document.getElementById('roomNameInput').value = room.name;
+  selectChip('roomTypeChips', room.type);
+  setSwitch('roomLinkedSwitch', room.linked);
+  document.getElementById('icalUrlField').style.display = room.linked ? 'block' : 'none';
+  document.getElementById('icalUrlInput').value = room.icalUrl || '';
+  setSwitch('roomActiveSwitch', room.active);
+  document.getElementById('roomFormOverlay').classList.add('open');
+});
+
+document.getElementById('roomLinkedSwitch').addEventListener('click', function () {
+  toggleSwitch('roomLinkedSwitch');
+  document.getElementById('icalUrlField').style.display = document.getElementById('roomLinkedSwitch').classList.contains('on') ? 'block' : 'none';
+});
+document.getElementById('roomActiveSwitch').addEventListener('click', function () { toggleSwitch('roomActiveSwitch'); });
+
+document.getElementById('closeRoomFormBtn').addEventListener('click', function () {
+  document.getElementById('roomFormOverlay').classList.remove('open');
+});
+
+document.querySelectorAll('#roomTypeChips .chip').forEach(function (chip) {
+  chip.addEventListener('click', function () { selectChip('roomTypeChips', chip.dataset.value); });
+});
+
+document.getElementById('saveRoomBtn').addEventListener('click', function () {
+  var name = document.getElementById('roomNameInput').value || 'New room';
+  var type = document.querySelector('#roomTypeChips .chip.selected').dataset.value;
+  var linked = document.getElementById('roomLinkedSwitch').classList.contains('on');
+  var icalUrl = document.getElementById('icalUrlInput').value;
+  var active = document.getElementById('roomActiveSwitch').classList.contains('on');
+
+  if (editingRoomId) {
+    var room = rooms.find(function (r) { return r.id === editingRoomId; });
+    var wasLinked = room.linked;
+    room.name = name; room.type = type; room.linked = linked; room.icalUrl = linked ? icalUrl : ''; room.active = active;
+    if (linked && !wasLinked) { room.syncStatus = 'ok'; room.lastSyncedAt = new Date(); }
+    if (!linked) { room.syncStatus = null; room.lastSyncedAt = null; }
+    showToast('Room updated.');
+  } else {
+    var id = 'room' + Date.now();
+    rooms.push({ id: id, name: name, type: type, active: active, linked: linked, icalUrl: linked ? icalUrl : '', syncStatus: linked ? 'ok' : null, lastSyncedAt: linked ? new Date() : null, tasks: [] });
+  }
+  document.getElementById('roomFormOverlay').classList.remove('open');
+  renderRoomsList();
+  if (openRoomId) openRoomDetail(openRoomId);
+  showToast(editingRoomId ? 'Room updated.' : name + ' added. Now build its checklist.');
+});
+
+document.getElementById('deleteRoomBtn').addEventListener('click', function () {
+  rooms = rooms.filter(function (r) { return r.id !== editingRoomId; });
+  document.getElementById('roomFormOverlay').classList.remove('open');
+  document.getElementById('roomDetailOverlay').classList.remove('open');
+  openRoomId = null;
+  renderRoomsList();
+  showToast('Room deleted.');
+});
+
+// ---- Add/edit SOP task ---------------------------------------------------------
+
+document.getElementById('openAddTaskBtn').addEventListener('click', function () {
+  editingTaskId = null;
+  document.getElementById('taskFormTitle').textContent = 'Add task';
+  document.getElementById('deleteTaskBtn').style.display = 'none';
+  document.getElementById('taskNameInput').value = '';
+  selectChip('taskCadenceChips', 'daily');
+  toggleCadenceFields('daily');
+  document.getElementById('taskMonthDayInput').value = 1;
+  selectChip('taskWeekdayChips', 'Mon');
+  document.getElementById('taskFormOverlay').classList.add('open');
+});
+
+function openEditTask(taskId) {
+  var room = rooms.find(function (r) { return r.id === openRoomId; });
+  var task = room.tasks.find(function (t) { return t.id === taskId; });
+  editingTaskId = taskId;
+  document.getElementById('taskFormTitle').textContent = 'Edit task';
+  document.getElementById('deleteTaskBtn').style.display = 'block';
+  document.getElementById('taskNameInput').value = task.name;
+  selectChip('taskCadenceChips', task.cadence);
+  toggleCadenceFields(task.cadence);
+  if (task.weekday) selectChip('taskWeekdayChips', task.weekday);
+  if (task.monthDay) document.getElementById('taskMonthDayInput').value = task.monthDay;
+  document.getElementById('taskFormOverlay').classList.add('open');
+}
+
+document.querySelectorAll('#taskCadenceChips .chip').forEach(function (chip) {
+  chip.addEventListener('click', function () {
+    selectChip('taskCadenceChips', chip.dataset.value);
+    toggleCadenceFields(chip.dataset.value);
+  });
+});
+document.querySelectorAll('#taskWeekdayChips .chip').forEach(function (chip) {
+  chip.addEventListener('click', function () { selectChip('taskWeekdayChips', chip.dataset.value); });
+});
+
+function toggleCadenceFields(cadence) {
+  document.getElementById('taskWeekdayField').style.display = cadence === 'weekly' ? 'block' : 'none';
+  document.getElementById('taskMonthDayCard').style.display = (cadence === 'monthly' || cadence === 'quarterly') ? 'flex' : 'none';
+  document.getElementById('quarterlyHint').style.display = cadence === 'quarterly' ? 'block' : 'none';
+}
+
+document.getElementById('closeTaskFormBtn').addEventListener('click', function () {
+  document.getElementById('taskFormOverlay').classList.remove('open');
+});
+
+document.getElementById('saveTaskBtn').addEventListener('click', function () {
+  var room = rooms.find(function (r) { return r.id === openRoomId; });
+  var name = document.getElementById('taskNameInput').value || 'New task';
+  var cadence = document.querySelector('#taskCadenceChips .chip.selected').dataset.value;
+  var weekday = document.querySelector('#taskWeekdayChips .chip.selected').dataset.value;
+  var monthDay = parseInt(document.getElementById('taskMonthDayInput').value || '1', 10);
+
+  if (editingTaskId) {
+    var task = room.tasks.find(function (t) { return t.id === editingTaskId; });
+    task.name = name; task.cadence = cadence; task.weekday = weekday; task.monthDay = monthDay;
+    showToast('Task updated.');
+  } else {
+    room.tasks.push({ id: 't' + Date.now(), name: name, cadence: cadence, weekday: weekday, monthDay: monthDay });
+    showToast('Task added.');
+  }
+  document.getElementById('taskFormOverlay').classList.remove('open');
+  renderSopTaskList(room);
+  renderRoomsList();
+});
+
+document.getElementById('deleteTaskBtn').addEventListener('click', function () {
+  var room = rooms.find(function (r) { return r.id === openRoomId; });
+  room.tasks = room.tasks.filter(function (t) { return t.id !== editingTaskId; });
+  document.getElementById('taskFormOverlay').classList.remove('open');
+  renderSopTaskList(room);
+  renderRoomsList();
+  showToast('Task deleted.');
+});
+
+// ---- Shared helpers ---------------------------------------------------------------
+
+function selectChip(containerId, value) {
+  var container = document.getElementById(containerId);
+  container.querySelectorAll('.chip').forEach(function (c) {
+    c.classList.toggle('selected', c.dataset.value === value);
+  });
+}
+function setSwitch(id, on) { document.getElementById(id).classList.toggle('on', on); }
+function toggleSwitch(id) { document.getElementById(id).classList.toggle('on'); }
+
+var toastTimer;
+function showToast(text) {
+  document.getElementById('toast-text').textContent = text;
+  var toast = document.getElementById('toast');
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { toast.classList.remove('show'); }, 3200);
+}
+
+renderRoomsList();
+</script>
+</body>
+</html>

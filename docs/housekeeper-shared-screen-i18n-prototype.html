@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIVA — Shared Today screen + EN/Sinhala prototype</title>
+<style>
+  :root {
+    --color-accent-50: #FBEEE7;
+    --color-accent-100: #F5D6C4;
+    --color-accent-500: #B5542A;
+    --color-accent-600: #954423;
+    --color-accent-700: #74351C;
+    --color-neutral-50: #FAF8F6;
+    --color-neutral-100: #F3EFEA;
+    --color-neutral-200: #E6DFD7;
+    --color-neutral-300: #D3C8BC;
+    --color-neutral-400: #A99C8E;
+    --color-neutral-500: #7D7266;
+    --color-neutral-700: #453F37;
+    --color-neutral-900: #1C1916;
+    --color-positive-50: #EAF4EF;
+    --color-positive-600: #2F7D5A;
+    --color-info-50: #EAF0F8;
+    --color-info-600: #2E5FA3;
+    --color-warn-50: #FCF3E3;
+    --color-warn-600: #A9711C;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --radius-pill: 9999px;
+    --shadow-sm: 0 1px 2px rgba(28, 25, 22, 0.06);
+    --shadow-md: 0 4px 12px rgba(28, 25, 22, 0.10);
+    --font-sans: -apple-system, "Segoe UI", "Noto Sans Sinhala", "Iskoola Pota", Roboto, Inter, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--color-neutral-200);
+    font-family: var(--font-sans);
+    color: var(--color-neutral-900);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .note { max-width: 430px; width: 100%; padding: 10px 20px 4px; font-size: 12px; color: var(--color-neutral-500); text-align: center; box-sizing: border-box; }
+  .note b { color: var(--color-neutral-700); }
+
+  .demo-row { display: flex; gap: 8px; max-width: 430px; width: 100%; padding: 10px 20px; box-sizing: border-box; }
+  .demo-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--color-neutral-400); max-width: 430px; width: 100%; padding: 0 20px; box-sizing: border-box; margin: 6px 0 -2px; }
+  .mode-btn { flex: 1; border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 9px 6px; font-size: 12px; font-weight: 600; color: var(--color-neutral-700); cursor: pointer; }
+  .mode-btn.active { background: var(--color-accent-500); color: #fff; }
+
+  .stage { width: 100%; max-width: 430px; flex: 1; min-height: 700px; }
+  .screen { width: 100%; background: var(--color-neutral-50); min-height: 700px; padding: 18px 20px 24px; box-sizing: border-box; }
+
+  .screen-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+  .screen-header h1 { font-size: 22px; font-weight: 600; margin: 0; }
+  .screen-sub { font-size: 13px; color: var(--color-neutral-500); margin: 0 0 16px; }
+  .lang-pill { display: flex; border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 3px; flex-shrink: 0; }
+  .lang-opt { border: none; background: none; border-radius: var(--radius-pill); padding: 6px 12px; font-size: 12px; font-weight: 700; color: var(--color-neutral-500); cursor: pointer; }
+  .lang-opt.active { background: var(--color-neutral-900); color: #fff; }
+
+  .as-banner { background: var(--color-info-50); color: var(--color-info-600); border-radius: var(--radius-md); padding: 10px 14px; font-size: 12px; font-weight: 600; margin-bottom: 16px; }
+
+  .room-card { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 14px 16px; margin-bottom: 10px; cursor: pointer; }
+  .room-card:hover { box-shadow: var(--shadow-md); }
+  .room-card.ready { opacity: 0.65; }
+  .room-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .room-name { font-size: 15px; font-weight: 600; margin: 0; }
+  .room-sub { font-size: 12px; color: var(--color-neutral-500); margin: 2px 0 0; }
+  .room-badge { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: var(--radius-pill); flex-shrink: 0; }
+  .room-badge.checkout { background: var(--color-warn-50); color: var(--color-warn-600); }
+  .room-badge.stayover { background: var(--color-info-50); color: var(--color-info-600); }
+  .progress-track { height: 6px; border-radius: var(--radius-pill); background: var(--color-neutral-100); overflow: hidden; margin-bottom: 6px; }
+  .progress-fill { height: 100%; background: var(--color-accent-500); border-radius: var(--radius-pill); transition: width .2s ease; }
+  .progress-fill.complete { background: var(--color-positive-600); }
+  .progress-label { font-size: 12px; color: var(--color-neutral-500); }
+  .progress-label.complete { color: var(--color-positive-600); font-weight: 600; }
+  .last-update { font-size: 11px; color: var(--color-neutral-400); margin: 3px 0 0; }
+  .last-update b { color: var(--color-neutral-500); font-weight: 600; }
+
+  .empty-state { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 28px 20px; text-align: center; }
+  .empty-state h2 { font-size: 16px; font-weight: 600; margin: 0 0 6px; }
+  .empty-state p { font-size: 13px; color: var(--color-neutral-500); margin: 0; }
+  .tap-hint { font-size: 11px; color: var(--color-neutral-400); margin: 12px 0 0; text-align: center; }
+
+  .task-row { display: flex; align-items: flex-start; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--color-neutral-200); cursor: pointer; }
+  .task-row:last-of-type { border-bottom: none; }
+  .check { width: 22px; height: 22px; border-radius: var(--radius-sm); border: 2px solid var(--color-neutral-300); flex-shrink: 0; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+  .check.done { background: var(--color-positive-600); border-color: var(--color-positive-600); }
+  .check svg { display: none; color: #fff; }
+  .check.done svg { display: block; }
+  .task-row-body { flex: 1; min-width: 0; }
+  .task-row-name { font-size: 14px; font-weight: 500; margin: 0; }
+  .task-row-name.done { text-decoration: line-through; color: var(--color-neutral-400); }
+  .task-row-attr { font-size: 11px; color: var(--color-positive-600); margin: 3px 0 0; }
+  .cadence-tag { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: var(--radius-pill); background: var(--color-neutral-100); color: var(--color-neutral-500); flex-shrink: 0; margin-top: 1px; }
+  .cadence-tag.weekly { background: var(--color-info-50); color: var(--color-info-600); }
+
+  .mark-ready-btn { width: 100%; border: none; border-radius: var(--radius-pill); padding: 13px 0; font-size: 14px; font-weight: 600; color: #fff; background: var(--color-accent-500); cursor: pointer; margin-top: 16px; }
+  .mark-ready-btn:disabled { background: var(--color-neutral-200); color: var(--color-neutral-400); cursor: not-allowed; }
+  .mark-ready-btn.done-state { background: var(--color-positive-600); }
+  .mark-ready-btn.pending-state { background: var(--color-info-50); color: var(--color-info-600); cursor: default; }
+  .inspected-line { font-size: 11px; color: var(--color-positive-600); margin: 3px 0 0; }
+  .inspected-line b { font-weight: 600; }
+  .room-badge.pending { background: var(--color-info-50); color: var(--color-info-600); }
+
+  .overlay { position: fixed; inset: 0; background: rgba(28, 25, 22, 0.35); display: none; align-items: flex-end; justify-content: center; z-index: 20; }
+  .overlay.open { display: flex; }
+  .sheet { width: 100%; max-width: 430px; background: var(--color-neutral-100); border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 10px 22px 24px; box-sizing: border-box; max-height: 88vh; overflow-y: auto; }
+  .handle { width: 36px; height: 4px; border-radius: var(--radius-pill); background: var(--color-neutral-300); margin: 4px auto 16px; }
+  .sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+  .sheet-header h2 { font-size: 17px; font-weight: 600; margin: 0; }
+  .sheet-header p.sub { font-size: 12px; color: var(--color-neutral-500); margin: 2px 0 0; }
+  .close-btn { background: none; border: none; color: var(--color-neutral-500); cursor: pointer; padding: 4px; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
+    background: var(--color-neutral-900); color: #fff; padding: 10px 16px; border-radius: var(--radius-md);
+    font-size: 13px; display: flex; align-items: center; gap: 8px; opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease; max-width: 90vw; z-index: 30; text-align: left;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast svg { flex-shrink: 0; color: #6FCF97; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+
+<div class="note">Prototype — <b>one real screen</b>, two people. Switching "user" below only simulates who's signed in (that's not a real control) — the language pill and everything inside the phone <b>is</b> the real screen. Sinhala text is a first draft — please get it checked before it's ever shown to Jane.</div>
+
+<p class="demo-label">Demo only — simulate who's signed in</p>
+<div class="demo-row">
+  <button class="mode-btn active" id="janeBtn" type="button">Jane — caretaker</button>
+  <button class="mode-btn" id="momBtn" type="button">Mom — checking in</button>
+</div>
+
+<div class="stage">
+  <div class="screen" id="todayScreen">
+    <div class="screen-header">
+      <div>
+        <h1 id="titleText">Today</h1>
+        <p class="screen-sub" id="subText"></p>
+      </div>
+      <div class="lang-pill">
+        <button class="lang-opt active" id="langEnBtn" type="button">EN</button>
+        <button class="lang-opt" id="langSiBtn" type="button">සිං</button>
+      </div>
+    </div>
+
+    <div id="asBanner" class="as-banner" style="display:none;"></div>
+
+    <div id="roomList"></div>
+    <p class="tap-hint" id="tapHintText"></p>
+  </div>
+</div>
+
+<div class="overlay" id="roomOverlay">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="sheet-header">
+      <div>
+        <h2 id="roomSheetTitle">Room 1</h2>
+        <p class="sub" id="roomSheetSub"></p>
+      </div>
+      <button class="close-btn" id="closeRoomBtn" aria-label="Close" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="roomTaskList"></div>
+    <button class="mark-ready-btn" id="markReadyBtn" disabled></button>
+  </div>
+</div>
+
+<div id="toast" class="toast">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+  <span id="toast-text"></span>
+</div>
+
+<script>
+// ---- i18n: a small first draft. Real build would use vue-i18n with the
+// same key shape, loaded app-wide from day one even though only these
+// screens have Sinhala content for now. -------------------------------------
+
+var STR = {
+  en: {
+    title: 'Today',
+    weekdays: ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
+    months: ['January','February','March','April','May','June','July','August','September','October','November','December'],
+    subtitle: '{weekday}, {month} {day} · Kandy BnB',
+    tapHint: 'Tap a room to see its task list.',
+    progressDone: 'All done',
+    progressPartial: '{done} of {total} tasks done',
+    lastUpdate: 'Last update: {name} · {time}',
+    badgeCheckout: 'Checkout today',
+    badgeStayover: 'Stayover',
+    subCheckout: 'Checkout today — full turnover',
+    subStayover: 'Guest staying — light service',
+    subPlain: '{type}',
+    markReady: 'Mark room ready',
+    markReadyPartial: 'Mark room ready ({done}/{total})',
+    roomReady: 'Room ready ✓',
+    doneBy: 'Done by {name} · {time}',
+    emptyTitle: 'Nothing due today',
+    emptyBody: 'Every room is caught up.',
+    untickConfirm: '{name} marked this done. Un-tick it?',
+    asMom: "Viewing Jane's task list. Mark a room Inspected if you check it — totally optional, whenever suits you.",
+    roomToast: '{room} marked ready.',
+    pendingInspection: 'Pending inspection',
+    markInspected: 'Mark inspected',
+    inspectedLine: 'Inspected by {name} · {time}',
+    inspectedToast: '{room} marked inspected.',
+    personaJane: 'Jane',
+    personaMom: 'Mom',
+    roomTypes: { Bedroom: 'Bedroom', Outdoor: 'Outdoor', 'Common area': 'Common area' },
+    cadence: { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', quarterly: 'Quarterly' },
+    rooms: {
+      room1: 'Room 1', room2: 'Room 2', garden: 'Garden', dining: 'Dining room'
+    },
+    tasks: {
+      t1: 'Remove & replace linen', t2: 'Empty trash', t3: 'Wipe working desk', t4: 'Vacuum floor',
+      t5: 'Deep-clean bathroom tile', t6: 'Empty trash', t7: 'Tidy up', t8: 'Water plants',
+      t9: 'Mow lawn', t10: 'Wipe tables', t11: 'Sweep floor'
+    }
+  },
+  si: {
+    title: 'අද',
+    weekdays: ['ඉරිදා','සඳුදා','අඟහරුවාදා','බදාදා','බ්‍රහස්පතින්දා','සිකුරාදා','සෙනසුරාදා'],
+    months: ['ජනවාරි','පෙබරවාරි','මාර්තු','අප්‍රේල්','මැයි','ජූනි','ජූලි','අගෝස්තු','සැප්තැම්බර්','ඔක්තෝබර්','නොවැම්බර්','දෙසැම්බර්'],
+    subtitle: '{weekday}, {month} {day} · Kandy BnB',
+    tapHint: 'කාර්යයන් බැලීමට කාමරයක් තට්ටු කරන්න.',
+    progressDone: 'සියල්ල අවසන්',
+    progressPartial: 'කාර්යයන් {done}/{total} නිමයි',
+    lastUpdate: 'අවසන් යාවත්කාලීනය: {name} · {time}',
+    badgeCheckout: 'අද පිටවීම',
+    badgeStayover: 'රැඳී සිටී',
+    subCheckout: 'අද පිටවීම — සම්පූර්ණ පිරිසිදු කිරීම',
+    subStayover: 'අමුත්තා රැඳී සිටී — සරල සේවාව',
+    subPlain: '{type}',
+    markReady: 'කාමරය සූදානම් කරන්න',
+    markReadyPartial: 'කාමරය සූදානම් කරන්න ({done}/{total})',
+    roomReady: 'කාමරය සූදානම් ✓',
+    doneBy: '{name} විසින් නිම කරන ලදී · {time}',
+    emptyTitle: 'අද කිසිවක් නැත',
+    emptyBody: 'සියලුම කාමර සූදානම්.',
+    untickConfirm: 'මෙය {name} විසින් නිම කර ඇත. එය ඉවත් කරන්නද?',
+    asMom: "ජේන්ගේ කාර්ය ලැයිස්තුව. පරීක්ෂා කළහොත් කාමරය සලකුණු කරන්න — ඔබට පහසු වේලාවක, බලෙන් නොවේ.",
+    roomToast: '{room} සූදානම් කර ඇත.',
+    pendingInspection: 'පරීක්ෂාව සඳහා රැඳේ',
+    markInspected: 'පරීක්ෂා කළා ලෙස සලකුණු කරන්න',
+    inspectedLine: '{name} විසින් පරීක්ෂා කරන ලදී · {time}',
+    inspectedToast: '{room} පරීක්ෂා කර ඇත.',
+    personaJane: 'ජේන්',
+    personaMom: 'අම්මා',
+    roomTypes: { Bedroom: 'නිදන කාමරය', Outdoor: 'එළිමහන්', 'Common area': 'පොදු ස්ථානය' },
+    cadence: { daily: 'දිනපතා', weekly: 'සතිපතා', monthly: 'මාසිකව', quarterly: 'කාර්තුමය' },
+    rooms: {
+      room1: 'කාමරය 1', room2: 'කාමරය 2', garden: 'උද්‍යානය', dining: 'භෝජන කාමරය'
+    },
+    tasks: {
+      t1: 'බේඩ් ෂීට් මාරු කරන්න', t2: 'කසළ ඉවත් කරන්න', t3: 'වැඩ මේසය පිසදමන්න', t4: 'බිම වැකුම් කරන්න',
+      t5: 'නාන කාමරයේ ටයිල් හොඳින් සුද්ද කරන්න', t6: 'කසළ ඉවත් කරන්න', t7: 'පිළිවෙළට තියන්න', t8: 'ගස්වලට වතුර දෙන්න',
+      t9: 'තණකොළ කපන්න', t10: 'මේස පිසදමන්න', t11: 'බිම අතුගාන්න'
+    }
+  }
+};
+
+var locale = 'en';
+function t(key) { return STR[locale][key]; }
+function fmt(template, vals) {
+  return template.replace(/\{(\w+)\}/g, function (m, k) { return vals[k] !== undefined ? vals[k] : m; });
+}
+function fmtTime(date) {
+  var h = date.getHours(), m = date.getMinutes();
+  if (locale === 'si') {
+    var suffix = h < 12 ? 'පෙ.ව.' : 'ප.ව.';
+    var h12 = h % 12; if (h12 === 0) h12 = 12;
+    return h12 + ':' + (m < 10 ? '0' : '') + m + ' ' + suffix;
+  }
+  var suffixEn = h < 12 ? 'AM' : 'PM';
+  var h12en = h % 12; if (h12en === 0) h12en = 12;
+  return h12en + ':' + (m < 10 ? '0' : '') + m + ' ' + suffixEn;
+}
+
+// ---- Data (in-memory only) -------------------------------------------------
+// doneBy / doneAt are the attribution model: whoever taps a task last owns
+// it. Same shape either backend user stamps — no separate "inspection"
+// state, per Jalie's call to keep this version simple.
+
+var rooms = [
+  { id: 'room1', nameKey: 'room1', type: 'Bedroom', linked: true, bookingState: 'checkout',
+    inspectedBy: null, inspectedAt: null,
+    tasks: [
+      { id: 't1', cadence: 'daily', done: false, doneBy: null, doneAt: null },
+      { id: 't2', cadence: 'daily', done: false, doneBy: null, doneAt: null },
+      { id: 't3', cadence: 'daily', done: false, doneBy: null, doneAt: null },
+      { id: 't4', cadence: 'daily', done: false, doneBy: null, doneAt: null },
+      { id: 't5', cadence: 'weekly', done: false, doneBy: null, doneAt: null }
+    ] },
+  { id: 'room2', nameKey: 'room2', type: 'Bedroom', linked: true, bookingState: 'stayover',
+    inspectedBy: null, inspectedAt: null,
+    tasks: [
+      { id: 't6', cadence: 'daily', done: true, doneBy: 'jane', doneAt: new Date(Date.now() - 42 * 60000) },
+      { id: 't7', cadence: 'daily', done: true, doneBy: 'jane', doneAt: new Date(Date.now() - 40 * 60000) }
+    ] },
+  { id: 'garden', nameKey: 'garden', type: 'Outdoor', linked: false, bookingState: null,
+    inspectedBy: null, inspectedAt: null,
+    tasks: [
+      { id: 't8', cadence: 'weekly', done: false, doneBy: null, doneAt: null },
+      { id: 't9', cadence: 'weekly', done: false, doneBy: null, doneAt: null }
+    ] },
+  { id: 'dining', nameKey: 'dining', type: 'Common area', linked: false, bookingState: null,
+    inspectedBy: 'mom', inspectedAt: new Date(Date.now() - 5 * 60000),
+    tasks: [
+      { id: 't10', cadence: 'daily', done: true, doneBy: 'jane', doneAt: new Date(Date.now() - 15 * 60000) },
+      { id: 't11', cadence: 'daily', done: true, doneBy: 'jane', doneAt: new Date(Date.now() - 14 * 60000) }
+    ] }
+];
+
+var currentUser = 'jane'; // 'jane' | 'mom' — who taps stamps this
+var openRoomId = null;
+
+// ---- Persona + language switches --------------------------------------------
+
+document.getElementById('janeBtn').addEventListener('click', function () { setUser('jane'); });
+document.getElementById('momBtn').addEventListener('click', function () { setUser('mom'); });
+document.getElementById('langEnBtn').addEventListener('click', function () { setLocale('en'); });
+document.getElementById('langSiBtn').addEventListener('click', function () { setLocale('si'); });
+
+function setUser(user) {
+  currentUser = user;
+  document.getElementById('janeBtn').classList.toggle('active', user === 'jane');
+  document.getElementById('momBtn').classList.toggle('active', user === 'mom');
+  renderAll();
+}
+function setLocale(loc) {
+  locale = loc;
+  document.getElementById('langEnBtn').classList.toggle('active', loc === 'en');
+  document.getElementById('langSiBtn').classList.toggle('active', loc === 'si');
+  renderAll();
+}
+
+function personaName(key) {
+  return key === 'jane' ? t('personaJane') : t('personaMom');
+}
+
+// ---- Render: Today screen ----------------------------------------------------
+
+function renderAll() {
+  var now = new Date();
+  document.getElementById('titleText').textContent = t('title');
+  document.getElementById('subText').textContent = fmt(t('subtitle'), {
+    weekday: t('weekdays')[now.getDay()], month: t('months')[now.getMonth()], day: now.getDate()
+  });
+  document.getElementById('tapHintText').textContent = t('tapHint');
+
+  var banner = document.getElementById('asBanner');
+  banner.style.display = currentUser === 'mom' ? 'block' : 'none';
+  banner.textContent = t('asMom');
+
+  renderRoomList();
+  if (openRoomId) renderRoomTasks();
+}
+
+function roomProgress(room) {
+  var done = room.tasks.filter(function (x) { return x.done; }).length;
+  return { done: done, total: room.tasks.length, complete: room.tasks.length > 0 && done === room.tasks.length };
+}
+
+function roomLastUpdate(room) {
+  var completed = room.tasks.filter(function (x) { return x.done && x.doneAt; });
+  if (!completed.length) return null;
+  completed.sort(function (a, b) { return b.doneAt - a.doneAt; });
+  return completed[0];
+}
+
+function renderRoomList() {
+  var visible = rooms.filter(function (r) { return r.tasks.length > 0; });
+  if (!visible.length) {
+    document.getElementById('roomList').innerHTML = '<div class="empty-state"><h2>' + t('emptyTitle') + '</h2><p>' + t('emptyBody') + '</p></div>';
+    return;
+  }
+  var html = '';
+  visible.forEach(function (r) {
+    var p = roomProgress(r);
+    var inspected = p.complete && r.inspectedBy;
+    var pendingInspection = p.complete && !r.inspectedBy;
+    var badge = '';
+    if (r.linked) {
+      badge = r.bookingState === 'checkout'
+        ? '<span class="room-badge checkout">' + t('badgeCheckout') + '</span>'
+        : '<span class="room-badge stayover">' + t('badgeStayover') + '</span>';
+    } else if (pendingInspection) {
+      badge = '<span class="room-badge pending">' + t('pendingInspection') + '</span>';
+    }
+    var last = roomLastUpdate(r);
+    var lastLine = last ? '<p class="last-update">' + fmt(t('lastUpdate'), { name: '<b>' + personaName(last.doneBy) + '</b>', time: fmtTime(last.doneAt) }) + '</p>' : '';
+    var inspectedLine = inspected ? '<p class="inspected-line">' + fmt(t('inspectedLine'), { name: '<b>' + personaName(r.inspectedBy) + '</b>', time: fmtTime(r.inspectedAt) }) + '</p>' : '';
+    var progressLabel = !p.complete ? fmt(t('progressPartial'), { done: p.done, total: p.total })
+      : inspected ? t('progressDone')
+      : t('pendingInspection');
+    html += '' +
+      '<div class="room-card' + (inspected ? ' ready' : '') + '" data-id="' + r.id + '">' +
+        '<div class="room-top">' +
+          '<div><p class="room-name">' + t('rooms')[r.nameKey] + '</p><p class="room-sub">' + t('roomTypes')[r.type] + '</p></div>' +
+          badge +
+        '</div>' +
+        '<div class="progress-track"><div class="progress-fill' + (p.complete ? ' complete' : '') + '" style="width:' + (p.total ? Math.round(p.done / p.total * 100) : 0) + '%;"></div></div>' +
+        '<p class="progress-label' + (inspected ? ' complete' : '') + '">' + progressLabel + '</p>' +
+        lastLine + inspectedLine +
+      '</div>';
+  });
+  document.getElementById('roomList').innerHTML = html;
+  document.querySelectorAll('.room-card').forEach(function (card) {
+    card.addEventListener('click', function () { openRoom(card.dataset.id); });
+  });
+}
+
+function openRoom(id) {
+  openRoomId = id;
+  var room = rooms.find(function (r) { return r.id === id; });
+  document.getElementById('roomSheetTitle').textContent = t('rooms')[room.nameKey];
+  document.getElementById('roomSheetSub').textContent = room.linked
+    ? (room.bookingState === 'checkout' ? t('subCheckout') : t('subStayover'))
+    : t('roomTypes')[room.type];
+  renderRoomTasks();
+  document.getElementById('roomOverlay').classList.add('open');
+}
+
+function renderRoomTasks() {
+  var room = rooms.find(function (r) { return r.id === openRoomId; });
+  var html = '';
+  room.tasks.forEach(function (task) {
+    var attr = task.done && task.doneBy ? '<p class="task-row-attr">' + fmt(t('doneBy'), { name: personaName(task.doneBy), time: fmtTime(task.doneAt) }) + '</p>' : '';
+    html += '' +
+      '<div class="task-row" data-id="' + task.id + '">' +
+        '<div class="check' + (task.done ? ' done' : '') + '"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>' +
+        '<div class="task-row-body"><p class="task-row-name' + (task.done ? ' done' : '') + '">' + t('tasks')[task.id] + '</p>' + attr + '</div>' +
+        '<span class="cadence-tag ' + task.cadence + '">' + t('cadence')[task.cadence] + '</span>' +
+      '</div>';
+  });
+  document.getElementById('roomTaskList').innerHTML = html;
+  document.querySelectorAll('#roomTaskList .task-row').forEach(function (row) {
+    row.addEventListener('click', function () { toggleTask(room, row.dataset.id); });
+  });
+  renderRoomFooter(room);
+}
+
+// Footer has four states: tasks still in progress (no button needed - the
+// checklist above says it all); done and waiting on inspection, shown to
+// whoever isn't the inspector as a calm "nothing to do" pill; done and
+// waiting on inspection, shown to an inspector (mom/admin) as an actual
+// button; already inspected, shown to everyone as a confirmation.
+function renderRoomFooter(room) {
+  var p = roomProgress(room);
+  var btn = document.getElementById('markReadyBtn');
+  btn.className = 'mark-ready-btn';
+
+  if (!p.complete) {
+    btn.style.display = 'none';
+    return;
+  }
+  btn.style.display = 'block';
+
+  if (room.inspectedBy) {
+    btn.disabled = true;
+    btn.classList.add('done-state');
+    btn.textContent = fmt(t('inspectedLine'), { name: personaName(room.inspectedBy), time: fmtTime(room.inspectedAt) });
+  } else if (currentUser === 'mom') {
+    btn.disabled = false;
+    btn.textContent = t('markInspected');
+  } else {
+    btn.disabled = true;
+    btn.classList.add('pending-state');
+    btn.textContent = t('pendingInspection');
+  }
+}
+
+function onFooterBtnClick() {
+  var room = rooms.find(function (r) { return r.id === openRoomId; });
+  var p = roomProgress(room);
+  if (!p.complete || room.inspectedBy || currentUser !== 'mom') return; // nothing actionable in these states
+  room.inspectedBy = 'mom';
+  room.inspectedAt = new Date();
+  document.getElementById('roomOverlay').classList.remove('open');
+  showToast(fmt(t('inspectedToast'), { room: t('rooms')[room.nameKey] }));
+  openRoomId = null;
+  renderRoomList();
+}
+
+function toggleTask(room, taskId) {
+  var task = room.tasks.find(function (x) { return x.id === taskId; });
+  if (task.done && task.doneBy && task.doneBy !== currentUser) {
+    var ok = window.confirm(fmt(t('untickConfirm'), { name: personaName(task.doneBy) }));
+    if (!ok) return;
+  }
+  if (task.done) {
+    task.done = false; task.doneBy = null; task.doneAt = null;
+  } else {
+    task.done = true; task.doneBy = currentUser; task.doneAt = new Date();
+  }
+  renderRoomTasks();
+  renderRoomList();
+}
+
+document.getElementById('closeRoomBtn').addEventListener('click', function () {
+  document.getElementById('roomOverlay').classList.remove('open');
+  openRoomId = null;
+  renderRoomList();
+});
+document.getElementById('markReadyBtn').addEventListener('click', onFooterBtnClick);
+
+var toastTimer;
+function showToast(text) {
+  document.getElementById('toast-text').textContent = text;
+  var toast = document.getElementById('toast');
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { toast.classList.remove('show'); }, 3200);
+}
+
+renderAll();
+</script>
+</body>
+</html>
