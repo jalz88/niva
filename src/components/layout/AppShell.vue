@@ -72,7 +72,11 @@ const moreGroups = computed(() => {
 const moreItemNames = computed(() => moreGroups.value.flatMap((g) => g.items.map((i) => i.name)))
 const isMoreActive = computed(() => moreItemNames.value.includes(route.name as string))
 
-const desktopItems = computed(() => [...leftItems.value, ...rightItems.value, ...moreGroups.value.flatMap((g) => g.items)])
+// Desktop sidebar: same grouping as the mobile More sheet (Money, Account),
+// plus an ungrouped "primary" cluster up top for the everyday-use items
+// (Dashboard, Transactions, Housekeeping) — decided 2026-08-24 after the
+// flat list read as one undifferentiated block once Housekeeping joined it.
+const desktopGroups = computed(() => [{ label: null, items: [...leftItems.value, ...rightItems.value] }, ...moreGroups.value])
 
 const identityLabel = computed(() => displayName.value ?? user.value?.email ?? '')
 </script>
@@ -83,25 +87,31 @@ const identityLabel = computed(() => displayName.value ?? user.value?.email ?? '
   <RouterView v-if="isKiosk" />
 
   <div v-else class="flex min-h-screen flex-col bg-neutral-50 md:flex-row">
-    <!-- Desktop sidebar — hidden when printing (e.g. Reports' "Print / Save
-         as PDF") so only the actual report content ends up on the page. -->
+    <!-- Desktop sidebar — sticky to the viewport (2026-08-24 fix: it used
+         to scroll away with page content on anything taller than one
+         screen, e.g. Transactions/Reports) and hidden when printing (e.g.
+         Reports' "Print / Save as PDF") so only the actual report content
+         ends up on the page. -->
     <aside
-      class="hidden w-56 shrink-0 border-r border-neutral-200 bg-white p-4 md:flex md:flex-col md:gap-1 print:hidden"
+      class="hidden w-56 shrink-0 border-r border-neutral-200 bg-white p-4 md:sticky md:top-0 md:flex md:h-screen md:flex-col md:gap-1 md:overflow-y-auto print:hidden"
     >
       <div class="mb-4 flex items-center gap-2 px-2">
         <img src="/branding/niva-mark.svg" alt="" width="24" height="24" class="rounded-sm" />
         <span class="text-h3 font-semibold text-neutral-900">NIVA</span>
       </div>
-      <RouterLink
-        v-for="item in desktopItems"
-        :key="item.name"
-        :to="{ name: item.name }"
-        class="flex items-center gap-2 rounded-sm px-2 py-2 text-body-sm font-medium text-neutral-700 hover:bg-neutral-100"
-        :class="{ 'bg-accent-50 text-accent-600': isRightItemActive(item.name) }"
-      >
-        <component :is="item.icon" :size="18" />
-        {{ item.label }}
-      </RouterLink>
+      <template v-for="group in desktopGroups" :key="group.label ?? 'primary'">
+        <p v-if="group.label" class="mt-3 mb-1 px-2 text-caption font-semibold tracking-wide text-neutral-400 uppercase first:mt-0">{{ group.label }}</p>
+        <RouterLink
+          v-for="item in group.items"
+          :key="item.name"
+          :to="{ name: item.name }"
+          class="flex items-center gap-2 rounded-sm px-2 py-2 text-body-sm font-medium text-neutral-700 hover:bg-neutral-100"
+          :class="{ 'bg-accent-50 text-accent-600': isRightItemActive(item.name) }"
+        >
+          <component :is="item.icon" :size="18" />
+          {{ item.label }}
+        </RouterLink>
+      </template>
       <p class="mt-auto truncate px-2 pt-4 text-caption text-neutral-500">Signed in as {{ identityLabel }}</p>
     </aside>
 

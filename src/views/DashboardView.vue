@@ -149,8 +149,15 @@ const platformGroups = computed(() => {
         v-for="item in attentionItems"
         :key="item.key"
         v-bind="item.linkTo ? { to: item.linkTo } : {}"
-        class="block rounded-md bg-white px-3 py-2 text-caption text-neutral-600 shadow-sm"
-        :class="item.linkTo ? 'hover:shadow-md' : ''"
+        class="block rounded-md border-l-4 px-3 py-2 text-caption shadow-sm"
+        :class="[
+          item.linkTo ? 'hover:shadow-md' : '',
+          item.tone === 'warning'
+            ? 'border-negative-600 bg-negative-600/5 font-medium text-negative-600'
+            : item.tone === 'notice'
+              ? 'border-warn-600 bg-warn-50 text-warn-600'
+              : 'border-transparent bg-white text-neutral-600',
+        ]"
       >
         {{ item.text }}
       </component>

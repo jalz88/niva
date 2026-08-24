@@ -91,5 +91,24 @@ export function useRooms() {
     return null
   }
 
-  return { items, loading, error, revision, list, create, update, archive: (id: string, w: string) => setActive(id, w, false) }
+  // Manual "Sync now" (2026-08-24) — calls the sync-room-ical Edge Function,
+  // which fetches ical_url server-side (browsers can't reliably fetch
+  // cross-origin .ics files, and this keeps the write server-authorized
+  // under the calling user's own RLS rather than trusting client input).
+  // There's no automatic daily sync yet — see docs §11.
+  async function syncIcal(roomId: string, workspaceId: string): Promise<{ ok: boolean; eventCount?: number; error?: string }> {
+    const { data, error: fnError } = await supabase.functions.invoke<{ ok: boolean; eventCount?: number; error?: string }>('sync-room-ical', {
+      body: { room_id: roomId },
+    })
+    // Refetch regardless of outcome — ical_last_synced_at/ical_sync_status
+    // may have been stamped even on a failed sync (a bad URL still counts
+    // as "checked, and it failed"), same as every other mutation here.
+    cache.delete(workspaceId)
+    revision.value++
+    if (fnError) return { ok: false, error: fnError.message }
+    if (!data) return { ok: false, error: 'No response from sync.' }
+    return data
+  }
+
+  return { items, loading, error, revision, list, create, update, archive: (id: string, w: string) => setActive(id, w, false), syncIcal }
 }

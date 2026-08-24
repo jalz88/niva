@@ -14,7 +14,7 @@ import type { Room, RoomType, SopTask, SopCadenceType } from '@/types/database'
 
 const { workspaceId } = useAuth()
 const properties = useConfigItems('properties')
-const { items: rooms, loading, error, revision: roomsRevision, list, create: createRoom, update: updateRoom, archive: archiveRoom } = useRooms()
+const { items: rooms, loading, error, revision: roomsRevision, list, create: createRoom, update: updateRoom, archive: archiveRoom, syncIcal } = useRooms()
 const { items: tasks, revision: tasksRevision, list: listTasks, create: createTask, update: updateTask, archive: archiveTask } = useSopTasks()
 const toast = useToastStore()
 
@@ -40,6 +40,7 @@ const selectedRoom = computed(() => rooms.value.find((r) => r.id === selectedRoo
 
 function openRoom(room: Room) {
   selectedRoomId.value = room.id
+  syncResult.value = null
   listTasks(room.id)
 }
 function backToList() {
@@ -48,6 +49,22 @@ function backToList() {
 watch(tasksRevision, () => {
   if (selectedRoomId.value) listTasks(selectedRoomId.value)
 })
+
+// ---- Manual iCal sync (2026-08-24) — "test my URL right now," ahead of
+// the daily automatic sync (docs §11, not built yet). ------------------
+
+const syncing = ref(false)
+const syncResult = ref<{ ok: boolean; eventCount?: number; error?: string } | null>(null)
+
+async function onSyncNow() {
+  if (!selectedRoom.value || !workspaceId.value) return
+  syncing.value = true
+  syncResult.value = null
+  const result = await syncIcal(selectedRoom.value.id, workspaceId.value)
+  syncing.value = false
+  syncResult.value = result
+  if (!result.ok) toast.show(result.error || 'Sync failed.', { tone: 'error' })
+}
 
 const ROOM_TYPE_LABELS: Record<RoomType, string> = {
   bedroom: 'Bedroom',
@@ -286,12 +303,32 @@ async function confirmArchiveTask() {
       </div>
 
       <div v-if="selectedRoom.linked_to_bookings" class="mb-4 rounded-md bg-white p-4 shadow-sm">
-        <p class="text-body-sm font-semibold text-neutral-900">Booking sync</p>
-        <p class="text-caption text-neutral-500">
-          Checked once a day, around 1:00 AM property-local time.
-          <span v-if="selectedRoom.ical_last_synced_at">Last synced {{ new Date(selectedRoom.ical_last_synced_at).toLocaleString() }}.</span>
-          <span v-else>Not synced yet.</span>
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-body-sm font-semibold text-neutral-900">Booking sync</p>
+            <p class="text-caption text-neutral-500">
+              <span v-if="selectedRoom.ical_last_synced_at">
+                Last checked {{ new Date(selectedRoom.ical_last_synced_at).toLocaleString() }}
+                <span v-if="selectedRoom.ical_sync_status === 'error'" class="font-medium text-negative-600">— failed</span>
+                <span v-else class="font-medium text-positive-600">— OK</span>
+              </span>
+              <span v-else>Not synced yet.</span>
+              No automatic daily sync is set up yet — use Sync now to test the URL.
+            </p>
+          </div>
+          <button
+            type="button"
+            :disabled="syncing"
+            class="shrink-0 rounded-pill bg-neutral-100 px-3.5 py-2 text-caption font-medium text-neutral-700 hover:bg-neutral-200 disabled:opacity-60"
+            @click="onSyncNow"
+          >
+            {{ syncing ? 'Syncing…' : 'Sync now' }}
+          </button>
+        </div>
+        <p v-if="syncResult?.ok" class="mt-2 text-caption text-positive-600">
+          Synced — found {{ syncResult.eventCount }} booking{{ syncResult.eventCount === 1 ? '' : 's' }} in the calendar.
         </p>
+        <p v-else-if="syncResult && !syncResult.ok" class="mt-2 text-caption text-negative-600">{{ syncResult.error }}</p>
       </div>
 
       <div class="mb-3 flex items-center justify-between">

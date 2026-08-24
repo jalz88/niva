@@ -14,10 +14,18 @@ dayjs.extend(relativeTime)
 // appearing the moment its underlying condition resolves (a fresher
 // transaction gets entered, a rate gets updated, a payment gets marked
 // paid).
+// 'warning' = something's actually overdue/broken, right now (red).
+// 'notice' = worth a glance soon, not urgent yet (amber). 'neutral'
+// (default when omitted) = purely informational, e.g. "Last entry."
+// 2026-08-24: added after Jalie asked for overdue items to stand out —
+// previously every strip item rendered identically regardless of urgency.
+export type AttentionTone = 'neutral' | 'notice' | 'warning'
+
 export interface AttentionStripItem {
   key: string
   text: string
   linkTo?: { name: string; params?: Record<string, string> }
+  tone?: AttentionTone
 }
 
 const STALE_RATE_DAYS = 30
@@ -54,6 +62,7 @@ export function buildStaleRateItems(currencyRows: WorkspaceCurrencyRow[], role: 
         key: `stale-rate-${row.code}`,
         text: `${row.code} exchange rate hasn't been updated in ${daysSince} days`,
         linkTo: { name: 'administration-currencies' },
+        tone: 'notice',
       })
     }
   }
@@ -81,11 +90,12 @@ export function buildDuePaymentItems(payments: DuePaymentSource[], role: Role | 
   for (const payment of payments) {
     const diffDays = dayjs(payment.next_due_on).startOf('day').diff(today, 'day')
     if (diffDays > DUE_SOON_DAYS) continue
-    const { label } = dueLabel(payment.next_due_on, today)
+    const { status, label } = dueLabel(payment.next_due_on, today)
     items.push({
       key: `due-payment-${payment.id}`,
       text: `${payment.name} — ${label.charAt(0).toLowerCase()}${label.slice(1)}`,
       linkTo: { name: 'recurring-payments' },
+      tone: status === 'overdue' ? 'warning' : 'notice',
     })
   }
   return items
