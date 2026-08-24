@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { X } from 'lucide-vue-next'
 
-// Shared bottom-sheet chrome — overlay, drag handle, borderless header,
-// close button — per docs/08-design-system.md §5.1. First built for Quick
-// Add (QuickAddSheet.vue); Transactions' Filters sheet is the second user.
-// Any future bottom sheet should reach for this rather than re-implementing
-// the same overlay/transition markup again.
+// Shared sheet/dialog chrome — per docs/08-design-system.md §5.1. On mobile
+// this is a bottom sheet (slides up, pinned to the bottom edge). On desktop
+// it's a true centered modal, not a bottom sheet parked lower on the page —
+// fixed 2026-08-24 after it kept reading as "the mobile sheet, just moved,"
+// including the enter/leave animation still sliding vertically instead of a
+// centered fade/scale. Positioning is plain flexbox (items-end → items-
+// center at md), not translate-based centering, so it can't fight the
+// transition's own transform.
 defineProps<{ open: boolean; title: string }>()
 const emit = defineEmits<{ close: [] }>()
 </script>
@@ -13,12 +16,13 @@ const emit = defineEmits<{ close: [] }>()
 <template>
   <Teleport to="body">
     <Transition name="fade">
-      <div v-if="open" class="fixed inset-0 z-40 bg-neutral-900/40" @click.self="emit('close')">
-        <Transition name="slide-up">
-          <div
-            v-if="open"
-            class="fixed inset-x-0 bottom-0 z-50 max-h-[90vh] overflow-y-auto rounded-t-lg bg-neutral-100 shadow-lg md:inset-x-auto md:bottom-8 md:left-1/2 md:w-full md:max-w-md md:-translate-x-1/2 md:rounded-md"
-          >
+      <div
+        v-if="open"
+        class="fixed inset-0 z-40 flex items-end justify-center bg-neutral-900/40 md:items-center md:p-4"
+        @click.self="emit('close')"
+      >
+        <Transition name="sheet">
+          <div v-if="open" class="max-h-[90vh] w-full overflow-y-auto rounded-t-lg bg-neutral-100 shadow-lg md:max-w-md md:rounded-md">
             <div class="sticky top-0 bg-neutral-100 px-5 pt-2 pb-1">
               <div class="mx-auto mb-3 h-1 w-9 rounded-pill bg-neutral-300 md:hidden" />
               <div class="flex items-center justify-between">
@@ -52,12 +56,23 @@ const emit = defineEmits<{ close: [] }>()
 .fade-leave-to {
   opacity: 0;
 }
-.slide-up-enter-active,
-.slide-up-leave-active {
-  transition: transform 0.2s ease;
+.sheet-enter-active,
+.sheet-leave-active {
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease;
 }
-.slide-up-enter-from,
-.slide-up-leave-to {
+.sheet-enter-from,
+.sheet-leave-to {
   transform: translateY(100%);
+}
+/* Desktop: a centered modal fades/scales in, it never slides up from the
+   bottom edge like the mobile sheet does. */
+@media (min-width: 768px) {
+  .sheet-enter-from,
+  .sheet-leave-to {
+    transform: scale(0.96);
+    opacity: 0;
+  }
 }
 </style>

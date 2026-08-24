@@ -232,6 +232,19 @@ export interface RoomAssignment {
   workforce_member_id: string
 }
 
+// Parsed iCal booking date range — migration 0013, written server-side by
+// the sync-room-ical Edge Function only (see useRoomBookings.ts).
+export interface RoomBooking {
+  id: string
+  workspace_id: string
+  room_id: string
+  starts_on: string
+  ends_on: string
+  uid: string | null
+  synced_at: string
+  created_at: string
+}
+
 // housekeeping_completion_summary() row — see docs §8.
 export interface HousekeepingCompletionDay {
   report_date: string

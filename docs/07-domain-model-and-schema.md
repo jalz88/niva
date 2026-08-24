@@ -213,6 +213,23 @@ Physical spaces to clean — bedrooms, bathrooms, common areas, outdoor. A bedro
 
 Check constraint: `ical_url is null when linked_to_bookings = false`.
 
+### `room_bookings` (migration 0013)
+
+Parsed booking date ranges from a room's iCal calendar — written entirely server-side by the `sync-room-ical` Edge Function (manual "Sync now" or the daily `pg_cron` trigger, see §11), never by a client. Backs the Staff work calendar's booked-day overlay (2026-08-24 ask: "if a linked room is booked, show it, so a manager can plan days off around occupancy").
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | uuid, pk | |
+| workspace_id | uuid, not null, fk → workspaces.id | server-stamped from `room_id` by a trigger, never sent by the caller |
+| room_id | uuid, not null, fk → rooms.id, `on delete cascade` | |
+| starts_on | date, not null | the ICS event's `DTSTART` date |
+| ends_on | date, not null | the ICS event's `DTEND` date — the checkout day per iCal's all-day convention, kept as-is rather than shifted back a day, since checkout day is exactly the day housekeeping cares most about |
+| uid | text, null | the ICS event's `UID`, kept for debugging/traceability only |
+| synced_at | timestamptz, not null | |
+| created_at | timestamptz, not null | |
+
+No stable diff exists from an ICS feed (Airbnb doesn't send deltas), so every sync deletes a room's full set and reinserts fresh rather than reconciling in place — there's no UPDATE policy, only INSERT/DELETE.
+
 ### `sop_tasks` (migration 0012)
 
 The cleaning checklist for a room, admin-defined per room rather than per room *type* — Release 1 has too few rooms for a shared-template layer to earn its complexity; a similar room's list gets copied by hand. Recurs on a schedule, same cadence shape as `recurring_payments`.
@@ -376,6 +393,7 @@ Policy pattern applied per table (illustrative, not exhaustive):
 | `workspace_memberships` | any member of the workspace | administrator | administrator | administrator |
 | `profiles` | self, and any workspace co-member | self (own row) | self (own row) | n/a |
 | `rooms`, `sop_tasks` | any member of the workspace | administrator | administrator | administrator (archive via `is_active`) |
+| `room_bookings` | any member of the workspace | administrator (or the service role, for the daily cron sync — bypasses RLS entirely, see §11) | n/a — delete + reinsert, not updated in place | administrator (or the service role) |
 | `sop_task_completions` | any member of the workspace | administrator, manager, staff | n/a — append-only | the completing user (own same-day rows only); administrator/manager may delete any |
 | `room_inspections` | any member of the workspace | administrator, manager | n/a — append-only | administrator, manager |
 | `workforce_members`, `workforce_days_off`, `room_assignments` | any member of the workspace | administrator, manager | administrator, manager | administrator, manager |
@@ -430,7 +448,7 @@ Schema above (rooms, `sop_tasks`, `sop_task_completions`, `room_inspections`, `w
 
 - **Occurrence computation isn't a stored schedule.** "What's due today" for monthly/quarterly tasks is evaluated in application/RPC code from `sop_tasks.created_at` + the cadence columns, not a generated occurrences table. Revisit only if a real task ever needs a one-off exception date.
 - **"Overdue" definition.** A task is overdue when today is past its computed `due_on` and no `sop_task_completions` row exists for that occurrence yet. Daily tasks are only "overdue" within the same day — tomorrow is a fresh occurrence, not a carried-over debt, matching the "not forcing" tone of the inspection status.
-- **iCal sync: manual only so far.** A Supabase Edge Function, `sync-room-ical` (2026-08-24), fetches `ical_url`, sanity-checks it's really a calendar (`BEGIN:VCALENDAR`, counts `BEGIN:VEVENT`), and stamps `ical_last_synced_at`/`ical_sync_status` — triggered by the "Sync now" button on a room's detail screen (RoomsView.vue), not a schedule. It runs under the calling user's own JWT/RLS (no service-role key), so only an administrator's sync actually writes (`rooms_update` is administrator-only) — a manager or staff account calling it gets a clear "only an administrator can sync" back instead of a silent no-op. It does **not** parse booking dates into anything the app acts on yet — no cadence type consumes booking data, so "a room's booking dates feed its cleaning schedule" (the original framing) is still aspirational. The once-a-day automatic sync (1:00 AM property-local time, Jalie's 2026-08-23 call, to stay clear of Cloudflare/Supabase free-tier limits) still isn't built — either Supabase `pg_cron` calling this same function, or a Cloudflare Worker Cron Trigger, would work; pick whichever has less operational overhead when that phase starts.
+- **iCal sync: manual + daily automatic (2026-08-24).** The `sync-room-ical` Edge Function fetches `ical_url`, sanity-checks it's really a calendar (`BEGIN:VCALENDAR`), parses every `VEVENT`'s `DTSTART`/`DTEND` into `room_bookings` (§3, wiping and reinserting a room's set each sync — an ICS feed has no stable diff to reconcile against), and stamps `ical_last_synced_at`/`ical_sync_status`. Two callers: (1) the "Sync now" button on a room's detail screen (RoomsView.vue) — runs under the calling user's own JWT/RLS, so only an administrator's sync actually writes (`rooms_update`/`room_bookings` are administrator-only); a manager or staff account gets a clear "only an administrator can sync" back instead of a silent no-op; (2) a daily `pg_cron` job (schedule chosen when it was set up — see the migration/ops note, not property-local since a workspace can now span more than one timezone, e.g. Sri Lanka and UAE properties in the same account) authenticated with the service role key, which bypasses RLS on purpose (no signed-in user for a scheduled job to act as) and loops over every linked, active room across every workspace. The service role key itself lives in Supabase Vault, never in this repo. Booking dates are now something the app actually uses: the Staff work calendar overlays a booked-day dot per date (any linked room, not per-worker) so a manager can plan days off around occupancy. Still nothing reads `room_bookings` to drive cleaning cadence itself — no `sop_task` cadence type consumes it, so "a room's booking dates feed its cleaning schedule" (the original framing) is still aspirational.
 - **No per-person completion metrics.** `housekeeping_completion_summary`/`housekeeping_attention_rooms` (§8) report at the room/property level only. Jalie was explicit (2026-08-24) that this isn't meant to track individual staff performance, matching the earlier no-hourly-timesheets decision (§3 `workforce_days_off`). A per-person breakdown is an additive query, not a schema change, if a future customer asks for it.
 - **`crew_role`/room type enums are intentionally small.** Both are plain `check` constraints, not lookup tables — Release 1 doesn't need admin-editable crew roles or room types, and adding either later is a simple constraint change, not a migration of existing data.
 - **`workforce_members`/`workforce_days_off`/`room_assignments` SELECT is any workspace member, not administrator/manager only** (corrected from the first draft of §6, which scoped read the same as write). Jane's own Today view has to read the roster and today's assignments to know which rooms are hers — that's the same "any member reads" shape as `rooms`/`sop_tasks`/`sop_task_completions`. Only the wage amount itself stays hidden from her, via `recurring_payments`' existing administrator/manager-only policy (0011) — `workforce_members.recurring_payment_id` is just an opaque id to her.

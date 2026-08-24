@@ -7,6 +7,7 @@ import { useAuth } from '@/composables/useAuth'
 import { useWorkforce, type WorkforceMemberPayload } from '@/composables/useWorkforce'
 import { useMembers } from '@/composables/useMembers'
 import { useRecurringPayments } from '@/composables/useRecurringPayments'
+import { useRoomBookings } from '@/composables/useRoomBookings'
 import { useToastStore } from '@/stores/toastStore'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
@@ -29,6 +30,7 @@ const {
 } = useWorkforce()
 const { members: accounts, list: listAccounts } = useMembers()
 const { items: recurringPayments, list: listRecurringPayments } = useRecurringPayments()
+const { isBooked, load: loadRoomBookings } = useRoomBookings()
 const toast = useToastStore()
 
 watch(
@@ -153,7 +155,9 @@ watch(
 
 async function loadCalendarRange() {
   if (!workspaceId.value) return
-  await loadDaysOff(workspaceId.value, calendarMonth.value.startOf('month').format('YYYY-MM-DD'), calendarMonth.value.endOf('month').format('YYYY-MM-DD'))
+  const start = calendarMonth.value.startOf('month').format('YYYY-MM-DD')
+  const end = calendarMonth.value.endOf('month').format('YYYY-MM-DD')
+  await Promise.all([loadDaysOff(workspaceId.value, start, end), loadRoomBookings(workspaceId.value, start, end)])
 }
 watch(calendarMonth, loadCalendarRange)
 watch(workspaceId, loadCalendarRange, { immediate: true })
@@ -266,7 +270,7 @@ async function onToggleDay(iso: string) {
               <button
                 v-else
                 type="button"
-                class="aspect-square rounded-sm text-body-sm font-medium"
+                class="relative aspect-square rounded-sm text-body-sm font-medium"
                 :class="[
                   cell.iso === todayIso ? 'ring-2 ring-accent-500' : '',
                   selectedMemberId && isOff(selectedMemberId, cell.iso) ? 'bg-negative-600/10 text-negative-600' : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100',
@@ -274,12 +278,17 @@ async function onToggleDay(iso: string) {
                 @click="onToggleDay(cell.iso)"
               >
                 {{ cell.day }}
+                <span v-if="isBooked(cell.iso)" class="absolute bottom-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-accent-500" />
               </button>
             </template>
           </div>
           <p class="mt-3 text-caption text-neutral-500">{{ offCountThisMonth }} day{{ offCountThisMonth === 1 ? '' : 's' }} off in {{ calendarMonth.format('MMMM') }}.</p>
         </div>
-        <p class="mt-3 text-caption text-neutral-400">Tap a day to mark it worked or off. A yearly leave summary per worker will live in Reports later.</p>
+        <p class="mt-3 text-caption text-neutral-400">
+          Tap a day to mark it worked or off.
+          <span class="inline-flex items-center gap-1"><span class="inline-block h-1.5 w-1.5 rounded-full bg-accent-500" /> = a linked room has a booking that day.</span>
+          A yearly leave summary per worker will live in Reports later.
+        </p>
       </template>
     </section>
 
