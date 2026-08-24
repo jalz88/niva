@@ -1,22 +1,29 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 import { ChevronRight } from 'lucide-vue-next'
+import LanguageToggle from '@/components/ui/LanguageToggle.vue'
 
 // Administrator/manager landing (route meta gates staff out entirely — a
 // staff account goes straight to housekeeping-today instead, see
 // AppShell.vue). Mirrors docs/housekeeping-in-app-prototype.html's
-// renderHub().
-const rows = [
-  { to: 'housekeeping-schedule', title: "Today's schedule", sub: "What's due today, and who it's assigned to" },
-  { to: 'housekeeping-rooms', title: 'Rooms', sub: 'Spaces, checklists, booking sync' },
-  { to: 'housekeeping-staff', title: 'Staff', sub: 'Roster and the work calendar' },
-]
+// renderHub(). Language toggle lives here (2026-08-26) since this is the
+// module's entry point for admin/manager — the same preference then carries
+// into Today's schedule/Rooms/Staff, all reading the shared locale.
+const { t } = useI18n()
+const rows = computed(() => [
+  { to: 'housekeeping-schedule', title: t('hk.hub.schedule'), sub: t('hk.hub.scheduleSub') },
+  { to: 'housekeeping-rooms', title: t('hk.hub.rooms'), sub: t('hk.hub.roomsSub') },
+  { to: 'housekeeping-staff', title: t('hk.hub.staff'), sub: t('hk.hub.staffSub') },
+])
 </script>
 
 <template>
   <div class="mx-auto max-w-3xl px-4 pt-6 pb-24 md:pb-8">
-    <header class="mb-4">
-      <h1 class="text-h1 font-semibold text-neutral-900">Housekeeping</h1>
+    <header class="mb-4 flex items-center justify-between gap-3">
+      <h1 class="text-h1 font-semibold text-neutral-900">{{ $t('hk.hub.title') }}</h1>
+      <LanguageToggle />
     </header>
 
     <div class="flex flex-col gap-2">

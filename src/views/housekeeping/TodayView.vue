@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { useAuth } from '@/composables/useAuth'
@@ -9,7 +10,10 @@ import { useRoomBookings } from '@/composables/useRoomBookings'
 import { useToastStore } from '@/stores/toastStore'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import LanguageToggle from '@/components/ui/LanguageToggle.vue'
 import { Check, LogOut } from 'lucide-vue-next'
+
+const { t } = useI18n()
 
 // Shared by two routes — housekeeping-today (a staff account's own rooms,
 // no reassign controls) and housekeeping-schedule (administrator/manager,
@@ -78,7 +82,9 @@ function bookingBadge(room: RoomToday): BookingBadge {
   if (!room.linkedToBookings) return null
   const booking = bookings.value.find((b) => b.room_id === room.roomId && b.starts_on <= todayIso && todayIso <= b.ends_on)
   if (!booking) return null
-  return booking.ends_on === todayIso ? { label: 'Checkout today', tone: 'checkout' } : { label: 'Stayover', tone: 'stayover' }
+  return booking.ends_on === todayIso
+    ? { label: t('hk.today.checkoutToday'), tone: 'checkout' }
+    : { label: t('hk.today.stayover'), tone: 'stayover' }
 }
 const BOOKING_BADGE_CLASS: Record<'checkout' | 'stayover', string> = {
   checkout: 'bg-warn-50 text-warn-600',
@@ -115,8 +121,8 @@ const daySummary = computed(() => {
 
 function memberName(id: string | null): string {
   if (!id) return ''
-  if (id === user.value?.id) return 'You'
-  return members.value.find((m) => m.id === id)?.name ?? 'Someone'
+  if (id === user.value?.id) return t('hk.today.you')
+  return members.value.find((m) => m.id === id)?.name ?? t('hk.today.someone')
 }
 
 function lastUpdate(room: RoomToday) {
@@ -144,7 +150,7 @@ async function onToggleTask(task: TodayTask) {
   }
   const mine = task.completedBy === user.value?.id
   if (!mine && !canInspect.value) {
-    toast.show(`Only ${memberName(task.completedBy)} or an administrator/manager can undo this.`, { tone: 'error' })
+    toast.show(t('hk.today.undoOnlyOwner', { name: memberName(task.completedBy) }), { tone: 'error' })
     return
   }
   if (!mine) {
@@ -164,9 +170,10 @@ async function confirmUntick() {
 
 async function onMarkInspected(roomId: string) {
   if (!workspaceId.value) return
+  const roomName = rooms.value.find((r) => r.roomId === roomId)?.roomName ?? ''
   const err = await markInspected(workspaceId.value, roomId)
   if (err) toast.show(err.message, { tone: 'error' })
-  else toast.show('Room marked inspected.')
+  else toast.show(t('hk.today.inspectedToast', { room: roomName }))
 }
 
 // ---- Reassign (schedule mode only) -----------------------------------------
@@ -196,24 +203,29 @@ const CADENCE_TAG_CLASS: Record<string, string> = {
       <img src="/branding/niva-mark.svg" alt="" width="20" height="20" class="rounded-sm" />
       <span class="text-body-sm font-semibold text-neutral-900">NIVA</span>
     </div>
-    <button
-      type="button"
-      :disabled="signingOut"
-      aria-label="Sign out"
-      class="flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-caption font-medium text-neutral-500 hover:bg-neutral-100 disabled:opacity-60"
-      @click="onSignOut"
-    >
-      <LogOut :size="15" />
-      {{ signingOut ? 'Signing out…' : 'Sign out' }}
-    </button>
+    <div class="flex items-center gap-2">
+      <LanguageToggle />
+      <button
+        type="button"
+        :disabled="signingOut"
+        aria-label="Sign out"
+        class="flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-caption font-medium text-neutral-500 hover:bg-neutral-100 disabled:opacity-60"
+        @click="onSignOut"
+      >
+        <LogOut :size="15" />
+        {{ signingOut ? $t('hk.today.signingOut') : $t('hk.today.signOut') }}
+      </button>
+    </div>
   </div>
 
   <div class="mx-auto max-w-3xl px-4 pt-6 pb-24 md:pb-8">
     <header class="mb-4">
-      <h1 class="text-h1 font-semibold text-neutral-900">{{ mode === 'today' ? 'Today' : "Today's schedule" }}</h1>
+      <h1 class="text-h1 font-semibold text-neutral-900">{{ mode === 'today' ? $t('hk.today.title') : $t('hk.today.schedule') }}</h1>
       <p class="text-body-sm text-neutral-500">
         {{ todayLabel }}
-        <template v-if="mode === 'schedule'"> · {{ onShiftHousekeepers.length ? onShiftHousekeepers.map((m) => m.name).join(' & ') + ' on shift' : 'No one on shift today' }}</template>
+        <template v-if="mode === 'schedule'">
+          · {{ onShiftHousekeepers.length ? $t('hk.today.onShift', { names: onShiftHousekeepers.map((m) => m.name).join(' & ') }) : $t('hk.today.noOneOnShift') }}
+        </template>
       </p>
     </header>
 
@@ -222,11 +234,11 @@ const CADENCE_TAG_CLASS: Record<string, string> = {
     </div>
     <div v-else-if="error" class="flex items-center justify-between gap-3 rounded-md bg-negative-600/5 p-4 text-body-sm text-negative-600">
       <span>{{ error.message }}</span>
-      <button type="button" class="font-medium underline" @click="loadAll">Try again</button>
+      <button type="button" class="font-medium underline" @click="loadAll">{{ $t('hk.today.tryAgain') }}</button>
     </div>
     <section v-else-if="!visibleRooms.length" class="rounded-md bg-white p-6 text-center shadow-sm">
-      <h2 class="mb-1 text-h3 font-semibold text-neutral-900">{{ mode === 'today' ? 'Nothing due today' : 'Nothing to assign' }}</h2>
-      <p class="text-body-sm text-neutral-500">{{ mode === 'today' ? 'Every room is caught up.' : 'No rooms currently need attention.' }}</p>
+      <h2 class="mb-1 text-h3 font-semibold text-neutral-900">{{ mode === 'today' ? $t('hk.today.nothingDueTitle') : $t('hk.today.nothingAssignTitle') }}</h2>
+      <p class="text-body-sm text-neutral-500">{{ mode === 'today' ? $t('hk.today.nothingDueBody') : $t('hk.today.nothingAssignBody') }}</p>
     </section>
 
     <template v-else>
@@ -237,9 +249,9 @@ const CADENCE_TAG_CLASS: Record<string, string> = {
            loaded, since it only needs today). -->
       <div class="mb-4 rounded-md bg-white p-3.5 shadow-sm">
         <div class="mb-1.5 flex items-baseline justify-between">
-          <p class="text-caption font-semibold text-neutral-700">{{ mode === 'today' ? "Today's progress" : 'Today across the property' }}</p>
+          <p class="text-caption font-semibold text-neutral-700">{{ mode === 'today' ? $t('hk.today.progressToday') : $t('hk.today.progressProperty') }}</p>
           <p class="text-body-sm font-bold" :class="daySummary.pct === 100 ? 'text-positive-600' : 'text-accent-600'">
-            {{ daySummary.done }} of {{ daySummary.total }} rooms · {{ daySummary.pct }}%
+            {{ $t('hk.today.roomsSummary', { done: daySummary.done, total: daySummary.total, pct: daySummary.pct }) }}
           </p>
         </div>
         <div class="h-1.5 overflow-hidden rounded-pill bg-neutral-100">
@@ -276,18 +288,18 @@ const CADENCE_TAG_CLASS: Record<string, string> = {
             />
           </div>
           <p class="text-caption" :class="roomProgress(room).complete ? 'font-semibold text-positive-600' : 'text-neutral-500'">
-            <template v-if="!roomProgress(room).complete">{{ roomProgress(room).done }} of {{ roomProgress(room).total }} tasks done</template>
-            <template v-else-if="room.inspectedBy">All done</template>
-            <template v-else>Pending inspection</template>
+            <template v-if="!roomProgress(room).complete">{{ $t('hk.today.tasksDone', { done: roomProgress(room).done, total: roomProgress(room).total }) }}</template>
+            <template v-else-if="room.inspectedBy">{{ $t('hk.today.allDone') }}</template>
+            <template v-else>{{ $t('hk.today.pendingInspection') }}</template>
           </p>
           <p v-if="lastUpdate(room)" class="mt-0.5 text-caption text-neutral-400">
-            Last update: <span class="font-medium text-neutral-600">{{ memberName(lastUpdate(room)!.completedBy) }}</span> · {{ dayjs(lastUpdate(room)!.completedAt).format('h:mm A') }}
+            {{ $t('hk.today.lastUpdate', { name: memberName(lastUpdate(room)!.completedBy), time: dayjs(lastUpdate(room)!.completedAt).format('h:mm A') }) }}
           </p>
 
           <template v-if="mode === 'schedule'">
             <div class="mt-2 flex items-center justify-between" @click.stop>
               <span class="text-caption text-neutral-500">
-                {{ dayAssignments[room.roomId] ? memberName(dayAssignments[room.roomId]!) : 'Unassigned' }}
+                {{ dayAssignments[room.roomId] ? memberName(dayAssignments[room.roomId]!) : $t('hk.today.unassigned') }}
               </span>
               <button
                 v-if="onShiftHousekeepers.length > 1"
@@ -295,7 +307,7 @@ const CADENCE_TAG_CLASS: Record<string, string> = {
                 class="rounded-pill bg-neutral-100 px-2.5 py-1 text-caption font-medium text-neutral-700"
                 @click="reassignOpenFor = reassignOpenFor === room.roomId ? null : room.roomId"
               >
-                Reassign
+                {{ $t('hk.today.reassign') }}
               </button>
             </div>
             <div v-if="reassignOpenFor === room.roomId" class="mt-2 flex flex-wrap gap-1.5" @click.stop>
@@ -330,7 +342,7 @@ const CADENCE_TAG_CLASS: Record<string, string> = {
             <p class="text-body-sm font-medium" :class="task.isDone ? 'text-neutral-400 line-through' : 'text-neutral-900'">{{ task.name }}</p>
             <p v-if="task.isDone && task.completedBy" class="text-caption text-positive-600">{{ memberName(task.completedBy) }} · {{ dayjs(task.completedAt).format('h:mm A') }}</p>
           </div>
-          <span class="shrink-0 self-start rounded-pill px-2 py-0.5 text-caption font-semibold" :class="CADENCE_TAG_CLASS[task.cadence]">{{ task.cadence }}</span>
+          <span class="shrink-0 self-start rounded-pill px-2 py-0.5 text-caption font-semibold" :class="CADENCE_TAG_CLASS[task.cadence]">{{ $t(`hk.today.cadence.${task.cadence}`) }}</span>
         </div>
 
         <template v-if="roomProgress(openRoom).complete">
@@ -340,11 +352,11 @@ const CADENCE_TAG_CLASS: Record<string, string> = {
             class="mt-3.5 w-full rounded-pill bg-accent-500 py-3 text-body-sm font-semibold text-white hover:bg-accent-600"
             @click="onMarkInspected(openRoom.roomId)"
           >
-            Mark inspected
+            {{ $t('hk.today.markInspected') }}
           </button>
-          <div v-else-if="!openRoom.inspectedBy" class="mt-3.5 w-full rounded-pill bg-info-50 py-3 text-center text-body-sm font-semibold text-info-600">Pending inspection</div>
+          <div v-else-if="!openRoom.inspectedBy" class="mt-3.5 w-full rounded-pill bg-info-50 py-3 text-center text-body-sm font-semibold text-info-600">{{ $t('hk.today.pendingInspection') }}</div>
           <div v-else class="mt-3.5 w-full rounded-pill bg-positive-600/10 py-3 text-center text-body-sm font-semibold text-positive-600">
-            Inspected by {{ memberName(openRoom.inspectedBy) }}
+            {{ $t('hk.today.inspectedBy', { name: memberName(openRoom.inspectedBy) }) }}
           </div>
         </template>
       </div>
@@ -352,9 +364,9 @@ const CADENCE_TAG_CLASS: Record<string, string> = {
 
     <ConfirmDialog
       :open="!!pendingUntick"
-      title="Undo this task?"
-      :description="pendingUntick ? `${memberName(pendingUntick.completedBy)} marked &quot;${pendingUntick.name}&quot; done. Undo it?` : ''"
-      confirm-label="Undo"
+      :title="$t('hk.today.undoTitle')"
+      :description="pendingUntick ? $t('hk.today.undoDescription', { name: memberName(pendingUntick.completedBy), task: pendingUntick.name }) : ''"
+      :confirm-label="$t('hk.today.undoConfirm')"
       danger
       @confirm="confirmUntick"
       @cancel="pendingUntick = null"

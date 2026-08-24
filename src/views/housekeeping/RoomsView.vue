@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import { useAuth } from '@/composables/useAuth'
@@ -12,6 +13,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import type { NivaError } from '@/lib/errors'
 import type { Room, RoomType, SopTask, SopCadenceType } from '@/types/database'
 
+const { t, tm } = useI18n()
 const { workspaceId } = useAuth()
 const properties = useConfigItems('properties')
 const { items: rooms, loading, error, revision: roomsRevision, list, create: createRoom, update: updateRoom, archive: archiveRoom, syncIcal } = useRooms()
@@ -63,22 +65,22 @@ async function onSyncNow() {
   const result = await syncIcal(selectedRoom.value.id, workspaceId.value)
   syncing.value = false
   syncResult.value = result
-  if (!result.ok) toast.show(result.error || 'Sync failed.', { tone: 'error' })
+  if (!result.ok) toast.show(result.error || t('hk.rooms.syncGenericFailed'), { tone: 'error' })
 }
 
-const ROOM_TYPE_LABELS: Record<RoomType, string> = {
-  bedroom: 'Bedroom',
-  bathroom: 'Bathroom',
-  common_area: 'Common area',
-  outdoor: 'Outdoor',
-}
-const CADENCE_LABELS: Record<SopCadenceType, string> = {
-  daily: 'Daily',
-  weekly: 'Weekly',
-  monthly: 'Monthly',
-  quarterly: 'Quarterly',
-}
-const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const ROOM_TYPE_LABELS = computed<Record<RoomType, string>>(() => ({
+  bedroom: t('hk.rooms.roomType.bedroom'),
+  bathroom: t('hk.rooms.roomType.bathroom'),
+  common_area: t('hk.rooms.roomType.common_area'),
+  outdoor: t('hk.rooms.roomType.outdoor'),
+}))
+const CADENCE_LABELS = computed<Record<SopCadenceType, string>>(() => ({
+  daily: t('hk.rooms.cadence.daily'),
+  weekly: t('hk.rooms.cadence.weekly'),
+  monthly: t('hk.rooms.cadence.monthly'),
+  quarterly: t('hk.rooms.cadence.quarterly'),
+}))
+const WEEKDAY_SHORT = computed<string[]>(() => tm('hk.rooms.weekdaysShort') as unknown as string[])
 
 // ---- Add/Edit room sheet ---------------------------------------------------
 
@@ -113,11 +115,11 @@ function openEditRoom(room: Room) {
 async function submitRoomForm() {
   if (!workspaceId.value) return
   if (!activePropertyId.value) {
-    submitError.value = { code: 'validation_error', message: 'No active property found for this workspace.', retryable: false }
+    submitError.value = { code: 'validation_error', message: t('hk.rooms.validationNoProperty'), retryable: false }
     return
   }
   if (!formName.value.trim()) {
-    submitError.value = { code: 'validation_error', message: 'Give the room a name.', retryable: false }
+    submitError.value = { code: 'validation_error', message: t('hk.rooms.validationRoomName'), retryable: false }
     return
   }
 
@@ -140,7 +142,7 @@ async function submitRoomForm() {
     submitError.value = err
     return
   }
-  toast.show(editingRoomId.value ? 'Room updated.' : 'Room added.')
+  toast.show(editingRoomId.value ? t('hk.rooms.toastRoomUpdated') : t('hk.rooms.toastRoomAdded'))
   showRoomForm.value = false
 }
 
@@ -156,7 +158,7 @@ async function confirmArchiveRoom() {
   if (err) {
     toast.show(err.message, { tone: 'error' })
   } else {
-    toast.show('Room removed.')
+    toast.show(t('hk.rooms.toastRoomRemoved'))
     if (selectedRoomId.value === pendingArchiveRoom.value.id) selectedRoomId.value = null
   }
   pendingArchiveRoom.value = null
@@ -195,7 +197,7 @@ function openEditTask(task: SopTask) {
 async function submitTaskForm() {
   if (!workspaceId.value || !selectedRoomId.value) return
   if (!taskName.value.trim()) {
-    taskSubmitError.value = { code: 'validation_error', message: 'Give the task a name.', retryable: false }
+    taskSubmitError.value = { code: 'validation_error', message: t('hk.rooms.validationTaskName'), retryable: false }
     return
   }
 
@@ -217,7 +219,7 @@ async function submitTaskForm() {
     taskSubmitError.value = err
     return
   }
-  toast.show(editingTaskId.value ? 'Task updated.' : 'Task added.')
+  toast.show(editingTaskId.value ? t('hk.rooms.toastTaskUpdated') : t('hk.rooms.toastTaskAdded'))
   showTaskForm.value = false
 }
 
@@ -231,7 +233,7 @@ async function confirmArchiveTask() {
   if (!pendingArchiveTask.value || !selectedRoomId.value) return
   const err = await archiveTask(pendingArchiveTask.value.id, selectedRoomId.value)
   if (err) toast.show(err.message, { tone: 'error' })
-  else toast.show('Task removed.')
+  else toast.show(t('hk.rooms.toastTaskRemoved'))
   pendingArchiveTask.value = null
 }
 </script>
@@ -244,14 +246,14 @@ async function confirmArchiveTask() {
         <div>
           <RouterLink :to="{ name: 'housekeeping' }" class="mb-2 inline-flex items-center gap-1 text-body-sm font-medium text-neutral-500 hover:text-accent-600">
             <ChevronLeft :size="16" />
-            Housekeeping
+            {{ $t('hk.rooms.backToHub') }}
           </RouterLink>
-          <h1 class="text-h1 font-semibold text-neutral-900">Rooms</h1>
-          <p class="text-body-sm text-neutral-500">Spaces, cleaning checklists, booking sync.</p>
+          <h1 class="text-h1 font-semibold text-neutral-900">{{ $t('hk.rooms.title') }}</h1>
+          <p class="text-body-sm text-neutral-500">{{ $t('hk.rooms.subtitle') }}</p>
         </div>
         <button type="button" class="flex items-center gap-1.5 rounded-pill bg-white px-4 py-2 text-body-sm font-medium text-neutral-700 shadow-sm" @click="openAddRoom">
           <Plus :size="16" />
-          Add
+          {{ $t('hk.rooms.listAdd') }}
         </button>
       </div>
 
@@ -260,12 +262,12 @@ async function confirmArchiveTask() {
       </div>
       <div v-else-if="error" class="flex items-center justify-between gap-3 rounded-md bg-negative-600/5 p-4 text-body-sm text-negative-600">
         <span>{{ error.message }}</span>
-        <button type="button" class="font-medium underline" @click="workspaceId && list(workspaceId)">Try again</button>
+        <button type="button" class="font-medium underline" @click="workspaceId && list(workspaceId)">{{ $t('hk.rooms.tryAgain') }}</button>
       </div>
       <section v-else-if="!rooms.length" class="rounded-md bg-white p-6 text-center shadow-sm">
-        <h2 class="mb-1 text-h3 font-semibold text-neutral-900">No rooms yet</h2>
-        <p class="mb-4 text-body-sm text-neutral-500">Add your first room to build its cleaning checklist.</p>
-        <button type="button" class="rounded-sm bg-accent-500 px-4 py-2 text-body-sm font-medium text-white hover:bg-accent-600" @click="openAddRoom">Add room</button>
+        <h2 class="mb-1 text-h3 font-semibold text-neutral-900">{{ $t('hk.rooms.emptyTitle') }}</h2>
+        <p class="mb-4 text-body-sm text-neutral-500">{{ $t('hk.rooms.emptyBody') }}</p>
+        <button type="button" class="rounded-sm bg-accent-500 px-4 py-2 text-body-sm font-medium text-white hover:bg-accent-600" @click="openAddRoom">{{ $t('hk.rooms.emptyCta') }}</button>
       </section>
       <div v-else class="flex flex-col gap-2">
         <div
@@ -278,7 +280,7 @@ async function confirmArchiveTask() {
           <div class="min-w-0">
             <p class="truncate text-body font-semibold text-neutral-900">{{ room.name }}</p>
             <p class="truncate text-caption text-neutral-500">
-              {{ ROOM_TYPE_LABELS[room.room_type] }}<span v-if="room.linked_to_bookings"> · Booking-linked</span>
+              {{ ROOM_TYPE_LABELS[room.room_type] }}<span v-if="room.linked_to_bookings"> · {{ $t('hk.rooms.bookingLinked') }}</span>
             </p>
           </div>
           <ChevronRight :size="18" class="shrink-0 text-neutral-400" />
@@ -291,29 +293,29 @@ async function confirmArchiveTask() {
       <div class="mb-4">
         <button type="button" class="mb-2 inline-flex items-center gap-1 text-body-sm font-medium text-neutral-500 hover:text-accent-600" @click="backToList">
           <ChevronLeft :size="16" />
-          Rooms
+          {{ $t('hk.rooms.backToRooms') }}
         </button>
         <div class="flex items-start justify-between gap-3">
           <div>
             <h1 class="text-h1 font-semibold text-neutral-900">{{ selectedRoom.name }}</h1>
             <p class="text-body-sm text-neutral-500">{{ ROOM_TYPE_LABELS[selectedRoom.room_type] }}</p>
           </div>
-          <button type="button" class="rounded-pill bg-white px-4 py-2 text-body-sm font-medium text-neutral-700 shadow-sm" @click="openEditRoom(selectedRoom)">Edit</button>
+          <button type="button" class="rounded-pill bg-white px-4 py-2 text-body-sm font-medium text-neutral-700 shadow-sm" @click="openEditRoom(selectedRoom)">{{ $t('hk.rooms.edit') }}</button>
         </div>
       </div>
 
       <div v-if="selectedRoom.linked_to_bookings" class="mb-4 rounded-md bg-white p-4 shadow-sm">
         <div class="flex items-start justify-between gap-3">
           <div>
-            <p class="text-body-sm font-semibold text-neutral-900">Booking sync</p>
+            <p class="text-body-sm font-semibold text-neutral-900">{{ $t('hk.rooms.syncCardTitle') }}</p>
             <p class="text-caption text-neutral-500">
               <span v-if="selectedRoom.ical_last_synced_at">
-                Last checked {{ new Date(selectedRoom.ical_last_synced_at).toLocaleString() }}
-                <span v-if="selectedRoom.ical_sync_status === 'error'" class="font-medium text-negative-600">— failed</span>
-                <span v-else class="font-medium text-positive-600">— OK</span>
+                {{ $t('hk.rooms.lastChecked', { time: new Date(selectedRoom.ical_last_synced_at).toLocaleString() }) }}
+                <span v-if="selectedRoom.ical_sync_status === 'error'" class="font-medium text-negative-600">{{ $t('hk.rooms.syncFailedSuffix') }}</span>
+                <span v-else class="font-medium text-positive-600">{{ $t('hk.rooms.syncOkSuffix') }}</span>
               </span>
-              <span v-else>Not synced yet.</span>
-              No automatic daily sync is set up yet — use Sync now to test the URL.
+              <span v-else>{{ $t('hk.rooms.notSyncedYet') }}</span>
+              {{ $t('hk.rooms.autoSyncNote') }}
             </p>
           </div>
           <button
@@ -322,25 +324,30 @@ async function confirmArchiveTask() {
             class="shrink-0 rounded-pill bg-neutral-100 px-3.5 py-2 text-caption font-medium text-neutral-700 hover:bg-neutral-200 disabled:opacity-60"
             @click="onSyncNow"
           >
-            {{ syncing ? 'Syncing…' : 'Sync now' }}
+            {{ syncing ? $t('hk.rooms.syncing') : $t('hk.rooms.syncNow') }}
           </button>
         </div>
         <p v-if="syncResult?.ok" class="mt-2 text-caption text-positive-600">
-          Synced — found {{ syncResult.eventCount }} booking{{ syncResult.eventCount === 1 ? '' : 's' }} in the calendar.
+          {{
+            $t('hk.rooms.syncFound', {
+              count: syncResult.eventCount,
+              noun: syncResult.eventCount === 1 ? $t('hk.rooms.syncFoundBookingOne') : $t('hk.rooms.syncFoundBookingMany'),
+            })
+          }}
         </p>
         <p v-else-if="syncResult && !syncResult.ok" class="mt-2 text-caption text-negative-600">{{ syncResult.error }}</p>
       </div>
 
       <div class="mb-3 flex items-center justify-between">
-        <h2 class="text-h3 font-semibold text-neutral-900">Cleaning checklist</h2>
+        <h2 class="text-h3 font-semibold text-neutral-900">{{ $t('hk.rooms.tasksTitle') }}</h2>
         <button type="button" class="flex items-center gap-1.5 rounded-pill bg-white px-3.5 py-2 text-caption font-medium text-neutral-700 shadow-sm" @click="openAddTask">
           <Plus :size="14" />
-          Add task
+          {{ $t('hk.rooms.addTask') }}
         </button>
       </div>
 
       <section v-if="!tasks.length" class="rounded-md bg-white p-5 text-center shadow-sm">
-        <p class="text-body-sm text-neutral-500">No tasks yet — add what needs doing in this room.</p>
+        <p class="text-body-sm text-neutral-500">{{ $t('hk.rooms.tasksEmpty') }}</p>
       </section>
       <div v-else class="flex flex-col gap-2">
         <div v-for="task in tasks" :key="task.id" class="flex cursor-pointer items-center justify-between gap-3 rounded-md bg-white p-3.5 shadow-sm hover:shadow-md" @click="openEditTask(task)">
@@ -351,14 +358,14 @@ async function confirmArchiveTask() {
     </template>
 
     <!-- Add/Edit room sheet -->
-    <BottomSheet :open="showRoomForm" :title="editingRoomId ? 'Edit room' : 'Add room'" @close="showRoomForm = false">
+    <BottomSheet :open="showRoomForm" :title="editingRoomId ? $t('hk.rooms.sheetEditRoom') : $t('hk.rooms.sheetAddRoom')" @close="showRoomForm = false">
       <form class="flex flex-col" @submit.prevent="submitRoomForm">
         <div class="mb-4">
-          <p class="mb-2 text-body-sm text-neutral-500">Name</p>
-          <input v-model="formName" type="text" placeholder="Room 1, Garden…" class="w-full rounded-md bg-white px-3.5 py-3 text-body text-neutral-900 shadow-sm outline-none placeholder:text-neutral-400" />
+          <p class="mb-2 text-body-sm text-neutral-500">{{ $t('hk.rooms.fieldName') }}</p>
+          <input v-model="formName" type="text" :placeholder="$t('hk.rooms.namePlaceholder')" class="w-full rounded-md bg-white px-3.5 py-3 text-body text-neutral-900 shadow-sm outline-none placeholder:text-neutral-400" />
         </div>
         <div class="mb-4">
-          <p class="mb-2 text-body-sm text-neutral-500">Type</p>
+          <p class="mb-2 text-body-sm text-neutral-500">{{ $t('hk.rooms.fieldType') }}</p>
           <div class="flex flex-wrap gap-2">
             <button
               v-for="(label, value) in ROOM_TYPE_LABELS"
@@ -374,8 +381,8 @@ async function confirmArchiveTask() {
         </div>
         <div class="mb-4 flex items-center justify-between rounded-md bg-white p-3.5 shadow-sm">
           <div>
-            <p class="text-body-sm font-medium text-neutral-900">Linked to bookings</p>
-            <p class="text-caption text-neutral-500">For a room guests actually book.</p>
+            <p class="text-body-sm font-medium text-neutral-900">{{ $t('hk.rooms.linkedTitle') }}</p>
+            <p class="text-caption text-neutral-500">{{ $t('hk.rooms.linkedSub') }}</p>
           </div>
           <button
             type="button"
@@ -389,20 +396,20 @@ async function confirmArchiveTask() {
           </button>
         </div>
         <div v-if="formLinked" class="mb-4">
-          <p class="mb-2 text-body-sm text-neutral-500">Calendar export URL</p>
+          <p class="mb-2 text-body-sm text-neutral-500">{{ $t('hk.rooms.icalLabel') }}</p>
           <input
             v-model="formIcalUrl"
             type="text"
-            placeholder="https://www.airbnb.com/calendar/ical/…"
+            :placeholder="$t('hk.rooms.icalPlaceholder')"
             class="w-full rounded-md bg-white px-3.5 py-3 text-body text-neutral-900 shadow-sm outline-none placeholder:text-neutral-400"
           />
-          <p class="mt-2 text-caption text-neutral-400">Checked once a day, around 1:00 AM property-local time. Read-only.</p>
+          <p class="mt-2 text-caption text-neutral-400">{{ $t('hk.rooms.icalHint') }}</p>
         </div>
 
         <p v-if="submitError" class="mt-1 text-caption text-negative-600">{{ submitError.message }}</p>
 
         <button type="submit" :disabled="submitting" class="mt-4 rounded-lg bg-accent-500 py-3.5 text-body font-semibold text-white hover:bg-accent-600 disabled:opacity-60">
-          {{ submitting ? 'Saving…' : 'Save room' }}
+          {{ submitting ? $t('hk.rooms.saving') : $t('hk.rooms.saveRoom') }}
         </button>
         <button
           v-if="editingRoomId"
@@ -410,20 +417,20 @@ async function confirmArchiveTask() {
           class="mt-2.5 rounded-lg border border-negative-600/30 py-3 text-body-sm font-semibold text-negative-600 hover:bg-negative-600/5"
           @click="requestArchiveRoom"
         >
-          Remove this room
+          {{ $t('hk.rooms.removeRoom') }}
         </button>
       </form>
     </BottomSheet>
 
     <!-- Add/Edit task sheet -->
-    <BottomSheet :open="showTaskForm" :title="editingTaskId ? 'Edit task' : 'Add task'" @close="showTaskForm = false">
+    <BottomSheet :open="showTaskForm" :title="editingTaskId ? $t('hk.rooms.sheetEditTask') : $t('hk.rooms.sheetAddTask')" @close="showTaskForm = false">
       <form class="flex flex-col" @submit.prevent="submitTaskForm">
         <div class="mb-4">
-          <p class="mb-2 text-body-sm text-neutral-500">Task</p>
-          <input v-model="taskName" type="text" placeholder="Remove & replace linen…" class="w-full rounded-md bg-white px-3.5 py-3 text-body text-neutral-900 shadow-sm outline-none placeholder:text-neutral-400" />
+          <p class="mb-2 text-body-sm text-neutral-500">{{ $t('hk.rooms.taskFieldName') }}</p>
+          <input v-model="taskName" type="text" :placeholder="$t('hk.rooms.taskNamePlaceholder')" class="w-full rounded-md bg-white px-3.5 py-3 text-body text-neutral-900 shadow-sm outline-none placeholder:text-neutral-400" />
         </div>
         <div class="mb-4">
-          <p class="mb-2 text-body-sm text-neutral-500">Repeats</p>
+          <p class="mb-2 text-body-sm text-neutral-500">{{ $t('hk.rooms.repeats') }}</p>
           <div class="flex flex-wrap gap-2">
             <button
               v-for="(label, value) in CADENCE_LABELS"
@@ -450,14 +457,14 @@ async function confirmArchiveTask() {
           </button>
         </div>
         <div v-if="taskCadence === 'monthly' || taskCadence === 'quarterly'" class="mb-4 flex items-center justify-between rounded-md bg-white p-3.5 shadow-sm">
-          <span class="text-body-sm text-neutral-500">On day</span>
+          <span class="text-body-sm text-neutral-500">{{ $t('hk.rooms.onDay') }}</span>
           <input v-model.number="taskDayOfMonth" type="number" min="1" max="31" class="w-16 border-0 bg-transparent text-right text-body font-semibold text-neutral-900 outline-none" />
         </div>
 
         <p v-if="taskSubmitError" class="mt-1 text-caption text-negative-600">{{ taskSubmitError.message }}</p>
 
         <button type="submit" :disabled="taskSubmitting" class="mt-4 rounded-lg bg-accent-500 py-3.5 text-body font-semibold text-white hover:bg-accent-600 disabled:opacity-60">
-          {{ taskSubmitting ? 'Saving…' : 'Save task' }}
+          {{ taskSubmitting ? $t('hk.rooms.saving') : $t('hk.rooms.saveTask') }}
         </button>
         <button
           v-if="editingTaskId"
@@ -465,25 +472,25 @@ async function confirmArchiveTask() {
           class="mt-2.5 rounded-lg border border-negative-600/30 py-3 text-body-sm font-semibold text-negative-600 hover:bg-negative-600/5"
           @click="requestArchiveTask"
         >
-          Delete this task
+          {{ $t('hk.rooms.deleteTask') }}
         </button>
       </form>
     </BottomSheet>
 
     <ConfirmDialog
       :open="!!pendingArchiveRoom"
-      title="Remove this room?"
-      :description="pendingArchiveRoom ? `&quot;${pendingArchiveRoom.name}&quot; and its checklist will stop appearing in Today's schedule. Past history is kept.` : ''"
-      confirm-label="Remove"
+      :title="$t('hk.rooms.confirmRemoveRoomTitle')"
+      :description="pendingArchiveRoom ? $t('hk.rooms.confirmRemoveRoomDesc', { name: pendingArchiveRoom.name }) : ''"
+      :confirm-label="$t('hk.rooms.confirmRemove')"
       danger
       @confirm="confirmArchiveRoom"
       @cancel="pendingArchiveRoom = null"
     />
     <ConfirmDialog
       :open="!!pendingArchiveTask"
-      title="Delete this task?"
-      :description="pendingArchiveTask ? `&quot;${pendingArchiveTask.name}&quot; will stop appearing on the checklist. Past completions are kept.` : ''"
-      confirm-label="Delete"
+      :title="$t('hk.rooms.confirmDeleteTaskTitle')"
+      :description="pendingArchiveTask ? $t('hk.rooms.confirmDeleteTaskDesc', { name: pendingArchiveTask.name }) : ''"
+      :confirm-label="$t('hk.rooms.confirmDelete')"
       danger
       @confirm="confirmArchiveTask"
       @cancel="pendingArchiveTask = null"

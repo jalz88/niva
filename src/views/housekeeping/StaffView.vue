@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 import dayjs, { type Dayjs } from 'dayjs'
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-vue-next'
@@ -14,6 +15,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import type { NivaError } from '@/lib/errors'
 import type { WorkforceMember, CrewRole } from '@/types/database'
 
+const { t, tm } = useI18n()
 const { workspaceId } = useAuth()
 const {
   members,
@@ -47,12 +49,12 @@ watch(wfRevision, () => {
   if (workspaceId.value) listMembers(workspaceId.value)
 })
 
-const ROLE_LABELS: Record<CrewRole, string> = {
-  housekeeper: 'Housekeeper',
-  gardener: 'Gardener',
-  maintenance: 'Maintenance',
-  other: 'Other',
-}
+const ROLE_LABELS = computed<Record<CrewRole, string>>(() => ({
+  housekeeper: t('hk.staff.role.housekeeper'),
+  gardener: t('hk.staff.role.gardener'),
+  maintenance: t('hk.staff.role.maintenance'),
+  other: t('hk.staff.role.other'),
+}))
 
 const activeTab = ref<'calendar' | 'roster'>('calendar')
 
@@ -100,7 +102,7 @@ function openEditMember(m: WorkforceMember) {
 async function submitForm() {
   if (!workspaceId.value) return
   if (!formName.value.trim()) {
-    submitError.value = { code: 'validation_error', message: 'Give this person a name.', retryable: false }
+    submitError.value = { code: 'validation_error', message: t('hk.staff.validationName'), retryable: false }
     return
   }
 
@@ -121,7 +123,7 @@ async function submitForm() {
     submitError.value = err
     return
   }
-  toast.show(editingId.value ? 'Staff entry updated.' : `${payload.name} added to the roster.`)
+  toast.show(editingId.value ? t('hk.staff.toastUpdated') : t('hk.staff.toastAdded', { name: payload.name }))
   showForm.value = false
 }
 
@@ -135,7 +137,7 @@ async function confirmDeactivate() {
   if (!pendingDeactivate.value || !workspaceId.value) return
   const err = await setActive(pendingDeactivate.value.id, workspaceId.value, false)
   if (err) toast.show(err.message, { tone: 'error' })
-  else toast.show('Removed from active staff.')
+  else toast.show(t('hk.staff.toastRemoved'))
   pendingDeactivate.value = null
 }
 
@@ -192,8 +194,10 @@ async function onToggleDay(iso: string) {
   const wasOff = isOff(selectedMemberId.value, iso)
   const err = await toggleDayOff(workspaceId.value, selectedMemberId.value, iso)
   if (err) toast.show(err.message, { tone: 'error' })
-  else toast.show(wasOff ? 'Marked as a working day again.' : 'Marked off.')
+  else toast.show(wasOff ? t('hk.staff.toastMarkedWorking') : t('hk.staff.toastMarkedOff'))
 }
+
+const weekdayInitials = computed<string[]>(() => tm('hk.staff.weekdayInitials') as unknown as string[])
 </script>
 
 <template>
@@ -202,14 +206,14 @@ async function onToggleDay(iso: string) {
       <div>
         <RouterLink :to="{ name: 'housekeeping' }" class="mb-2 inline-flex items-center gap-1 text-body-sm font-medium text-neutral-500 hover:text-accent-600">
           <ChevronLeft :size="16" />
-          Housekeeping
+          {{ $t('hk.staff.backToHub') }}
         </RouterLink>
-        <h1 class="text-h1 font-semibold text-neutral-900">Staff</h1>
-        <p class="text-body-sm text-neutral-500">Roster and the work calendar.</p>
+        <h1 class="text-h1 font-semibold text-neutral-900">{{ $t('hk.staff.title') }}</h1>
+        <p class="text-body-sm text-neutral-500">{{ $t('hk.staff.subtitle') }}</p>
       </div>
       <button v-if="activeTab === 'roster'" type="button" class="flex items-center gap-1.5 rounded-pill bg-white px-4 py-2 text-body-sm font-medium text-neutral-700 shadow-sm" @click="openAddMember">
         <Plus :size="16" />
-        Add
+        {{ $t('hk.staff.listAdd') }}
       </button>
     </div>
 
@@ -220,7 +224,7 @@ async function onToggleDay(iso: string) {
         :class="activeTab === 'calendar' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500'"
         @click="activeTab = 'calendar'"
       >
-        Work calendar
+        {{ $t('hk.staff.tabCalendar') }}
       </button>
       <button
         type="button"
@@ -228,14 +232,14 @@ async function onToggleDay(iso: string) {
         :class="activeTab === 'roster' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500'"
         @click="activeTab = 'roster'"
       >
-        Roster
+        {{ $t('hk.staff.tabRoster') }}
       </button>
     </div>
 
     <!-- Work calendar -->
     <section v-if="activeTab === 'calendar'">
       <div v-if="!activeMembers.length" class="rounded-md bg-white p-6 text-center shadow-sm">
-        <p class="text-body-sm text-neutral-500">Add someone to the roster to track their days off.</p>
+        <p class="text-body-sm text-neutral-500">{{ $t('hk.staff.calendarEmpty') }}</p>
       </div>
       <template v-else>
         <div class="mb-3.5 flex flex-wrap gap-2">
@@ -262,7 +266,7 @@ async function onToggleDay(iso: string) {
             </button>
           </div>
           <div class="mb-1 grid grid-cols-7 text-center text-caption font-semibold text-neutral-400">
-            <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+            <span v-for="(d, i) in weekdayInitials" :key="i">{{ d }}</span>
           </div>
           <div class="grid grid-cols-7 gap-1">
             <template v-for="(cell, idx) in calendarCells" :key="idx">
@@ -278,16 +282,24 @@ async function onToggleDay(iso: string) {
                 @click="onToggleDay(cell.iso)"
               >
                 {{ cell.day }}
-                <span v-if="isBooked(cell.iso)" class="absolute bottom-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-accent-500" />
+                <span v-if="isBooked(cell.iso)" class="absolute bottom-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-accent-500" :aria-label="$t('hk.staff.bookedDot')" />
               </button>
             </template>
           </div>
-          <p class="mt-3 text-caption text-neutral-500">{{ offCountThisMonth }} day{{ offCountThisMonth === 1 ? '' : 's' }} off in {{ calendarMonth.format('MMMM') }}.</p>
+          <p class="mt-3 text-caption text-neutral-500">
+            {{
+              $t('hk.staff.offCountLabel', {
+                count: offCountThisMonth,
+                dayNoun: offCountThisMonth === 1 ? $t('hk.staff.dayNounOne') : $t('hk.staff.dayNounMany'),
+                month: calendarMonth.format('MMMM'),
+              })
+            }}
+          </p>
         </div>
         <p class="mt-3 text-caption text-neutral-400">
-          Tap a day to mark it worked or off.
-          <span class="inline-flex items-center gap-1"><span class="inline-block h-1.5 w-1.5 rounded-full bg-accent-500" /> = a linked room has a booking that day.</span>
-          A yearly leave summary per worker will live in Reports later.
+          {{ $t('hk.staff.tapHint') }}
+          <span class="inline-flex items-center gap-1"><span class="inline-block h-1.5 w-1.5 rounded-full bg-accent-500" /> {{ $t('hk.staff.bookedLegend') }}</span>
+          {{ $t('hk.staff.yearlyLeaveNote') }}
         </p>
       </template>
     </section>
@@ -299,12 +311,12 @@ async function onToggleDay(iso: string) {
       </div>
       <div v-else-if="error" class="flex items-center justify-between gap-3 rounded-md bg-negative-600/5 p-4 text-body-sm text-negative-600">
         <span>{{ error.message }}</span>
-        <button type="button" class="font-medium underline" @click="workspaceId && listMembers(workspaceId)">Try again</button>
+        <button type="button" class="font-medium underline" @click="workspaceId && listMembers(workspaceId)">{{ $t('hk.staff.tryAgain') }}</button>
       </div>
       <section v-else-if="!members.length" class="rounded-md bg-white p-6 text-center shadow-sm">
-        <h2 class="mb-1 text-h3 font-semibold text-neutral-900">No one on staff yet</h2>
-        <p class="mb-4 text-body-sm text-neutral-500">Add the first person to your roster.</p>
-        <button type="button" class="rounded-sm bg-accent-500 px-4 py-2 text-body-sm font-medium text-white hover:bg-accent-600" @click="openAddMember">Add person</button>
+        <h2 class="mb-1 text-h3 font-semibold text-neutral-900">{{ $t('hk.staff.rosterEmptyTitle') }}</h2>
+        <p class="mb-4 text-body-sm text-neutral-500">{{ $t('hk.staff.rosterEmptyBody') }}</p>
+        <button type="button" class="rounded-sm bg-accent-500 px-4 py-2 text-body-sm font-medium text-white hover:bg-accent-600" @click="openAddMember">{{ $t('hk.staff.rosterEmptyCta') }}</button>
       </section>
       <div v-else class="flex flex-col gap-2">
         <div
@@ -318,8 +330,8 @@ async function onToggleDay(iso: string) {
             <p class="truncate text-body font-semibold text-neutral-900">{{ m.name }}</p>
             <p class="truncate text-caption text-neutral-500">
               {{ ROLE_LABELS[m.crew_role] }}
-              <span :class="m.membership_id ? 'text-positive-600' : 'text-neutral-400'"> · {{ m.membership_id ? 'App access' : 'No app access' }}</span>
-              <span v-if="!m.is_active"> · Inactive</span>
+              <span :class="m.membership_id ? 'text-positive-600' : 'text-neutral-400'"> · {{ m.membership_id ? $t('hk.staff.appAccessYes') : $t('hk.staff.appAccessNo') }}</span>
+              <span v-if="!m.is_active"> · {{ $t('hk.staff.inactiveSuffix') }}</span>
             </p>
           </div>
           <ChevronRight :size="18" class="shrink-0 text-neutral-400" />
@@ -328,14 +340,14 @@ async function onToggleDay(iso: string) {
     </section>
 
     <!-- Add/Edit person sheet -->
-    <BottomSheet :open="showForm" :title="editingId ? 'Edit person' : 'Add person'" @close="showForm = false">
+    <BottomSheet :open="showForm" :title="editingId ? $t('hk.staff.sheetEditPerson') : $t('hk.staff.sheetAddPerson')" @close="showForm = false">
       <form class="flex flex-col" @submit.prevent="submitForm">
         <div class="mb-4">
-          <p class="mb-2 text-body-sm text-neutral-500">Name</p>
-          <input v-model="formName" type="text" placeholder="Jane…" class="w-full rounded-md bg-white px-3.5 py-3 text-body text-neutral-900 shadow-sm outline-none placeholder:text-neutral-400" />
+          <p class="mb-2 text-body-sm text-neutral-500">{{ $t('hk.staff.fieldName') }}</p>
+          <input v-model="formName" type="text" :placeholder="$t('hk.staff.namePlaceholder')" class="w-full rounded-md bg-white px-3.5 py-3 text-body text-neutral-900 shadow-sm outline-none placeholder:text-neutral-400" />
         </div>
         <div class="mb-4">
-          <p class="mb-2 text-body-sm text-neutral-500">Role</p>
+          <p class="mb-2 text-body-sm text-neutral-500">{{ $t('hk.staff.fieldRole') }}</p>
           <div class="flex flex-wrap gap-2">
             <button
               v-for="(label, value) in ROLE_LABELS"
@@ -351,8 +363,8 @@ async function onToggleDay(iso: string) {
         </div>
         <div class="mb-4 flex items-center justify-between rounded-md bg-white p-3.5 shadow-sm">
           <div>
-            <p class="text-body-sm font-medium text-neutral-900">Active</p>
-            <p class="text-caption text-neutral-500">Inactive people drop out of the round-robin and calendar.</p>
+            <p class="text-body-sm font-medium text-neutral-900">{{ $t('hk.staff.activeTitle') }}</p>
+            <p class="text-caption text-neutral-500">{{ $t('hk.staff.activeSub') }}</p>
           </div>
           <button
             type="button"
@@ -367,7 +379,7 @@ async function onToggleDay(iso: string) {
         </div>
 
         <div class="mb-4">
-          <p class="mb-2 text-body-sm text-neutral-500">Linked app account</p>
+          <p class="mb-2 text-body-sm text-neutral-500">{{ $t('hk.staff.linkedAccountLabel') }}</p>
           <div class="flex flex-wrap gap-2">
             <button
               type="button"
@@ -375,7 +387,7 @@ async function onToggleDay(iso: string) {
               :class="!formMembershipId ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : 'bg-white font-medium text-neutral-700 shadow-sm'"
               @click="formMembershipId = null"
             >
-              None
+              {{ $t('hk.staff.none') }}
             </button>
             <button
               v-for="a in availableAccounts"
@@ -385,16 +397,14 @@ async function onToggleDay(iso: string) {
               :class="formMembershipId === a.membershipId ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : 'bg-white font-medium text-neutral-700 shadow-sm'"
               @click="formMembershipId = a.membershipId"
             >
-              {{ a.displayName || a.email || 'Unnamed' }}
+              {{ a.displayName || a.email || $t('hk.staff.unnamed') }}
             </button>
           </div>
-          <p class="mt-2 text-caption text-neutral-400">
-            Without a linked account, this person stays on the roster and gets assigned rooms, but can't sign in. Add their account first under Administration → Users.
-          </p>
+          <p class="mt-2 text-caption text-neutral-400">{{ $t('hk.staff.linkedAccountHint') }}</p>
         </div>
 
         <div class="mb-1">
-          <p class="mb-2 text-body-sm text-neutral-500">Paid via</p>
+          <p class="mb-2 text-body-sm text-neutral-500">{{ $t('hk.staff.paidVia') }}</p>
           <div class="flex flex-wrap gap-2">
             <button
               type="button"
@@ -402,7 +412,7 @@ async function onToggleDay(iso: string) {
               :class="!formRecurringPaymentId ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : 'bg-white font-medium text-neutral-700 shadow-sm'"
               @click="formRecurringPaymentId = null"
             >
-              None
+              {{ $t('hk.staff.none') }}
             </button>
             <button
               v-for="p in recurringPayments"
@@ -415,13 +425,13 @@ async function onToggleDay(iso: string) {
               {{ p.name }}
             </button>
           </div>
-          <p class="mt-2 text-caption text-neutral-400">Links this person to a recurring payment, so their pay shows up alongside other bills.</p>
+          <p class="mt-2 text-caption text-neutral-400">{{ $t('hk.staff.paidViaHint') }}</p>
         </div>
 
         <p v-if="submitError" class="mt-3 text-caption text-negative-600">{{ submitError.message }}</p>
 
         <button type="submit" :disabled="submitting" class="mt-4 rounded-lg bg-accent-500 py-3.5 text-body font-semibold text-white hover:bg-accent-600 disabled:opacity-60">
-          {{ submitting ? 'Saving…' : 'Save' }}
+          {{ submitting ? $t('hk.staff.saving') : $t('hk.staff.save') }}
         </button>
         <button
           v-if="editingId"
@@ -429,16 +439,16 @@ async function onToggleDay(iso: string) {
           class="mt-2.5 rounded-lg border border-negative-600/30 py-3 text-body-sm font-semibold text-negative-600 hover:bg-negative-600/5"
           @click="requestDeactivate"
         >
-          Remove from active staff
+          {{ $t('hk.staff.removeFromStaff') }}
         </button>
       </form>
     </BottomSheet>
 
     <ConfirmDialog
       :open="!!pendingDeactivate"
-      title="Remove from active staff?"
-      :description="pendingDeactivate ? `&quot;${pendingDeactivate.name}&quot; will drop out of the round-robin, calendar, and reassign picker. Their history is kept — you can reactivate them later.` : ''"
-      confirm-label="Remove"
+      :title="$t('hk.staff.confirmRemoveTitle')"
+      :description="pendingDeactivate ? $t('hk.staff.confirmRemoveDesc', { name: pendingDeactivate.name }) : ''"
+      :confirm-label="$t('hk.staff.confirmRemove')"
       danger
       @confirm="confirmDeactivate"
       @cancel="pendingDeactivate = null"

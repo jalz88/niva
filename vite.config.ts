@@ -28,6 +28,13 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Registered manually in main.ts (with a tab-focus recheck + forced
+      // reload on update) instead of the plugin's auto-injected script,
+      // which only calls navigator.serviceWorker.register() once and never
+      // rechecks — 2026-08-26, this is why a tab left open (or an installed
+      // PWA reopened right after a new deploy) could sit on a stale build
+      // ("cache gets stuck").
+      injectRegister: false,
       // Release 1: cache the application shell only. Financial data is never
       // cached for offline writes — see docs/02-product-philosophy.md §9.
       workbox: {
