@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { useAuth } from '@/composables/useAuth'
 import { useHousekeepingToday, type RoomToday, type TodayTask } from '@/composables/useHousekeepingToday'
 import { useWorkforce } from '@/composables/useWorkforce'
+import { useRoomBookings } from '@/composables/useRoomBookings'
 import { useToastStore } from '@/stores/toastStore'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
-import { Check } from 'lucide-vue-next'
+import { Check, LogOut } from 'lucide-vue-next'
 
 // Shared by two routes — housekeeping-today (a staff account's own rooms,
 // no reassign controls) and housekeeping-schedule (administrator/manager,
@@ -16,9 +17,10 @@ import { Check } from 'lucide-vue-next'
 // just filtered and gated differently — mirrors
 // docs/housekeeping-in-app-prototype.html's renderTodayOrSchedule(mode).
 const route = useRoute()
+const router = useRouter()
 const mode = computed<'today' | 'schedule'>(() => (route.name === 'housekeeping-today' ? 'today' : 'schedule'))
 
-const { workspaceId, user, membershipId, role } = useAuth()
+const { workspaceId, user, membershipId, role, signOut } = useAuth()
 const { rooms, loading, error, revision: todayRevision, load, complete, uncomplete, markInspected } = useHousekeepingToday()
 const {
   members,
@@ -29,6 +31,7 @@ const {
   setAssignment,
   computeAssignments,
 } = useWorkforce()
+const { items: bookings, load: loadBookings } = useRoomBookings()
 const toast = useToastStore()
 
 const todayIso = dayjs().format('YYYY-MM-DD')
@@ -36,12 +39,51 @@ const todayLabel = dayjs().format('dddd, MMMM D')
 
 async function loadAll() {
   if (!workspaceId.value) return
-  await Promise.all([load(workspaceId.value), listMembers(workspaceId.value), loadDaysOff(workspaceId.value, todayIso, todayIso), loadAssignments(workspaceId.value, todayIso)])
+  await Promise.all([
+    load(workspaceId.value),
+    listMembers(workspaceId.value),
+    loadDaysOff(workspaceId.value, todayIso, todayIso),
+    loadAssignments(workspaceId.value, todayIso),
+    loadBookings(workspaceId.value, todayIso, todayIso),
+  ])
 }
 
 watch(workspaceId, loadAll, { immediate: true })
 watch(todayRevision, loadAll)
 watch(wfRevision, loadAll)
+
+// Kiosk mode (a staff/caretaker account, AppShell.vue's isKiosk) renders no
+// chrome at all around this view, so it's the only place a caretaker can
+// reach a sign-out control — 2026-08-25 fix, this was in the original
+// prototype's header (docs/housekeeping-in-app-prototype.html's
+// #signOutBtn, shown only for the Jane persona) but never carried into the
+// real build.
+const isKioskHeader = computed(() => mode.value === 'today' && role.value === 'staff')
+const signingOut = ref(false)
+async function onSignOut() {
+  signingOut.value = true
+  await signOut()
+  router.push({ name: 'sign-in' })
+}
+
+// "Checkout today" / "Stayover" badge for booking-linked rooms, sourced from
+// room_bookings (migration 0013, populated by the iCal sync). A linked room
+// with no booking today (vacant) gets no badge. Unlinked rooms (common
+// areas) never get one — matches the original plan in
+// docs/housekeeping-in-app-prototype.html: the badge is context, not a
+// filter, so stayover rooms stay on the checklist (2026-08-25, confirmed
+// with Jalie rather than assumed).
+type BookingBadge = { label: string; tone: 'checkout' | 'stayover' } | null
+function bookingBadge(room: RoomToday): BookingBadge {
+  if (!room.linkedToBookings) return null
+  const booking = bookings.value.find((b) => b.room_id === room.roomId && b.starts_on <= todayIso && todayIso <= b.ends_on)
+  if (!booking) return null
+  return booking.ends_on === todayIso ? { label: 'Checkout today', tone: 'checkout' } : { label: 'Stayover', tone: 'stayover' }
+}
+const BOOKING_BADGE_CLASS: Record<'checkout' | 'stayover', string> = {
+  checkout: 'bg-warn-50 text-warn-600',
+  stayover: 'bg-neutral-100 text-neutral-500',
+}
 
 // Inspection is a manager-level action (matches room_inspections' RLS,
 // migration 0012) — staff don't get the "Mark inspected" control at all,
@@ -146,6 +188,26 @@ const CADENCE_TAG_CLASS: Record<string, string> = {
 </script>
 
 <template>
+  <!-- Kiosk-only top bar: identity + sign out. This view otherwise has no
+       surrounding chrome for a staff account (AppShell.vue renders it
+       full-bleed), so this is the only sign-out affordance available. -->
+  <div v-if="isKioskHeader" class="flex items-center justify-between border-b border-neutral-200 bg-white px-4 py-3">
+    <div class="flex items-center gap-2">
+      <img src="/branding/niva-mark.svg" alt="" width="20" height="20" class="rounded-sm" />
+      <span class="text-body-sm font-semibold text-neutral-900">NIVA</span>
+    </div>
+    <button
+      type="button"
+      :disabled="signingOut"
+      aria-label="Sign out"
+      class="flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-caption font-medium text-neutral-500 hover:bg-neutral-100 disabled:opacity-60"
+      @click="onSignOut"
+    >
+      <LogOut :size="15" />
+      {{ signingOut ? 'Signing out…' : 'Sign out' }}
+    </button>
+  </div>
+
   <div class="mx-auto max-w-3xl px-4 pt-6 pb-24 md:pb-8">
     <header class="mb-4">
       <h1 class="text-h1 font-semibold text-neutral-900">{{ mode === 'today' ? 'Today' : "Today's schedule" }}</h1>
@@ -198,6 +260,13 @@ const CADENCE_TAG_CLASS: Record<string, string> = {
               <p class="truncate text-body font-semibold text-neutral-900">{{ room.roomName }}</p>
               <p class="truncate text-caption text-neutral-500">{{ room.roomType }}</p>
             </div>
+            <span
+              v-if="bookingBadge(room)"
+              class="shrink-0 rounded-pill px-2 py-0.5 text-caption font-semibold"
+              :class="BOOKING_BADGE_CLASS[bookingBadge(room)!.tone]"
+            >
+              {{ bookingBadge(room)!.label }}
+            </span>
           </div>
           <div class="my-1.5 h-1.5 overflow-hidden rounded-pill bg-neutral-100">
             <div
