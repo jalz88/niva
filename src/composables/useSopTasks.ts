@@ -5,6 +5,7 @@ import type { SopTask, SopCadenceType } from '@/types/database'
 
 export interface SopTaskPayload {
   name: string
+  nameSi?: string | null
   cadenceType: SopCadenceType
   cadenceDayOfWeek: number | null
   cadenceDayOfMonth: number | null
@@ -14,6 +15,7 @@ function toDbFields(roomId: string, payload: SopTaskPayload) {
   return {
     room_id: roomId,
     name: payload.name,
+    name_si: payload.nameSi || null,
     cadence_type: payload.cadenceType,
     cadence_day_of_week: payload.cadenceDayOfWeek,
     cadence_day_of_month: payload.cadenceDayOfMonth,

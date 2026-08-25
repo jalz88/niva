@@ -7,6 +7,7 @@ import { useAuth } from '@/composables/useAuth'
 import { useConfigItems } from '@/composables/useConfigItems'
 import { useRooms, type RoomPayload } from '@/composables/useRooms'
 import { useSopTasks, type SopTaskPayload } from '@/composables/useSopTasks'
+import { useLocale } from '@/composables/useLocale'
 import { useToastStore } from '@/stores/toastStore'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
@@ -14,6 +15,7 @@ import type { NivaError } from '@/lib/errors'
 import type { Room, RoomType, SopTask, SopCadenceType } from '@/types/database'
 
 const { t, tm } = useI18n()
+const { localizedName } = useLocale()
 const { workspaceId } = useAuth()
 const properties = useConfigItems('properties')
 const { items: rooms, loading, error, revision: roomsRevision, list, create: createRoom, update: updateRoom, archive: archiveRoom, syncIcal } = useRooms()
@@ -87,6 +89,7 @@ const WEEKDAY_SHORT = computed<string[]>(() => tm('hk.rooms.weekdaysShort') as u
 const showRoomForm = ref(false)
 const editingRoomId = ref<string | null>(null)
 const formName = ref('')
+const formNameSi = ref('')
 const formRoomType = ref<RoomType>('bedroom')
 const formLinked = ref(false)
 const formIcalUrl = ref('')
@@ -96,6 +99,7 @@ const submitError = ref<NivaError | null>(null)
 function openAddRoom() {
   editingRoomId.value = null
   formName.value = ''
+  formNameSi.value = ''
   formRoomType.value = 'bedroom'
   formLinked.value = false
   formIcalUrl.value = ''
@@ -105,6 +109,7 @@ function openAddRoom() {
 function openEditRoom(room: Room) {
   editingRoomId.value = room.id
   formName.value = room.name
+  formNameSi.value = room.name_si ?? ''
   formRoomType.value = room.room_type
   formLinked.value = room.linked_to_bookings
   formIcalUrl.value = room.ical_url ?? ''
@@ -126,6 +131,7 @@ async function submitRoomForm() {
   const payload: RoomPayload = {
     propertyId: activePropertyId.value,
     name: formName.value.trim(),
+    nameSi: formNameSi.value.trim() || null,
     roomType: formRoomType.value,
     linkedToBookings: formLinked.value,
     icalUrl: formIcalUrl.value.trim() || null,
@@ -169,6 +175,7 @@ async function confirmArchiveRoom() {
 const showTaskForm = ref(false)
 const editingTaskId = ref<string | null>(null)
 const taskName = ref('')
+const taskNameSi = ref('')
 const taskCadence = ref<SopCadenceType>('daily')
 const taskDayOfWeek = ref(1)
 const taskDayOfMonth = ref(1)
@@ -178,6 +185,7 @@ const taskSubmitError = ref<NivaError | null>(null)
 function openAddTask() {
   editingTaskId.value = null
   taskName.value = ''
+  taskNameSi.value = ''
   taskCadence.value = 'daily'
   taskDayOfWeek.value = 1
   taskDayOfMonth.value = 1
@@ -187,6 +195,7 @@ function openAddTask() {
 function openEditTask(task: SopTask) {
   editingTaskId.value = task.id
   taskName.value = task.name
+  taskNameSi.value = task.name_si ?? ''
   taskCadence.value = task.cadence_type
   taskDayOfWeek.value = task.cadence_day_of_week ?? 1
   taskDayOfMonth.value = task.cadence_day_of_month ?? 1
@@ -203,6 +212,7 @@ async function submitTaskForm() {
 
   const payload: SopTaskPayload = {
     name: taskName.value.trim(),
+    nameSi: taskNameSi.value.trim() || null,
     cadenceType: taskCadence.value,
     cadenceDayOfWeek: taskCadence.value === 'weekly' ? taskDayOfWeek.value : null,
     cadenceDayOfMonth: taskCadence.value === 'monthly' || taskCadence.value === 'quarterly' ? taskDayOfMonth.value : null,
@@ -278,7 +288,7 @@ async function confirmArchiveTask() {
           @click="openRoom(room)"
         >
           <div class="min-w-0">
-            <p class="truncate text-body font-semibold text-neutral-900">{{ room.name }}</p>
+            <p class="truncate text-body font-semibold text-neutral-900">{{ localizedName(room.name, room.name_si) }}</p>
             <p class="truncate text-caption text-neutral-500">
               {{ ROOM_TYPE_LABELS[room.room_type] }}<span v-if="room.linked_to_bookings"> · {{ $t('hk.rooms.bookingLinked') }}</span>
             </p>
@@ -297,7 +307,7 @@ async function confirmArchiveTask() {
         </button>
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h1 class="text-h1 font-semibold text-neutral-900">{{ selectedRoom.name }}</h1>
+            <h1 class="text-h1 font-semibold text-neutral-900">{{ localizedName(selectedRoom.name, selectedRoom.name_si) }}</h1>
             <p class="text-body-sm text-neutral-500">{{ ROOM_TYPE_LABELS[selectedRoom.room_type] }}</p>
           </div>
           <button type="button" class="rounded-pill bg-white px-4 py-2 text-body-sm font-medium text-neutral-700 shadow-sm" @click="openEditRoom(selectedRoom)">{{ $t('hk.rooms.edit') }}</button>
@@ -351,7 +361,7 @@ async function confirmArchiveTask() {
       </section>
       <div v-else class="flex flex-col gap-2">
         <div v-for="task in tasks" :key="task.id" class="flex cursor-pointer items-center justify-between gap-3 rounded-md bg-white p-3.5 shadow-sm hover:shadow-md" @click="openEditTask(task)">
-          <p class="truncate text-body-sm font-medium text-neutral-900">{{ task.name }}</p>
+          <p class="truncate text-body-sm font-medium text-neutral-900">{{ localizedName(task.name, task.name_si) }}</p>
           <span class="shrink-0 rounded-pill bg-neutral-100 px-2.5 py-1 text-caption font-semibold text-neutral-500">{{ CADENCE_LABELS[task.cadence_type] }}</span>
         </div>
       </div>
@@ -363,6 +373,11 @@ async function confirmArchiveTask() {
         <div class="mb-4">
           <p class="mb-2 text-body-sm text-neutral-500">{{ $t('hk.rooms.fieldName') }}</p>
           <input v-model="formName" type="text" :placeholder="$t('hk.rooms.namePlaceholder')" class="w-full rounded-md bg-white px-3.5 py-3 text-body text-neutral-900 shadow-sm outline-none placeholder:text-neutral-400" />
+        </div>
+        <div class="mb-4">
+          <p class="mb-2 text-body-sm text-neutral-500">{{ $t('hk.rooms.fieldNameSi') }}</p>
+          <input v-model="formNameSi" type="text" :placeholder="$t('hk.rooms.nameSiPlaceholder')" class="w-full rounded-md bg-white px-3.5 py-3 text-body text-neutral-900 shadow-sm outline-none placeholder:text-neutral-400" />
+          <p class="mt-2 text-caption text-neutral-400">{{ $t('hk.rooms.nameSiHint') }}</p>
         </div>
         <div class="mb-4">
           <p class="mb-2 text-body-sm text-neutral-500">{{ $t('hk.rooms.fieldType') }}</p>
@@ -428,6 +443,10 @@ async function confirmArchiveTask() {
         <div class="mb-4">
           <p class="mb-2 text-body-sm text-neutral-500">{{ $t('hk.rooms.taskFieldName') }}</p>
           <input v-model="taskName" type="text" :placeholder="$t('hk.rooms.taskNamePlaceholder')" class="w-full rounded-md bg-white px-3.5 py-3 text-body text-neutral-900 shadow-sm outline-none placeholder:text-neutral-400" />
+        </div>
+        <div class="mb-4">
+          <p class="mb-2 text-body-sm text-neutral-500">{{ $t('hk.rooms.taskFieldNameSi') }}</p>
+          <input v-model="taskNameSi" type="text" :placeholder="$t('hk.rooms.taskNameSiPlaceholder')" class="w-full rounded-md bg-white px-3.5 py-3 text-body text-neutral-900 shadow-sm outline-none placeholder:text-neutral-400" />
         </div>
         <div class="mb-4">
           <p class="mb-2 text-body-sm text-neutral-500">{{ $t('hk.rooms.repeats') }}</p>

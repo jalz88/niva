@@ -153,6 +153,11 @@ export interface Room {
   workspace_id: string
   property_id: string
   name: string
+  // Optional Sinhala name (migration 0014) — free text, admin-entered,
+  // shown in place of `name` only when the viewer's locale is Sinhala and
+  // this is set. Never auto-translated; there's no translation service in
+  // this app, just a second field.
+  name_si: string | null
   room_type: RoomType
   is_active: boolean
   linked_to_bookings: boolean
@@ -170,6 +175,8 @@ export interface SopTask {
   workspace_id: string
   room_id: string
   name: string
+  // See Room.name_si — same optional-second-field pattern.
+  name_si: string | null
   cadence_type: SopCadenceType
   // 0 (Sunday) - 6 (Saturday); set only when cadence_type is 'weekly'.
   cadence_day_of_week: number | null
@@ -189,10 +196,12 @@ export interface SopTask {
 export interface TodayChecklistRow {
   room_id: string
   room_name: string
+  room_name_si: string | null
   room_type: RoomType
   linked_to_bookings: boolean
   task_id: string
   task_name: string
+  task_name_si: string | null
   cadence_type: SopCadenceType
   due_on: string
   is_done: boolean

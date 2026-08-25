@@ -203,6 +203,7 @@ Physical spaces to clean — bedrooms, bathrooms, common areas, outdoor. A bedro
 | workspace_id | uuid, not null, fk → workspaces.id | |
 | property_id | uuid, not null, fk → properties.id | silently assigned, same single-active-property convention as `transactions` |
 | name | text, not null | "Room 1", "Garden" |
+| name_si | text, null | optional Sinhala display name (migration 0014, 2026-08-26); shown instead of `name` when a user is viewing the Housekeeping module in Sinhala (`useLocale().localizedName`), falls back to `name` when blank — see `09-wireframes.md` "Room/task names" |
 | room_type | text, not null | check in (`bedroom`,`bathroom`,`common_area`,`outdoor`) |
 | is_active | boolean, not null | default `true` |
 | linked_to_bookings | boolean, not null | default `false`; only `true` rooms may have `ical_url` set |
@@ -240,6 +241,7 @@ The cleaning checklist for a room, admin-defined per room rather than per room *
 | workspace_id | uuid, not null, fk → workspaces.id | |
 | room_id | uuid, not null, fk → rooms.id | |
 | name | text, not null | "Remove & replace linen" |
+| name_si | text, null | optional Sinhala display name (migration 0014, 2026-08-26); same fallback behavior as `rooms.name_si` above |
 | cadence_type | text, not null | check in (`daily`,`weekly`,`monthly`,`quarterly`) |
 | cadence_day_of_week | smallint, null | 0 (Sunday) – 6 (Saturday); set only when `cadence_type = 'weekly'` |
 | cadence_day_of_month | smallint, null | 1–31; set only when `cadence_type` is `monthly` or `quarterly` |
@@ -424,7 +426,7 @@ Two more, added by migration 0012, same `is_workspace_member` guard and `authent
 
 - `housekeeping_completion_summary(p_workspace_id, p_period_start, p_period_end)` — per-day counts of tasks due, completed, completed-on-time, and completed-late, grouped by `due_on`. The Dashboard glance line and the Reports trend chart read from the same function, just at different granularities — today only vs. the selected period.
 - `housekeeping_attention_rooms(p_workspace_id)` — one row per room currently overdue or un-inspected for more than a day, with `last_completed_at` and days-since. Backs the "Areas needing attention" list. Deliberately has no per-person breakdown — Jalie was explicit this isn't meant to be a staff performance metric (§11).
-- `housekeeping_today_checklist(p_workspace_id, p_as_of default current_date)` — one row per (room, task) with that task's current occurrence's due date and done/not-done state, already joined against the day's completion and inspection rows. Backs Today / Today's schedule directly, so the cadence math (`sop_task_current_due_on`) lives in one place instead of being duplicated in the client.
+- `housekeeping_today_checklist(p_workspace_id, p_as_of default current_date)` — one row per (room, task) with that task's current occurrence's due date and done/not-done state, already joined against the day's completion and inspection rows. Backs Today / Today's schedule directly, so the cadence math (`sop_task_current_due_on`) lives in one place instead of being duplicated in the client. Signature extended by migration 0014 (2026-08-26) to also return `room_name_si`/`task_name_si` alongside the existing name columns, so the client can render the Sinhala name without a second round-trip.
 
 ## 9. Open items for Phase 1 implementation
 

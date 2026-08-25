@@ -8,6 +8,7 @@ import { useHousekeepingToday, type RoomToday, type TodayTask } from '@/composab
 import { useWorkforce } from '@/composables/useWorkforce'
 import { useMembers } from '@/composables/useMembers'
 import { useRoomBookings } from '@/composables/useRoomBookings'
+import { useLocale } from '@/composables/useLocale'
 import { useToastStore } from '@/stores/toastStore'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
@@ -15,6 +16,7 @@ import LanguageToggle from '@/components/ui/LanguageToggle.vue'
 import { Check, LogOut } from 'lucide-vue-next'
 
 const { t } = useI18n()
+const { localizedName } = useLocale()
 
 // Shared by two routes — housekeeping-today (a staff account's own rooms,
 // no reassign controls) and housekeeping-schedule (administrator/manager,
@@ -283,7 +285,7 @@ const CADENCE_TAG_CLASS: Record<string, string> = {
         >
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
-              <p class="truncate text-body font-semibold text-neutral-900">{{ room.roomName }}</p>
+              <p class="truncate text-body font-semibold text-neutral-900">{{ localizedName(room.roomName, room.roomNameSi) }}</p>
               <p class="truncate text-caption text-neutral-500">{{ room.roomType }}</p>
             </div>
             <span
@@ -342,7 +344,7 @@ const CADENCE_TAG_CLASS: Record<string, string> = {
     </template>
 
     <!-- Room checklist sheet -->
-    <BottomSheet :open="!!openRoom" :title="openRoom?.roomName ?? ''" @close="openRoomId = null">
+    <BottomSheet :open="!!openRoom" :title="openRoom ? localizedName(openRoom.roomName, openRoom.roomNameSi) : ''" @close="openRoomId = null">
       <div v-if="openRoom" class="flex flex-col">
         <div v-for="task in openRoom.tasks" :key="task.taskId" class="flex items-start gap-3 border-b border-neutral-200 py-2.5 last:border-b-0" @click="onToggleTask(task)">
           <button
@@ -353,7 +355,7 @@ const CADENCE_TAG_CLASS: Record<string, string> = {
             <Check v-if="task.isDone" :size="13" class="text-white" />
           </button>
           <div class="min-w-0 flex-1 cursor-pointer">
-            <p class="text-body-sm font-medium" :class="task.isDone ? 'text-neutral-400 line-through' : 'text-neutral-900'">{{ task.name }}</p>
+            <p class="text-body-sm font-medium" :class="task.isDone ? 'text-neutral-400 line-through' : 'text-neutral-900'">{{ localizedName(task.name, task.nameSi) }}</p>
             <p v-if="task.isDone && task.completedBy" class="text-caption text-positive-600">{{ memberName(task.completedBy) }} · {{ dayjs(task.completedAt).format('h:mm A') }}</p>
           </div>
           <span class="shrink-0 self-start rounded-pill px-2 py-0.5 text-caption font-semibold" :class="CADENCE_TAG_CLASS[task.cadence]">{{ $t(`hk.today.cadence.${task.cadence}`) }}</span>
@@ -379,7 +381,7 @@ const CADENCE_TAG_CLASS: Record<string, string> = {
     <ConfirmDialog
       :open="!!pendingUntick"
       :title="$t('hk.today.undoTitle')"
-      :description="pendingUntick ? $t('hk.today.undoDescription', { name: memberName(pendingUntick.completedBy), task: pendingUntick.name }) : ''"
+      :description="pendingUntick ? $t('hk.today.undoDescription', { name: memberName(pendingUntick.completedBy), task: localizedName(pendingUntick.name, pendingUntick.nameSi) }) : ''"
       :confirm-label="$t('hk.today.undoConfirm')"
       danger
       @confirm="confirmUntick"

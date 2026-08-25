@@ -6,6 +6,7 @@ import type { Room, RoomType } from '@/types/database'
 export interface RoomPayload {
   propertyId: string
   name: string
+  nameSi?: string | null
   roomType: RoomType
   linkedToBookings: boolean
   icalUrl?: string | null
@@ -15,6 +16,7 @@ function toDbFields(payload: RoomPayload) {
   return {
     property_id: payload.propertyId,
     name: payload.name,
+    name_si: payload.nameSi || null,
     room_type: payload.roomType,
     linked_to_bookings: payload.linkedToBookings,
     // The rooms_ical_url_requires_link check constraint (migration 0012)

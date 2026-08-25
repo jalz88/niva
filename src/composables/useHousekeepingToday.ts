@@ -6,6 +6,7 @@ import type { TodayChecklistRow } from '@/types/database'
 export interface TodayTask {
   taskId: string
   name: string
+  nameSi: string | null
   cadence: string
   dueOn: string
   isDone: boolean
@@ -16,6 +17,7 @@ export interface TodayTask {
 export interface RoomToday {
   roomId: string
   roomName: string
+  roomNameSi: string | null
   roomType: string
   linkedToBookings: boolean
   tasks: TodayTask[]
@@ -31,6 +33,7 @@ function groupRooms(rows: TodayChecklistRow[]): RoomToday[] {
       room = {
         roomId: row.room_id,
         roomName: row.room_name,
+        roomNameSi: row.room_name_si,
         roomType: row.room_type,
         linkedToBookings: row.linked_to_bookings,
         tasks: [],
@@ -42,6 +45,7 @@ function groupRooms(rows: TodayChecklistRow[]): RoomToday[] {
     room.tasks.push({
       taskId: row.task_id,
       name: row.task_name,
+      nameSi: row.task_name_si,
       cadence: row.cadence_type,
       dueOn: row.due_on,
       isDone: row.is_done,

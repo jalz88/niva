@@ -13,5 +13,13 @@ export function useLocale() {
     localStorage.setItem(LOCALE_STORAGE_KEY, next)
   }
 
-  return { locale, setLocale }
+  // Room/task names are free text an admin types in (migration 0014's
+  // name_si), not fixed UI strings — there's no translation service here,
+  // just an optional second field. Falls back to the English/original name
+  // whenever no Sinhala name was given, so this is always safe to call.
+  function localizedName(name: string, nameSi: string | null | undefined): string {
+    return locale.value === 'si' && nameSi ? nameSi : name
+  }
+
+  return { locale, setLocale, localizedName }
 }
