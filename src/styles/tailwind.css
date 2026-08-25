@@ -20,10 +20,21 @@
   --color-neutral-700: #453F37;
   --color-neutral-900: #1C1916;
 
-  /* Semantic states — always paired with an icon/label, never color alone */
+  /* Semantic states — always paired with an icon/label, never color alone.
+     The -50 tints exist for pill/badge backgrounds (e.g. Housekeeping's
+     Checkout today/Stayover badges, cadence tags, Dashboard's attention
+     strip) — added 2026-08-26 after discovering `bg-warn-50`/`bg-info-50`
+     had been used since those features first shipped without ever being
+     defined here, so every one of those badges rendered as plain unstyled
+     text. Values carried over from the original prototype's already-
+     validated palette (docs/housekeeping-in-app-prototype.html). */
+  --color-positive-50: #EAF4EF;
   --color-positive-600: #2F7D5A;
+  --color-negative-50: #FBEAE9;
   --color-negative-600: #B3261E;
+  --color-warning-50: #FCF3E3;
   --color-warning-600: #B5720A;
+  --color-info-50: #EAF0F8;
   --color-info-600: #3D6AA8;
 
   /* Radii */

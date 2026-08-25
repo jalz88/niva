@@ -155,7 +155,7 @@ const platformGroups = computed(() => {
           item.tone === 'warning'
             ? 'border-negative-600 bg-negative-600/5 font-medium text-negative-600'
             : item.tone === 'notice'
-              ? 'border-warn-600 bg-warn-50 text-warn-600'
+              ? 'border-warning-600 bg-warning-50 text-warning-600'
               : 'border-transparent bg-white text-neutral-600',
         ]"
       >

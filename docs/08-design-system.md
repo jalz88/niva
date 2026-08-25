@@ -49,6 +49,8 @@ Per `04-ui-ux-principles.md` §6: never rely on color alone for income/expense. 
 
 All semantic tokens meet 4.5:1 contrast against `neutral-50`.
 
+**`-50` tints (added 2026-08-26):** each semantic color also has a light tint — `positive-50` `#EAF4EF`, `negative-50` `#FBEAE9`, `warning-50` `#FCF3E3`, `info-50` `#EAF0F8` — for filled pill/badge backgrounds paired with the `-600` shade as text (e.g. Housekeeping's Checkout today/Stayover badges and cadence tags, Dashboard's attention-strip "notice" items). These existed in the original prototype's palette but were never added here; code that referenced them (`bg-warn-50`, `bg-info-50`, and the misspelled `warn-*` instead of `warning-*`) compiled to nothing, so every one of those badges silently rendered as plain unstyled text from the day each feature shipped until this fix.
+
 **Income/Expense type toggle (decided 2026-08-06):** the Quick Add/Edit type toggle itself uses `positive-600` (green) for Income and `accent-500` (terracotta) for Expense — not `negative-600` red, which stays reserved for destructive actions and validation. This is scoped to that one control; amount coloring and +/- glyphs elsewhere keep the existing `positive-600`/`negative-600` pairing in §1.3.
 
 ### 1.4 Focus ring

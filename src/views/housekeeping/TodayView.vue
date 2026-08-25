@@ -101,12 +101,15 @@ function bookingBadge(room: RoomToday): BookingBadge {
     : { label: t('hk.today.stayover'), tone: 'stayover' }
 }
 // Colors match the original prototype's .room-badge.checkout/.stayover
-// (docs/housekeeping-in-app-prototype.html) — stayover had drifted to a dull
-// neutral gray in this build, when the prototype uses info-blue, same as
-// checkout's warn-orange. Fixed 2026-08-26: a badge meant to grab attention
-// shouldn't blend into the neutral chrome around it.
+// (docs/housekeeping-in-app-prototype.html). Real bug found 2026-08-26:
+// these referenced `warn-50`/`warn-600` (wrong token name — tailwind.css
+// only ever defined `warning-600`) and `info-50` (never defined at all, only
+// `info-600`), so neither badge has ever actually rendered in color since
+// this feature shipped — both silently fell back to unstyled text. Fixed by
+// adding the missing -50 tints to tailwind.css's @theme and correcting the
+// class names here.
 const BOOKING_BADGE_CLASS: Record<'checkout' | 'stayover', string> = {
-  checkout: 'bg-warn-50 text-warn-600',
+  checkout: 'bg-warning-50 text-warning-600',
   stayover: 'bg-info-50 text-info-600',
 }
 
@@ -152,6 +155,19 @@ function memberName(id: string | null): string {
   const membership = accounts.value.find((a) => a.userId === id)
   const workforceMember = membership ? members.value.find((m) => m.membership_id === membership.membershipId) : undefined
   return workforceMember?.name ?? membership?.displayName ?? membership?.email ?? t('hk.today.someone')
+}
+
+// Room assignment (dayAssignments/onReassign/computeAssignments, from
+// useWorkforce) is keyed by workforce_members.id — a different id space from
+// memberName()'s auth-user-id chain above. Passing an assignment id through
+// memberName() looked plausible (both take a string id and return a name)
+// but silently never matched, always falling through to "Someone" — caught
+// 2026-08-26 alongside the completedBy fix, same class of bug, different id
+// column. Assignment is always to an active workforce_member directly, so
+// this is a one-hop lookup, no membership/account chain needed.
+function assignedMemberName(workforceMemberId: string | null): string {
+  if (!workforceMemberId) return ''
+  return members.value.find((m) => m.id === workforceMemberId)?.name ?? t('hk.today.someone')
 }
 
 function lastUpdate(room: RoomToday) {
@@ -218,7 +234,7 @@ async function onReassign(roomId: string, memberId: string) {
 const CADENCE_TAG_CLASS: Record<string, string> = {
   daily: 'bg-neutral-100 text-neutral-500',
   weekly: 'bg-info-50 text-info-600',
-  monthly: 'bg-warn-50 text-warn-600',
+  monthly: 'bg-warning-50 text-warning-600',
   quarterly: 'bg-accent-100 text-accent-700',
 }
 </script>
@@ -328,7 +344,7 @@ const CADENCE_TAG_CLASS: Record<string, string> = {
           <template v-if="mode === 'schedule'">
             <div class="mt-2 flex items-center justify-between" @click.stop>
               <span class="text-caption text-neutral-500">
-                {{ dayAssignments[room.roomId] ? memberName(dayAssignments[room.roomId]!) : $t('hk.today.unassigned') }}
+                {{ dayAssignments[room.roomId] ? assignedMemberName(dayAssignments[room.roomId]!) : $t('hk.today.unassigned') }}
               </span>
               <button
                 v-if="onShiftHousekeepers.length > 1"
