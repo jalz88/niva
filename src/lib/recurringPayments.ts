@@ -50,15 +50,22 @@ export { WEEKDAY_NAMES }
 
 // Drives the Overdue/Upcoming grouping and each card's due-date caption on
 // RecurringPaymentsView. `today` is injectable for testing.
-export function dueLabel(nextDueOn: string, today: Dayjs = dayjs()): { status: 'overdue' | 'upcoming'; label: string } {
+//
+// canMarkPaid (2026-08-26, Jalie's report): a payment due *today* is just as
+// payable as one that's overdue — there's no reason to make her wait until
+// tomorrow for the button to appear. It stays grouped under "Upcoming"
+// (it isn't overdue, so the red styling/heading would be misleading), but
+// still gets the Mark paid action. Only strictly-future payments (diff > 0)
+// don't.
+export function dueLabel(nextDueOn: string, today: Dayjs = dayjs()): { status: 'overdue' | 'upcoming'; label: string; canMarkPaid: boolean } {
   const due = dayjs(nextDueOn).startOf('day')
   const diff = due.diff(today.startOf('day'), 'day')
 
   if (diff < 0) {
     const days = Math.abs(diff)
-    return { status: 'overdue', label: `${days} day${days === 1 ? '' : 's'} overdue` }
+    return { status: 'overdue', label: `${days} day${days === 1 ? '' : 's'} overdue`, canMarkPaid: true }
   }
-  if (diff === 0) return { status: 'upcoming', label: 'Due today' }
-  if (diff === 1) return { status: 'upcoming', label: 'Due tomorrow' }
-  return { status: 'upcoming', label: `Due in ${diff} days` }
+  if (diff === 0) return { status: 'upcoming', label: 'Due today', canMarkPaid: true }
+  if (diff === 1) return { status: 'upcoming', label: 'Due tomorrow', canMarkPaid: false }
+  return { status: 'upcoming', label: `Due in ${diff} days`, canMarkPaid: false }
 }

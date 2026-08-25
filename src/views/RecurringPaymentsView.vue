@@ -363,6 +363,16 @@ async function confirmMarkPaid() {
                 <p class="text-caption text-neutral-500">{{ due.label }}</p>
               </div>
             </div>
+            <!-- Due today is payable now, same as overdue — see dueLabel()'s
+                 canMarkPaid in src/lib/recurringPayments.ts. -->
+            <button
+              v-if="due.canMarkPaid"
+              type="button"
+              class="mt-3 w-full rounded-pill bg-accent-500 py-2.5 text-body-sm font-semibold text-white hover:bg-accent-600"
+              @click.stop="openMarkPaid(item)"
+            >
+              Mark paid
+            </button>
           </div>
         </div>
       </template>
