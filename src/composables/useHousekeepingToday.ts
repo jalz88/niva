@@ -25,6 +25,13 @@ export interface RoomToday {
   inspectedAt: string | null
 }
 
+// Daily tasks are what a caretaker does every single day regardless of
+// anything else, so they lead the checklist; weekly/monthly/quarterly follow
+// in descending frequency. Requested 2026-08-26 after Jalie noticed a room's
+// task list mixed cadences in whatever order they were typed in, making the
+// daily "always do these" tasks easy to miss among less-frequent ones.
+const CADENCE_RANK: Record<string, number> = { daily: 0, weekly: 1, monthly: 2, quarterly: 3 }
+
 function groupRooms(rows: TodayChecklistRow[]): RoomToday[] {
   const byRoom = new Map<string, RoomToday>()
   for (const row of rows) {
@@ -52,6 +59,9 @@ function groupRooms(rows: TodayChecklistRow[]): RoomToday[] {
       completedBy: row.completed_by,
       completedAt: row.completed_at,
     })
+  }
+  for (const room of byRoom.values()) {
+    room.tasks.sort((a, b) => (CADENCE_RANK[a.cadence] ?? 99) - (CADENCE_RANK[b.cadence] ?? 99) || a.name.localeCompare(b.name))
   }
   return [...byRoom.values()].sort((a, b) => a.roomName.localeCompare(b.roomName))
 }

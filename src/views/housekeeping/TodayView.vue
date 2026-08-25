@@ -120,11 +120,19 @@ function roomProgress(room: RoomToday) {
   return { done, total: room.tasks.length, complete: room.tasks.length > 0 && done === room.tasks.length }
 }
 
+// Checkout-today rooms need to be ready before the next guest arrives, so
+// they lead the list — ahead of stayovers, which lead everything else with
+// no booking badge. Requested 2026-08-26: a checkout room buried at the
+// bottom (alphabetically) is easy to miss until it's already late in the day.
+const BOOKING_URGENCY_RANK: Record<'checkout' | 'stayover' | 'none', number> = { checkout: 0, stayover: 1, none: 2 }
+function bookingUrgency(room: RoomToday): number {
+  return BOOKING_URGENCY_RANK[bookingBadge(room)?.tone ?? 'none']
+}
+
 const visibleRooms = computed(() => {
-  if (mode.value === 'today') {
-    return rooms.value.filter((r) => dayAssignments.value[r.roomId] === myWorkforceMemberId.value)
-  }
-  return rooms.value
+  const filtered =
+    mode.value === 'today' ? rooms.value.filter((r) => dayAssignments.value[r.roomId] === myWorkforceMemberId.value) : rooms.value
+  return [...filtered].sort((a, b) => bookingUrgency(a) - bookingUrgency(b) || a.roomName.localeCompare(b.roomName))
 })
 
 const daySummary = computed(() => {
