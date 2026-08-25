@@ -6,6 +6,7 @@ import dayjs from 'dayjs'
 import { useAuth } from '@/composables/useAuth'
 import { useHousekeepingToday, type RoomToday, type TodayTask } from '@/composables/useHousekeepingToday'
 import { useWorkforce } from '@/composables/useWorkforce'
+import { useMembers } from '@/composables/useMembers'
 import { useRoomBookings } from '@/composables/useRoomBookings'
 import { useToastStore } from '@/stores/toastStore'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
@@ -36,6 +37,16 @@ const {
   computeAssignments,
 } = useWorkforce()
 const { items: bookings, load: loadBookings } = useRoomBookings()
+// Resolves an auth user id (task.completedBy/inspectedBy — see migration
+// 0012, both reference auth.users) to a display name. workforce_members'
+// own `id` is a different UUID space entirely (its PK, not an auth user
+// id) — matching completedBy against it directly, as this used to,
+// silently never matches and falls through to "Someone" for anyone but the
+// viewer themself. The real chain is completedBy (auth uid) ->
+// workspace_memberships.user_id -> workspace_memberships.id ->
+// workforce_members.membership_id -> workforce_members.name (2026-08-26,
+// bug caught by Jalie testing the staff account).
+const { members: accounts, list: listAccounts } = useMembers()
 const toast = useToastStore()
 
 const todayIso = dayjs().format('YYYY-MM-DD')
@@ -46,6 +57,7 @@ async function loadAll() {
   await Promise.all([
     load(workspaceId.value),
     listMembers(workspaceId.value),
+    listAccounts(workspaceId.value),
     loadDaysOff(workspaceId.value, todayIso, todayIso),
     loadAssignments(workspaceId.value, todayIso),
     loadBookings(workspaceId.value, todayIso, todayIso),
@@ -122,7 +134,9 @@ const daySummary = computed(() => {
 function memberName(id: string | null): string {
   if (!id) return ''
   if (id === user.value?.id) return t('hk.today.you')
-  return members.value.find((m) => m.id === id)?.name ?? t('hk.today.someone')
+  const membership = accounts.value.find((a) => a.userId === id)
+  const workforceMember = membership ? members.value.find((m) => m.membership_id === membership.membershipId) : undefined
+  return workforceMember?.name ?? membership?.displayName ?? membership?.email ?? t('hk.today.someone')
 }
 
 function lastUpdate(room: RoomToday) {
