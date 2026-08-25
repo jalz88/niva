@@ -100,9 +100,14 @@ function bookingBadge(room: RoomToday): BookingBadge {
     ? { label: t('hk.today.checkoutToday'), tone: 'checkout' }
     : { label: t('hk.today.stayover'), tone: 'stayover' }
 }
+// Colors match the original prototype's .room-badge.checkout/.stayover
+// (docs/housekeeping-in-app-prototype.html) — stayover had drifted to a dull
+// neutral gray in this build, when the prototype uses info-blue, same as
+// checkout's warn-orange. Fixed 2026-08-26: a badge meant to grab attention
+// shouldn't blend into the neutral chrome around it.
 const BOOKING_BADGE_CLASS: Record<'checkout' | 'stayover', string> = {
   checkout: 'bg-warn-50 text-warn-600',
-  stayover: 'bg-neutral-100 text-neutral-500',
+  stayover: 'bg-info-50 text-info-600',
 }
 
 // Inspection is a manager-level action (matches room_inspections' RLS,
