@@ -199,7 +199,7 @@ async function onAdd() {
   <div class="mx-auto max-w-2xl px-4 pt-6 pb-24 md:pb-8">
     <AdminBackHeader title="Users" description="Who can access this workspace, and what they're allowed to do." />
 
-    <div class="mb-6 rounded-md border border-neutral-200 bg-white p-4 shadow-sm">
+    <div class="mb-6 rounded-md bg-white p-4 shadow-sm">
       <h2 class="mb-1 text-h3 font-semibold text-neutral-900">Add a member</h2>
       <p class="mb-3 text-body-sm text-neutral-500">
         The person needs a Supabase Auth account first (Supabase dashboard → Authentication → Users → Add user).
@@ -210,11 +210,11 @@ async function onAdd() {
           v-model="newUserId"
           type="text"
           placeholder="User UID"
-          class="flex-1 rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
+          class="flex-1 rounded-md bg-white px-3.5 py-3 text-body text-neutral-900 shadow-sm outline-none placeholder:text-neutral-400"
         />
         <select
           v-model="newRole"
-          class="rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
+          class="rounded-md bg-white px-3.5 py-3 text-body text-neutral-900 shadow-sm outline-none"
         >
           <option v-for="r in roles" :key="r" :value="r">{{ r }}</option>
         </select>
@@ -231,25 +231,25 @@ async function onAdd() {
     </div>
 
     <div v-if="members.loading.value" class="space-y-2">
-      <div v-for="n in 2" :key="n" class="h-12 rounded-md bg-neutral-200" />
+      <div v-for="n in 2" :key="n" class="h-12 animate-pulse rounded-md bg-neutral-100" />
     </div>
 
     <div
       v-else-if="members.error.value"
-      class="rounded-md border border-negative-600/30 bg-negative-600/5 p-4 text-body-sm text-negative-600"
+      class="rounded-md bg-negative-600/5 p-4 text-body-sm text-negative-600"
       role="alert"
     >
       {{ members.error.value.message }}
     </div>
 
-    <ul v-else class="divide-y divide-neutral-200 rounded-md border border-neutral-200 bg-white shadow-sm">
+    <ul v-else class="divide-y divide-neutral-100 rounded-md bg-white shadow-sm">
       <li v-for="member in members.members.value" :key="member.membershipId" class="flex items-center gap-3 px-4 py-3">
         <div v-if="editingUserId === member.userId" class="flex flex-1 items-center gap-2">
           <input
             v-model="editingName"
             type="text"
             placeholder="Name"
-            class="flex-1 rounded-sm border border-accent-500 p-1.5 text-body focus:outline-none focus:ring-2 focus:ring-accent-500/40"
+            class="flex-1 rounded-md bg-white px-3 py-2 text-body text-neutral-900 shadow-sm outline-none"
             @keyup.enter="confirmEditName(member.userId)"
             @keyup.escape="cancelEditName"
           />
@@ -284,7 +284,7 @@ async function onAdd() {
         <select
           :value="member.role"
           :disabled="member.userId === user?.id || savingId === member.membershipId"
-          class="rounded-sm border border-neutral-200 bg-white p-1.5 text-body-sm focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40 disabled:bg-neutral-100 disabled:text-neutral-400"
+          class="rounded-md bg-white px-3 py-1.5 text-body-sm text-neutral-900 shadow-sm outline-none disabled:bg-neutral-100 disabled:text-neutral-400"
           @change="onRoleChange(member.membershipId, ($event.target as HTMLSelectElement).value as Role)"
         >
           <option v-for="r in roles" :key="r" :value="r">{{ r }}</option>

@@ -130,7 +130,7 @@ async function toggleFavorite(item: Item) {
         v-model="newName"
         type="text"
         :placeholder="namePlaceholder"
-        class="flex-1 rounded-sm border border-neutral-200 bg-white p-2.5 text-body focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40"
+        class="flex-1 rounded-md bg-white px-3.5 py-3 text-body text-neutral-900 shadow-sm outline-none placeholder:text-neutral-400"
       />
       <button
         type="submit"
@@ -147,13 +147,13 @@ async function toggleFavorite(item: Item) {
 
     <!-- Loading (only shown on a true first load — see the composables' cache, which skips this on repeat visits) -->
     <div v-if="loading" class="space-y-2">
-      <div v-for="n in 3" :key="n" class="h-12 rounded-md bg-neutral-200" />
+      <div v-for="n in 3" :key="n" class="h-12 animate-pulse rounded-md bg-neutral-100" />
     </div>
 
     <!-- Error -->
     <div
       v-else-if="error"
-      class="rounded-md border border-negative-600/30 bg-negative-600/5 p-4 text-body-sm text-negative-600"
+      class="rounded-md bg-negative-600/5 p-4 text-body-sm text-negative-600"
       role="alert"
     >
       {{ error.message }}
@@ -162,7 +162,7 @@ async function toggleFavorite(item: Item) {
     <!-- Empty -->
     <div
       v-else-if="items.length === 0"
-      :class="compact ? 'py-2 text-left' : 'rounded-md border border-neutral-200 bg-white p-6 text-center shadow-sm'"
+      :class="compact ? 'py-2 text-left' : 'rounded-md bg-white p-6 text-center shadow-sm'"
     >
       <p class="text-body-sm text-neutral-500">Nothing here yet. Add your first one above.</p>
     </div>
@@ -171,7 +171,7 @@ async function toggleFavorite(item: Item) {
     <ul
       v-else
       class="mb-6 divide-y"
-      :class="compact ? 'divide-neutral-100' : 'divide-neutral-200 rounded-md border border-neutral-200 bg-white shadow-sm'"
+      :class="compact ? 'divide-neutral-100' : 'divide-neutral-100 rounded-md bg-white shadow-sm'"
     >
       <li v-for="item in items" :key="item.id" class="px-4 py-3">
       <div class="flex items-center gap-2">
@@ -179,7 +179,7 @@ async function toggleFavorite(item: Item) {
           <input
             v-model="editingName"
             type="text"
-            class="flex-1 rounded-sm border border-accent-500 p-1.5 text-body focus:outline-none focus:ring-2 focus:ring-accent-500/40"
+            class="flex-1 rounded-md bg-white px-3 py-2 text-body text-neutral-900 shadow-sm outline-none"
             @keyup.enter="confirmEdit(item.id)"
             @keyup.escape="cancelEdit"
           />

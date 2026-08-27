@@ -16,7 +16,7 @@ const areas = [
 <template>
   <div class="mx-auto max-w-3xl px-4 pt-6">
     <h1 class="mb-4 text-h1 font-semibold text-neutral-900">Administration</h1>
-    <ul class="divide-y divide-neutral-200 rounded-md border border-neutral-200 bg-white shadow-sm">
+    <ul class="divide-y divide-neutral-100 rounded-md bg-white shadow-sm">
       <li v-for="area in areas" :key="area.name">
         <RouterLink
           :to="{ name: area.name }"

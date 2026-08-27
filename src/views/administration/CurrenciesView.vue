@@ -72,18 +72,18 @@ async function makeDefault(code: string) {
     />
 
     <div v-if="currencies.loading.value" class="space-y-2">
-      <div v-for="n in 4" :key="n" class="h-12 rounded-md bg-neutral-200" />
+      <div v-for="n in 4" :key="n" class="h-12 animate-pulse rounded-md bg-neutral-100" />
     </div>
 
     <div
       v-else-if="currencies.error.value"
-      class="rounded-md border border-negative-600/30 bg-negative-600/5 p-4 text-body-sm text-negative-600"
+      class="rounded-md bg-negative-600/5 p-4 text-body-sm text-negative-600"
       role="alert"
     >
       {{ currencies.error.value.message }}
     </div>
 
-    <ul v-else class="divide-y divide-neutral-200 rounded-md border border-neutral-200 bg-white shadow-sm">
+    <ul v-else class="divide-y divide-neutral-100 rounded-md bg-white shadow-sm">
       <li v-for="row in currencies.rows.value" :key="row.code" class="flex flex-col gap-2 px-4 py-3">
         <div class="flex items-center gap-3">
           <div class="flex-1">
@@ -129,7 +129,7 @@ async function makeDefault(code: string) {
             step="any"
             inputmode="decimal"
             placeholder="not set"
-            class="w-24 rounded-sm border border-neutral-200 p-1.5 text-body-sm"
+            class="w-24 rounded-md bg-white px-2.5 py-1.5 text-body-sm text-neutral-900 shadow-sm outline-none"
             :value="rateDrafts[row.code] ?? row.referenceRateToDefault ?? ''"
             :disabled="savingCode === row.code"
             @input="rateDrafts[row.code] = ($event.target as HTMLInputElement).value"
