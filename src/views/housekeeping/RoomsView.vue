@@ -76,7 +76,20 @@ const ROOM_TYPE_LABELS = computed<Record<RoomType, string>>(() => ({
   common_area: t('hk.rooms.roomType.common_area'),
   outdoor: t('hk.rooms.roomType.outdoor'),
 }))
+// 'once' tasks (migration 0015 — manager-added ad hoc tasks for a single
+// day, created only from the Today checklist's "add for today" action) can
+// still turn up in this room's task list, so the display map needs a label
+// for them. But they're deliberately excluded from the chip picker below —
+// there's no reason an admin would hand-create a permanent-looking task with
+// a one-off cadence from this form.
 const CADENCE_LABELS = computed<Record<SopCadenceType, string>>(() => ({
+  daily: t('hk.rooms.cadence.daily'),
+  weekly: t('hk.rooms.cadence.weekly'),
+  monthly: t('hk.rooms.cadence.monthly'),
+  quarterly: t('hk.rooms.cadence.quarterly'),
+  once: t('hk.rooms.cadence.once'),
+}))
+const CADENCE_PICKER_OPTIONS = computed<Record<Exclude<SopCadenceType, 'once'>, string>>(() => ({
   daily: t('hk.rooms.cadence.daily'),
   weekly: t('hk.rooms.cadence.weekly'),
   monthly: t('hk.rooms.cadence.monthly'),
@@ -452,7 +465,7 @@ async function confirmArchiveTask() {
           <p class="mb-2 text-body-sm text-neutral-500">{{ $t('hk.rooms.repeats') }}</p>
           <div class="flex flex-wrap gap-2">
             <button
-              v-for="(label, value) in CADENCE_LABELS"
+              v-for="(label, value) in CADENCE_PICKER_OPTIONS"
               :key="value"
               type="button"
               class="rounded-pill px-4 py-2.5 text-body-sm"

@@ -145,7 +145,11 @@ export interface RecurringPaymentWithLabels extends RecurringPayment {
 // ---------------------------------------------------------------------------
 
 export type RoomType = 'bedroom' | 'bathroom' | 'common_area' | 'outdoor'
-export type SopCadenceType = 'daily' | 'weekly' | 'monthly' | 'quarterly'
+// 'once' (migration 0015) is a manager-added ad hoc task for a single day —
+// see sop_task_add_for_today() — not a real recurring cadence, so it's kept
+// out of the admin cadence chip picker in RoomsView.vue and only ever
+// created via the Today checklist's "add for today" action.
+export type SopCadenceType = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'once'
 export type CrewRole = 'housekeeper' | 'gardener' | 'maintenance' | 'other'
 
 export interface Room {
@@ -182,6 +186,9 @@ export interface SopTask {
   cadence_day_of_week: number | null
   // 1-31; set only when cadence_type is 'monthly' or 'quarterly'.
   cadence_day_of_month: number | null
+  // Set only when cadence_type is 'once' — the single day this ad hoc task
+  // is due (migration 0015). Never set by the Rooms admin form.
+  once_on: string | null
   is_active: boolean
   created_by: string
   created_at: string
@@ -205,6 +212,10 @@ export interface TodayChecklistRow {
   cadence_type: SopCadenceType
   due_on: string
   is_done: boolean
+  // True when an administrator/manager skipped this occurrence for today
+  // (migration 0015, sop_task_skips) — excluded from progress totals, shown
+  // struck through with an "Undo skip" affordance for admin/manager.
+  is_skipped: boolean
   completed_by: string | null
   completed_at: string | null
   inspected_by: string | null

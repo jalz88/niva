@@ -28,7 +28,19 @@ const router = useRouter()
 const mode = computed<'today' | 'schedule'>(() => (route.name === 'housekeeping-today' ? 'today' : 'schedule'))
 
 const { workspaceId, user, membershipId, role, signOut } = useAuth()
-const { rooms, loading, error, revision: todayRevision, load, complete, uncomplete, markInspected } = useHousekeepingToday()
+const {
+  rooms,
+  loading,
+  error,
+  revision: todayRevision,
+  load,
+  complete,
+  uncomplete,
+  markInspected,
+  skipTask,
+  unskipTask,
+  addOneOffTask,
+} = useHousekeepingToday()
 const {
   members,
   revision: wfRevision,
@@ -123,9 +135,17 @@ const dueRoomIds = computed(() => rooms.value.map((r) => r.roomId))
 const dayAssignments = computed(() => computeAssignments(dueRoomIds.value, todayIso))
 const onShiftHousekeepers = computed(() => members.value.filter((m) => m.crew_role === 'housekeeper' && m.is_active))
 
+// A skipped task (Model A, migration 0015) isn't counted toward progress at
+// all — it's still shown in the checklist sheet (struck through, with an
+// "Undo skip" for admin/manager) but doesn't drag the room's percentage down
+// for something the manager already decided doesn't need doing today.
+function activeTasks(room: RoomToday) {
+  return room.tasks.filter((t) => !t.isSkipped)
+}
 function roomProgress(room: RoomToday) {
-  const done = room.tasks.filter((t) => t.isDone).length
-  return { done, total: room.tasks.length, complete: room.tasks.length > 0 && done === room.tasks.length }
+  const active = activeTasks(room)
+  const done = active.filter((t) => t.isDone).length
+  return { done, total: active.length, complete: active.length > 0 && done === active.length }
 }
 
 // Checkout-today rooms need to be ready before the next guest arrives, so
@@ -180,8 +200,10 @@ function lastUpdate(room: RoomToday) {
 
 const openRoomId = ref<string | null>(null)
 const openRoom = computed(() => rooms.value.find((r) => r.roomId === openRoomId.value) ?? null)
+const oneOffName = ref('')
 function openRoomSheet(roomId: string) {
   openRoomId.value = roomId
+  oneOffName.value = ''
 }
 
 const pendingUntick = ref<TodayTask | null>(null)
@@ -213,6 +235,33 @@ async function confirmUntick() {
   pendingUntick.value = null
 }
 
+// Model A (2026-08-26): administrator/manager only, matches canInspect's
+// existing gate for markInspected — day-to-day checklist adjustments, not
+// something a caretaker does to her own list.
+async function onSkipTask(task: TodayTask) {
+  const err = await skipTask(task.taskId, task.dueOn)
+  if (err) toast.show(err.message, { tone: 'error' })
+  else toast.show(t('hk.today.taskSkipped'))
+}
+
+async function onUnskipTask(task: TodayTask) {
+  const err = await unskipTask(task.taskId, task.dueOn)
+  if (err) toast.show(err.message, { tone: 'error' })
+}
+
+async function onAddOneOff() {
+  if (!openRoom.value) return
+  const name = oneOffName.value.trim()
+  if (!name) return
+  const err = await addOneOffTask(openRoom.value.roomId, name)
+  if (err) {
+    toast.show(err.message, { tone: 'error' })
+    return
+  }
+  oneOffName.value = ''
+  toast.show(t('hk.today.oneOffAdded'))
+}
+
 async function onMarkInspected(roomId: string) {
   if (!workspaceId.value) return
   const roomName = rooms.value.find((r) => r.roomId === roomId)?.roomName ?? ''
@@ -236,6 +285,7 @@ const CADENCE_TAG_CLASS: Record<string, string> = {
   weekly: 'bg-info-50 text-info-600',
   monthly: 'bg-warning-50 text-warning-600',
   quarterly: 'bg-accent-100 text-accent-700',
+  once: 'bg-accent-50 text-accent-600',
 }
 </script>
 
@@ -375,19 +425,49 @@ const CADENCE_TAG_CLASS: Record<string, string> = {
     <!-- Room checklist sheet -->
     <BottomSheet :open="!!openRoom" :title="openRoom ? localizedName(openRoom.roomName, openRoom.roomNameSi) : ''" @close="openRoomId = null">
       <div v-if="openRoom" class="flex flex-col">
-        <div v-for="task in openRoom.tasks" :key="task.taskId" class="flex items-start gap-3 border-b border-neutral-200 py-2.5 last:border-b-0" @click="onToggleTask(task)">
+        <div
+          v-for="task in openRoom.tasks"
+          :key="task.taskId"
+          class="flex items-start gap-3 border-b border-neutral-200 py-2.5 last:border-b-0"
+          @click="!task.isSkipped && onToggleTask(task)"
+        >
           <button
             type="button"
             class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border-2"
-            :class="task.isDone ? 'border-positive-600 bg-positive-600' : 'border-neutral-300'"
+            :class="task.isSkipped ? 'border-neutral-200' : task.isDone ? 'border-positive-600 bg-positive-600' : 'border-neutral-300'"
+            :disabled="task.isSkipped"
           >
             <Check v-if="task.isDone" :size="13" class="text-white" />
           </button>
-          <div class="min-w-0 flex-1 cursor-pointer">
-            <p class="text-body-sm font-medium" :class="task.isDone ? 'text-neutral-400 line-through' : 'text-neutral-900'">{{ localizedName(task.name, task.nameSi) }}</p>
+          <div class="min-w-0 flex-1" :class="task.isSkipped ? '' : 'cursor-pointer'">
+            <p class="text-body-sm font-medium" :class="task.isDone || task.isSkipped ? 'text-neutral-400 line-through' : 'text-neutral-900'">
+              {{ localizedName(task.name, task.nameSi) }}
+            </p>
             <p v-if="task.isDone && task.completedBy" class="text-caption text-positive-600">{{ memberName(task.completedBy) }} · {{ dayjs(task.completedAt).format('h:mm A') }}</p>
+            <p v-if="task.isSkipped" class="text-caption font-semibold text-negative-600">{{ $t('hk.today.skippedToday') }}</p>
+            <button
+              v-if="canInspect && !task.isDone"
+              type="button"
+              class="mt-1 rounded-pill bg-neutral-100 px-2 py-0.5 text-caption font-medium text-neutral-600"
+              @click.stop="task.isSkipped ? onUnskipTask(task) : onSkipTask(task)"
+            >
+              {{ task.isSkipped ? $t('hk.today.undoSkip') : $t('hk.today.skipToday') }}
+            </button>
           </div>
           <span class="shrink-0 self-start rounded-pill px-2 py-0.5 text-caption font-semibold" :class="CADENCE_TAG_CLASS[task.cadence]">{{ $t(`hk.today.cadence.${task.cadence}`) }}</span>
+        </div>
+
+        <div v-if="canInspect" class="mt-3 flex gap-2">
+          <input
+            v-model="oneOffName"
+            type="text"
+            :placeholder="$t('hk.today.addOneOffPlaceholder')"
+            class="min-w-0 flex-1 rounded-md bg-white px-3 py-2.5 text-body-sm text-neutral-900 shadow-sm outline-none placeholder:text-neutral-400"
+            @keyup.enter="onAddOneOff"
+          />
+          <button type="button" class="shrink-0 rounded-md bg-accent-500 px-3.5 text-body-sm font-semibold text-white hover:bg-accent-600" @click="onAddOneOff">
+            {{ $t('hk.today.addOneOffButton') }}
+          </button>
         </div>
 
         <template v-if="roomProgress(openRoom).complete">

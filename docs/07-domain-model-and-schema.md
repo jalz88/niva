@@ -242,13 +242,32 @@ The cleaning checklist for a room, admin-defined per room rather than per room *
 | room_id | uuid, not null, fk → rooms.id | |
 | name | text, not null | "Remove & replace linen" |
 | name_si | text, null | optional Sinhala display name (migration 0014, 2026-08-26); same fallback behavior as `rooms.name_si` above |
-| cadence_type | text, not null | check in (`daily`,`weekly`,`monthly`,`quarterly`) |
+| cadence_type | text, not null | check in (`daily`,`weekly`,`monthly`,`quarterly`,`once`) — `once` added by migration 0015 |
 | cadence_day_of_week | smallint, null | 0 (Sunday) – 6 (Saturday); set only when `cadence_type = 'weekly'` |
 | cadence_day_of_month | smallint, null | 1–31; set only when `cadence_type` is `monthly` or `quarterly` |
+| once_on | date, null | migration 0015; set only when `cadence_type = 'once'` — the single day this ad hoc task is due |
 | is_active | boolean, not null | default `true`; archive rather than delete once a task has completion history |
 | created_by / created_at / updated_by / updated_at | | standard audit columns |
 
-Same one-of-two-cadence-columns check as `recurring_payments` (§5 rule 6). `quarterly` reuses `cadence_day_of_month`, evaluated every three months from the task's `created_at` — good enough for a handful of admin-eyeballed tasks a year; not worth a separate month-offset column.
+Same one-of-cadence-columns check as `recurring_payments` (§5 rule 6), extended for `once` — exactly one of `cadence_day_of_week`/`cadence_day_of_month`/`once_on` is set, matching `cadence_type`. `quarterly` reuses `cadence_day_of_month`, evaluated every three months from the task's `created_at` — good enough for a handful of admin-eyeballed tasks a year; not worth a separate month-offset column.
+
+**`once` — manager-added ad hoc tasks (migration 0015, 2026-08-26).** Decided with Jalie and Maria after mocking two competing models (`docs/housekeeping-daily-task-flexibility-mockup.html`): the automatic cadence checklist stays exactly as it is by default ("Model A"), but an administrator/manager can add a one-off extra task for a room, visible only on `once_on` (always the day it's created). It's a real `sop_tasks` row — ticked off through the same `sop_task_completions` flow as any other task — but `housekeeping_today_checklist` only returns it when `p_as_of = once_on`, so it doesn't linger as an "overdue" item the way a missed recurring task would once its day passes. Created via `sop_task_add_for_today(p_room_id, p_name, p_name_si)`, a `SECURITY DEFINER` function that checks administrator/manager itself (`sop_tasks`' own RLS is still administrator-only INSERT — this bypasses it deliberately, same pattern as `mark_recurring_payment_paid`). Deliberately excluded from the Rooms admin screen's cadence chip picker (`RoomsView.vue`'s `CADENCE_PICKER_OPTIONS`) — there's no reason to hand-create a permanent-looking task with a one-off cadence from that form. A completed or expired `once` task is left as-is in `sop_tasks` (still `is_active`) rather than auto-archived; it just stops appearing on the live Today checklist. It can clutter a room's admin task list over time — acceptable for Release 1, an admin can delete it manually via the existing "Delete this task" action if it bothers them.
+
+### `sop_task_skips` (migration 0015)
+
+Append-only, one row per occurrence an administrator/manager explicitly decided doesn't need doing today — part of the same Model A decision as `once` above. No direct client write policy at all; the only writers are `sop_task_skip_today(p_task_id, p_due_on)` / `sop_task_unskip_today(p_task_id, p_due_on)`, both `SECURITY DEFINER` with their own administrator/manager check (staff/caretaker can see a skip's effect — the task shown struck through, excluded from progress — but can't create or remove one).
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | uuid, pk | |
+| workspace_id | uuid, not null, fk → workspaces.id | |
+| room_id | uuid, not null, fk → rooms.id | denormalized off the task, same reasoning as `sop_task_completions.room_id` |
+| task_id | uuid, not null, fk → sop_tasks.id | |
+| due_on | date, not null | the occurrence's due date — passed explicitly by the client from the same `housekeeping_today_checklist` row, not recomputed server-side |
+| skipped_by | uuid, not null, fk → auth.users.id | |
+| skipped_at | timestamptz, not null | default `now()` |
+
+Unique on `(task_id, due_on)`. A skipped occurrence is excluded from `roomProgress()`'s totals client-side (`TodayView.vue`) — it doesn't drag a room's completion percentage down for something already decided not to matter today.
 
 ### `sop_task_completions` (migration 0012)
 
@@ -397,6 +416,7 @@ Policy pattern applied per table (illustrative, not exhaustive):
 | `rooms`, `sop_tasks` | any member of the workspace | administrator | administrator | administrator (archive via `is_active`) |
 | `room_bookings` | any member of the workspace | administrator (or the service role, for the daily cron sync — bypasses RLS entirely, see §11) | n/a — delete + reinsert, not updated in place | administrator (or the service role) |
 | `sop_task_completions` | any member of the workspace | administrator, manager, staff | n/a — append-only | the completing user (own same-day rows only); administrator/manager may delete any |
+| `sop_task_skips` | any member of the workspace | none — RPC-only (`sop_task_skip_today`) | n/a | none — RPC-only (`sop_task_unskip_today`) |
 | `room_inspections` | any member of the workspace | administrator, manager | n/a — append-only | administrator, manager |
 | `workforce_members`, `workforce_days_off`, `room_assignments` | any member of the workspace | administrator, manager | administrator, manager | administrator, manager |
 
@@ -426,7 +446,7 @@ Two more, added by migration 0012, same `is_workspace_member` guard and `authent
 
 - `housekeeping_completion_summary(p_workspace_id, p_period_start, p_period_end)` — per-day counts of tasks due, completed, completed-on-time, and completed-late, grouped by `due_on`. The Dashboard glance line and the Reports trend chart read from the same function, just at different granularities — today only vs. the selected period.
 - `housekeeping_attention_rooms(p_workspace_id)` — one row per room currently overdue or un-inspected for more than a day, with `last_completed_at` and days-since. Backs the "Areas needing attention" list. Deliberately has no per-person breakdown — Jalie was explicit this isn't meant to be a staff performance metric (§11).
-- `housekeeping_today_checklist(p_workspace_id, p_as_of default current_date)` — one row per (room, task) with that task's current occurrence's due date and done/not-done state, already joined against the day's completion and inspection rows. Backs Today / Today's schedule directly, so the cadence math (`sop_task_current_due_on`) lives in one place instead of being duplicated in the client. Signature extended by migration 0014 (2026-08-26) to also return `room_name_si`/`task_name_si` alongside the existing name columns, so the client can render the Sinhala name without a second round-trip.
+- `housekeeping_today_checklist(p_workspace_id, p_as_of default current_date)` — one row per (room, task) with that task's current occurrence's due date and done/not-done state, already joined against the day's completion and inspection rows. Backs Today / Today's schedule directly, so the cadence math (`sop_task_current_due_on`) lives in one place instead of being duplicated in the client. Signature extended by migration 0014 (2026-08-26) to also return `room_name_si`/`task_name_si` alongside the existing name columns, so the client can render the Sinhala name without a second round-trip. Extended again by migration 0015 (same day) to also return `is_skipped` (joined against `sop_task_skips`) and to exclude a `once`-cadence task once its `once_on` day has passed — see `sop_task_skips` above.
 
 ## 9. Open items for Phase 1 implementation
 

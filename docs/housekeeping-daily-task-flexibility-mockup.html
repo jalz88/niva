@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIVA — Daily task flexibility: two models compared</title>
+<style>
+  :root {
+    --color-accent-50: #FBEEE7; --color-accent-100: #F5D6C4; --color-accent-500: #B5542A; --color-accent-600: #954423; --color-accent-700: #74351C;
+    --color-neutral-50: #FAF8F6; --color-neutral-100: #F3EFEA; --color-neutral-200: #E6DFD7; --color-neutral-300: #D3C8BC; --color-neutral-400: #A99C8E; --color-neutral-500: #7D7266; --color-neutral-700: #453F37; --color-neutral-900: #1C1916;
+    --color-positive-50: #EAF4EF; --color-positive-600: #2F7D5A;
+    --color-info-50: #EAF0F8; --color-info-600: #2E5FA3;
+    --color-warn-50: #FCF3E3; --color-warn-600: #A9711C;
+    --color-negative-50: #FBEAE9; --color-negative-600: #B3261E;
+    --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px; --radius-pill: 9999px;
+    --shadow-sm: 0 1px 2px rgba(28,25,22,.06); --shadow-md: 0 4px 12px rgba(28,25,22,.10);
+    --font-sans: -apple-system,"Segoe UI",Roboto,Inter,sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--color-neutral-200); font-family: var(--font-sans); color: var(--color-neutral-900); min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+  .note { max-width: 390px; width: 100%; padding: 10px 20px 4px; font-size: 12px; color: var(--color-neutral-500); text-align: center; box-sizing: border-box; }
+  .note b { color: var(--color-neutral-700); }
+  .model-note { max-width: 390px; width: 100%; padding: 10px 16px; margin: 6px 0 0; box-sizing: border-box; background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); font-size: 12px; line-height: 1.5; color: var(--color-neutral-700); }
+  .model-note b { color: var(--color-neutral-900); }
+  .demo-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--color-neutral-400); max-width: 390px; width: 100%; padding: 0 20px; box-sizing: border-box; margin: 10px 0 -2px; }
+  .demo-row { display: flex; gap: 8px; max-width: 390px; width: 100%; padding: 8px 20px; box-sizing: border-box; }
+  .demo-btn { flex: 1; border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 9px 6px; font-size: 12px; font-weight: 600; color: var(--color-neutral-700); cursor: pointer; }
+  .demo-btn.active { background: var(--color-accent-500); color: #fff; }
+  .demo-row.model .demo-btn.active { background: var(--color-neutral-900); }
+
+  .phone { width: 390px; max-width: 100%; background: #fff; border-radius: 28px; box-shadow: var(--shadow-md); overflow: hidden; display: flex; flex-direction: column; height: 760px; margin: 10px 0 24px; position: relative; }
+  .app-header { flex-shrink: 0; padding: 14px 18px 12px; border-bottom: 1px solid var(--color-neutral-100); display: flex; align-items: center; gap: 10px; }
+  .app-header h1 { font-size: 18px; font-weight: 600; margin: 0; }
+  .back-btn { border: none; background: var(--color-neutral-100); border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; color: var(--color-neutral-700); cursor: pointer; flex-shrink: 0; }
+  .app-content { flex: 1; overflow-y: auto; background: var(--color-neutral-50); padding: 16px 18px 24px; }
+  .screen-sub { font-size: 12px; color: var(--color-neutral-500); margin: -8px 0 14px; }
+
+  .bottom-nav { flex-shrink: 0; display: flex; align-items: center; border-top: 1px solid var(--color-neutral-200); background: #fff; padding-bottom: 6px; }
+  .phone.staff-mode .bottom-nav { display: none; }
+  .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0 2px; background: none; border: none; font-size: 10px; color: var(--color-neutral-500); cursor: pointer; font-family: var(--font-sans); }
+  .nav-item.active { color: var(--color-accent-600); font-weight: 700; }
+
+  .day-summary { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 14px 16px; margin-bottom: 14px; }
+  .day-summary-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .day-summary-label { font-size: 12px; font-weight: 600; color: var(--color-neutral-700); margin: 0; }
+  .day-summary-pct { font-size: 17px; font-weight: 700; color: var(--color-accent-600); margin: 0; }
+  .progress-track { height: 7px; border-radius: var(--radius-pill); background: var(--color-neutral-100); overflow: hidden; margin-bottom: 0; }
+  .progress-fill { height: 100%; background: var(--color-accent-500); border-radius: var(--radius-pill); }
+  .progress-fill.complete { background: var(--color-positive-600); }
+
+  .room-card { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 13px 15px; margin-bottom: 9px; cursor: pointer; }
+  .room-card.waiting { background: var(--color-neutral-100); box-shadow: none; }
+  .room-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 9px; gap: 8px; }
+  .room-name { font-size: 14px; font-weight: 600; margin: 0; }
+  .room-sub { font-size: 11px; color: var(--color-neutral-500); margin: 2px 0 0; }
+  .badge-row { display: flex; gap: 5px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+  .room-badge { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: var(--radius-pill); flex-shrink: 0; white-space: nowrap; }
+  .room-badge.checkout { background: var(--color-warn-50); color: var(--color-warn-600); }
+  .room-badge.stayover { background: var(--color-info-50); color: var(--color-info-600); }
+  .room-badge.needs-confirm { background: var(--color-negative-50); color: var(--color-negative-600); }
+  .room-badge.confirmed { background: var(--color-positive-50); color: var(--color-positive-600); }
+  .progress-label { font-size: 11px; color: var(--color-neutral-500); margin-top: 5px; }
+  .progress-label.complete { color: var(--color-positive-600); font-weight: 600; }
+  .waiting-note { font-size: 12px; color: var(--color-neutral-500); margin: 2px 0 0; }
+
+  .task-row { display: flex; align-items: flex-start; gap: 11px; padding: 10px 0; border-bottom: 1px solid var(--color-neutral-200); }
+  .task-row:last-of-type { border-bottom: none; }
+  .task-row.skipped { opacity: .5; }
+  .check { width: 20px; height: 20px; border-radius: var(--radius-sm); border: 2px solid var(--color-neutral-300); flex-shrink: 0; display: flex; align-items: center; justify-content: center; margin-top: 1px; cursor: pointer; }
+  .check.done { background: var(--color-positive-600); border-color: var(--color-positive-600); }
+  .check svg { display: none; color: #fff; }
+  .check.done svg { display: block; }
+  .task-name { font-size: 13px; font-weight: 500; margin: 0; }
+  .task-name.done { text-decoration: line-through; color: var(--color-neutral-400); }
+  .task-name.skipped { text-decoration: line-through; }
+  .task-meta-row { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+  .cadence-tag { font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: var(--radius-pill); background: var(--color-neutral-100); color: var(--color-neutral-500); flex-shrink: 0; }
+  .cadence-tag.weekly { background: var(--color-info-50); color: var(--color-info-600); }
+  .cadence-tag.monthly { background: var(--color-warn-50); color: var(--color-warn-600); }
+  .cadence-tag.oneoff { background: var(--color-accent-100); color: var(--color-accent-700); }
+  .skip-note { font-size: 10px; color: var(--color-negative-600); font-weight: 600; }
+  .task-menu-btn { border: none; background: var(--color-neutral-100); border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; color: var(--color-neutral-500); cursor: pointer; flex-shrink: 0; }
+  .task-actions { display: flex; gap: 6px; margin-top: 6px; }
+  .mini-btn { border: none; background: var(--color-neutral-100); border-radius: var(--radius-pill); padding: 4px 10px; font-size: 10px; font-weight: 600; color: var(--color-neutral-700); cursor: pointer; }
+  .mini-btn.undo { background: var(--color-info-50); color: var(--color-info-600); }
+
+  .add-oneoff-row { display: flex; gap: 8px; margin-top: 12px; }
+  .add-oneoff-row input { flex: 1; border: none; border-radius: var(--radius-md); background: var(--color-neutral-100); padding: 9px 12px; font-size: 13px; font-family: var(--font-sans); color: var(--color-neutral-900); }
+  .add-oneoff-row button { border: none; border-radius: var(--radius-md); background: var(--color-accent-500); color: #fff; padding: 0 14px; font-size: 12px; font-weight: 600; cursor: pointer; }
+
+  .confirm-task-row { display: flex; align-items: center; justify-content: space-between; background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 11px 13px; margin-bottom: 7px; }
+  .confirm-task-row .label-col p { margin: 0; font-size: 13px; font-weight: 500; }
+  .confirm-task-row .label-col .cadence-tag { margin-top: 4px; display: inline-block; }
+  .switch { width: 40px; height: 24px; border-radius: var(--radius-pill); background: var(--color-neutral-300); position: relative; cursor: pointer; flex-shrink: 0; border: none; }
+  .switch::after { content: ''; position: absolute; width: 20px; height: 20px; border-radius: 50%; background: #fff; top: 2px; left: 2px; transition: left .15s ease; }
+  .switch.on { background: var(--color-positive-600); }
+  .switch.on::after { left: 18px; }
+
+  .footer-btn { width: 100%; border: none; border-radius: var(--radius-pill); padding: 12px 0; font-size: 13px; font-weight: 600; color: #fff; background: var(--color-accent-500); cursor: pointer; margin-top: 14px; }
+  .footer-btn.confirm { background: var(--color-positive-600); }
+  .link-btn { display: block; margin: 10px auto 0; border: none; background: none; color: var(--color-info-600); font-size: 12px; font-weight: 600; cursor: pointer; text-align: center; width: 100%; }
+
+  .overlay { position: absolute; inset: 0; background: rgba(28,25,22,.35); display: none; align-items: flex-end; justify-content: center; z-index: 35; border-radius: 28px; overflow: hidden; }
+  .overlay.open { display: flex; }
+  .sheet { width: 100%; background: var(--color-neutral-100); border-radius: 18px 18px 0 0; padding: 8px 18px 20px; box-sizing: border-box; max-height: 88%; overflow-y: auto; }
+  .handle { width: 34px; height: 4px; border-radius: var(--radius-pill); background: var(--color-neutral-300); margin: 4px auto 14px; }
+  .sheet-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+  .sheet-header h2 { font-size: 16px; font-weight: 600; margin: 0; }
+  .sheet-header p.sub { font-size: 11px; color: var(--color-neutral-500); margin: 2px 0 0; max-width: 280px; }
+  .close-btn { background: none; border: none; color: var(--color-neutral-500); cursor: pointer; padding: 4px; }
+
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); background: var(--color-neutral-900); color: #fff; padding: 10px 16px; border-radius: var(--radius-md); font-size: 12px; display: flex; align-items: center; gap: 8px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; max-width: 90vw; z-index: 50; text-align: left; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast svg { flex-shrink: 0; color: #6FCF97; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+
+<div class="note">Prototype only — not wired to real data. Two competing answers to Maria's voice note about the daily checklist: should the manager just get <b>skip/add overrides</b> on top of the automatic list, or should <b>nothing show up until the manager confirms it</b> each day? Flip between them below, and between Jane's (caretaker) and Admin's (Mom/Jalie) view to feel the difference.</div>
+
+<p class="demo-label">Which model</p>
+<div class="demo-row model">
+  <button class="demo-btn active" id="modelABtn" type="button">A · Skip / Add override</button>
+  <button class="demo-btn" id="modelBBtn" type="button">B · Daily confirm required</button>
+</div>
+<p class="demo-label">Signed in as</p>
+<div class="demo-row">
+  <button class="demo-btn active" id="personaAdminBtn" type="button">Admin (Mom / Jalie)</button>
+  <button class="demo-btn" id="personaJaneBtn" type="button">Jane — caretaker</button>
+</div>
+<div class="model-note" id="modelNote"></div>
+
+<div class="phone">
+  <div class="app-header">
+    <button class="back-btn" id="backBtn" type="button" style="display:none;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <h1 id="screenTitle" style="flex:1;">Today's schedule</h1>
+  </div>
+  <div class="app-content" id="appContent"></div>
+  <nav class="bottom-nav">
+    <button class="nav-item active" type="button">Housekeeping</button>
+  </nav>
+
+  <div class="overlay" id="roomOverlay">
+    <div class="sheet">
+      <div class="handle"></div>
+      <div class="sheet-header">
+        <div>
+          <h2 id="roomSheetTitle"></h2>
+          <p class="sub" id="roomSheetSub"></p>
+        </div>
+        <button class="close-btn" type="button" onclick="closeRoomSheet()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div id="roomTaskList"></div>
+      <div id="addOneOffWrap"></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="confirmOverlay">
+    <div class="sheet">
+      <div class="handle"></div>
+      <div class="sheet-header">
+        <div>
+          <h2 id="confirmSheetTitle"></h2>
+          <p class="sub">Toggle off anything that doesn't need doing today. Add anything extra below. Nothing reaches the caretaker's Today view until you confirm.</p>
+        </div>
+        <button class="close-btn" type="button" onclick="closeConfirmSheet()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div id="confirmTaskList"></div>
+      <div id="confirmAddOneOffWrap"></div>
+      <button class="footer-btn confirm" type="button" onclick="confirmToday()">Confirm & assign today's tasks</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+  <span id="toastText"></span>
+</div>
+
+<script>
+var model = 'A';
+var persona = 'admin';
+var openRoomId = null;
+var confirmRoomId = null;
+
+function freshRooms() {
+  return [
+    { id: 'r1', name: 'Coconut | CBR', type: 'Bedroom', bookingState: 'checkout', confirmed: model === 'A',
+      tasks: [
+        { id: 't1', name: 'Remove & replace linen', cadence: 'daily', done: false, skipped: false, include: true },
+        { id: 't2', name: 'Clean bathroom sink', cadence: 'daily', done: false, skipped: false, include: true },
+        { id: 't3', name: 'Vacuum floor', cadence: 'daily', done: false, skipped: false, include: true },
+        { id: 't4', name: 'Deep-clean bathroom tile', cadence: 'weekly', done: false, skipped: false, include: true }
+      ] },
+    { id: 'r2', name: 'Porcupine | PHR', type: 'Bedroom', bookingState: 'stayover', confirmed: model === 'A',
+      tasks: [
+        { id: 't5', name: 'Empty trash', cadence: 'daily', done: false, skipped: false, include: true },
+        { id: 't6', name: 'Tidy up', cadence: 'daily', done: false, skipped: false, include: true },
+        { id: 't7', name: 'Change linen and towels', cadence: 'daily', done: false, skipped: false, include: true }
+      ] },
+    { id: 'r3', name: 'Garden', type: 'Outdoor', bookingState: null, confirmed: model === 'A',
+      tasks: [
+        { id: 't8', name: 'Water plants', cadence: 'weekly', done: false, skipped: false, include: true },
+        { id: 't9', name: 'Mow lawn', cadence: 'monthly', done: false, skipped: false, include: true }
+      ] }
+  ];
+}
+
+var rooms = freshRooms();
+
+function showToast(text) {
+  var t = document.getElementById('toast');
+  document.getElementById('toastText').textContent = text;
+  t.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2200);
+}
+
+function activeTasks(room) {
+  return room.tasks.filter(function (t) { return t.include && !t.skipped; });
+}
+function roomProgress(room) {
+  var active = activeTasks(room);
+  var done = active.filter(function (t) { return t.done; }).length;
+  return { done: done, total: active.length, complete: active.length > 0 && done === active.length };
+}
+
+function bookingBadge(room) {
+  if (!room.bookingState) return '';
+  return room.bookingState === 'checkout'
+    ? '<span class="room-badge checkout">Checkout today</span>'
+    : '<span class="room-badge stayover">Stayover</span>';
+}
+
+function setModel(m) {
+  model = m;
+  rooms = freshRooms();
+  openRoomId = null;
+  confirmRoomId = null;
+  document.getElementById('modelABtn').classList.toggle('active', m === 'A');
+  document.getElementById('modelBBtn').classList.toggle('active', m === 'B');
+  document.getElementById('modelNote').innerHTML = m === 'A'
+    ? '<b>Model A — Skip / Add override.</b> The automatic list from each room\'s cadence (daily/weekly/monthly) still shows up on its own, same as today. The manager can skip a specific task for just today, or add a one-off extra task, but doesn\'t have to touch anything for a normal day to run.'
+    : '<b>Model B — Daily confirm required.</b> A room\'s checklist is a suggestion until the manager reviews and confirms it for that day — closer to how a recurring payment sits as a reminder until it\'s marked paid. The caretaker sees nothing for that room until it\'s confirmed. More manager work every day, but nothing goes out unreviewed.';
+  render();
+}
+
+function setPersona(p) {
+  persona = p;
+  document.getElementById('personaAdminBtn').classList.toggle('active', p === 'admin');
+  document.getElementById('personaJaneBtn').classList.toggle('active', p === 'jane');
+  render();
+}
+
+function render() {
+  document.getElementById('screenTitle').textContent = persona === 'jane' ? 'Today' : "Today's schedule";
+  var visibleRooms = persona === 'jane' ? rooms.slice(0, 2) : rooms; // Jane's own assignment, for the demo
+  var doneCount = visibleRooms.filter(function (r) { return model === 'B' && !r.confirmed ? false : roomProgress(r).complete; }).length;
+  var html = '';
+  html += '<div class="day-summary"><div class="day-summary-top"><p class="day-summary-label">Today across the property</p>' +
+    '<p class="day-summary-pct">' + doneCount + ' of ' + visibleRooms.length + ' rooms</p></div>' +
+    '<div class="progress-track"><div class="progress-fill" style="width:' + Math.round((doneCount / visibleRooms.length) * 100) + '%"></div></div></div>';
+
+  visibleRooms.forEach(function (room) {
+    var needsConfirm = model === 'B' && !room.confirmed;
+    if (needsConfirm && persona === 'jane') {
+      html += '<div class="room-card waiting">' +
+        '<div class="room-top"><div><p class="room-name">' + room.name + '</p><p class="room-sub">' + room.type + '</p></div>' +
+        '<div class="badge-row">' + bookingBadge(room) + '</div></div>' +
+        '<p class="waiting-note">Waiting for the manager to confirm today\'s tasks.</p></div>';
+      return;
+    }
+    var p = roomProgress(room);
+    var onclick = needsConfirm ? 'openConfirmSheet(\'' + room.id + '\')' : 'openRoomSheet(\'' + room.id + '\')';
+    html += '<div class="room-card" onclick="' + onclick + '">' +
+      '<div class="room-top"><div><p class="room-name">' + room.name + '</p><p class="room-sub">' + room.type + '</p></div>' +
+      '<div class="badge-row">' + bookingBadge(room) + (needsConfirm ? '<span class="room-badge needs-confirm">Needs confirm</span>' : (model === 'B' ? '<span class="room-badge confirmed">Confirmed</span>' : '')) + '</div></div>' +
+      '<div class="progress-track"><div class="progress-fill ' + (p.complete ? 'complete' : '') + '" style="width:' + (p.total ? Math.round((p.done / p.total) * 100) : 0) + '%"></div></div>' +
+      '<p class="progress-label ' + (p.complete ? 'complete' : '') + '">' + (p.complete ? 'All done' : p.done + ' of ' + p.total + ' tasks done') + '</p></div>';
+  });
+  document.getElementById('appContent').innerHTML = html;
+}
+
+function findRoom(id) { return rooms.find(function (r) { return r.id === id; }); }
+
+// ---- Model A / normal checklist sheet ----
+function openRoomSheet(id) {
+  openRoomId = id;
+  var room = findRoom(id);
+  document.getElementById('roomSheetTitle').textContent = room.name;
+  document.getElementById('roomSheetSub').textContent = room.bookingState === 'checkout' ? 'Checkout today — full turnover' : room.bookingState === 'stayover' ? 'Guest staying — light service' : room.type;
+  renderRoomTasks();
+  document.getElementById('addOneOffWrap').innerHTML = (model === 'A' && persona === 'admin')
+    ? '<div class="add-oneoff-row"><input id="oneOffInput" type="text" placeholder="Add a task for today only…"><button type="button" onclick="addOneOff()">Add</button></div>'
+    : '';
+  document.getElementById('roomOverlay').classList.add('open');
+}
+function closeRoomSheet() { document.getElementById('roomOverlay').classList.remove('open'); render(); }
+
+function renderRoomTasks() {
+  var room = findRoom(openRoomId);
+  var canManage = model === 'A' && persona === 'admin';
+  var html = '';
+  room.tasks.filter(function (t) { return t.include; }).forEach(function (t) {
+    html += '<div class="task-row ' + (t.skipped ? 'skipped' : '') + '">' +
+      (t.skipped ? '<div class="check" style="visibility:hidden"></div>' : '<div class="check ' + (t.done ? 'done' : '') + '" onclick="toggleTask(\'' + t.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>') +
+      '<div style="flex:1">' +
+      '<p class="task-name ' + (t.done ? 'done' : '') + ' ' + (t.skipped ? 'skipped' : '') + '">' + t.name + '</p>' +
+      '<div class="task-meta-row">' +
+      (t.cadence !== 'oneoff' ? '<span class="cadence-tag ' + t.cadence + '">' + t.cadence + '</span>' : '<span class="cadence-tag oneoff">added today</span>') +
+      (t.skipped ? '<span class="skip-note">Skipped today</span>' : '') +
+      '</div>' +
+      (canManage ? '<div class="task-actions">' + (t.skipped
+        ? '<button class="mini-btn undo" onclick="unskipTask(\'' + t.id + '\')">Undo skip</button>'
+        : '<button class="mini-btn" onclick="skipTask(\'' + t.id + '\')">Skip today</button>') + '</div>' : '') +
+      '</div></div>';
+  });
+  document.getElementById('roomTaskList').innerHTML = html;
+}
+
+function toggleTask(id) {
+  var room = findRoom(openRoomId);
+  var t = room.tasks.find(function (x) { return x.id === id; });
+  t.done = !t.done;
+  renderRoomTasks();
+}
+function skipTask(id) {
+  var room = findRoom(openRoomId);
+  var t = room.tasks.find(function (x) { return x.id === id; });
+  t.skipped = true;
+  renderRoomTasks();
+  showToast('Skipped for today — won\'t count toward progress.');
+}
+function unskipTask(id) {
+  var room = findRoom(openRoomId);
+  var t = room.tasks.find(function (x) { return x.id === id; });
+  t.skipped = false;
+  renderRoomTasks();
+}
+function addOneOff() {
+  var input = document.getElementById('oneOffInput');
+  var name = input.value.trim();
+  if (!name) return;
+  var room = findRoom(openRoomId);
+  room.tasks.push({ id: 't' + Date.now(), name: name, cadence: 'oneoff', done: false, skipped: false, include: true });
+  input.value = '';
+  renderRoomTasks();
+  showToast('Added for today.');
+}
+
+// ---- Model B / confirm sheet ----
+function openConfirmSheet(id) {
+  confirmRoomId = id;
+  var room = findRoom(id);
+  document.getElementById('confirmSheetTitle').textContent = 'Confirm — ' + room.name;
+  renderConfirmTasks();
+  document.getElementById('confirmAddOneOffWrap').innerHTML =
+    '<div class="add-oneoff-row"><input id="confirmOneOffInput" type="text" placeholder="Add a task for today only…"><button type="button" onclick="addConfirmOneOff()">Add</button></div>';
+  document.getElementById('confirmOverlay').classList.add('open');
+}
+function closeConfirmSheet() { document.getElementById('confirmOverlay').classList.remove('open'); render(); }
+
+function renderConfirmTasks() {
+  var room = findRoom(confirmRoomId);
+  var html = '';
+  room.tasks.forEach(function (t) {
+    html += '<div class="confirm-task-row"><div class="label-col"><p>' + t.name + '</p>' +
+      (t.cadence !== 'oneoff' ? '<span class="cadence-tag ' + t.cadence + '">' + t.cadence + '</span>' : '<span class="cadence-tag oneoff">added today</span>') +
+      '</div><button class="switch ' + (t.include ? 'on' : '') + '" onclick="toggleInclude(\'' + t.id + '\')"></button></div>';
+  });
+  document.getElementById('confirmTaskList').innerHTML = html;
+}
+function toggleInclude(id) {
+  var room = findRoom(confirmRoomId);
+  var t = room.tasks.find(function (x) { return x.id === id; });
+  t.include = !t.include;
+  renderConfirmTasks();
+}
+function addConfirmOneOff() {
+  var input = document.getElementById('confirmOneOffInput');
+  var name = input.value.trim();
+  if (!name) return;
+  var room = findRoom(confirmRoomId);
+  room.tasks.push({ id: 't' + Date.now(), name: name, cadence: 'oneoff', done: false, skipped: false, include: true });
+  input.value = '';
+  renderConfirmTasks();
+}
+function confirmToday() {
+  var room = findRoom(confirmRoomId);
+  room.confirmed = true;
+  document.getElementById('confirmOverlay').classList.remove('open');
+  showToast(room.name + '\'s tasks confirmed — now visible to the caretaker.');
+  render();
+}
+
+document.getElementById('modelABtn').addEventListener('click', function () { setModel('A'); });
+document.getElementById('modelBBtn').addEventListener('click', function () { setModel('B'); });
+document.getElementById('personaAdminBtn').addEventListener('click', function () { setPersona('admin'); });
+document.getElementById('personaJaneBtn').addEventListener('click', function () { setPersona('jane'); });
+
+setModel('A');
+setPersona('admin');
+</script>
+</body>
+</html>

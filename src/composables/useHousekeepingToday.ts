@@ -10,6 +10,9 @@ export interface TodayTask {
   cadence: string
   dueOn: string
   isDone: boolean
+  // True when an administrator/manager skipped this occurrence for today
+  // (migration 0015) — excluded from progress totals in TodayView.vue.
+  isSkipped: boolean
   completedBy: string | null
   completedAt: string | null
 }
@@ -56,6 +59,7 @@ function groupRooms(rows: TodayChecklistRow[]): RoomToday[] {
       cadence: row.cadence_type,
       dueOn: row.due_on,
       isDone: row.is_done,
+      isSkipped: row.is_skipped,
       completedBy: row.completed_by,
       completedAt: row.completed_at,
     })
@@ -136,5 +140,47 @@ export function useHousekeepingToday() {
     return null
   }
 
-  return { rooms, loading, error, revision, load, complete, uncomplete, markInspected }
+  // Model A (decided 2026-08-26 with Jalie/Maria over mockups, see
+  // docs/housekeeping-daily-task-flexibility-mockup.html): the automatic
+  // cadence-driven checklist stays as the default, but an administrator/
+  // manager can skip a specific task for just today. sop_task_skip_today
+  // (migration 0015) is SECURITY DEFINER and does its own role check —
+  // sop_task_skips has no direct client write policy at all, so this RPC is
+  // the only way in. Passing due_on explicitly (already known from the
+  // TodayTask row) rather than recomputing it server-side, same pattern as
+  // uncomplete() above.
+  async function skipTask(taskId: string, dueOn: string): Promise<NivaError | null> {
+    const { error: dbError } = await supabase.rpc('sop_task_skip_today', { p_task_id: taskId, p_due_on: dueOn })
+
+    if (dbError) return toNivaError(dbError)
+    revision.value++
+    return null
+  }
+
+  async function unskipTask(taskId: string, dueOn: string): Promise<NivaError | null> {
+    const { error: dbError } = await supabase.rpc('sop_task_unskip_today', { p_task_id: taskId, p_due_on: dueOn })
+
+    if (dbError) return toNivaError(dbError)
+    revision.value++
+    return null
+  }
+
+  // Adds a one-off task visible only for today (cadence_type 'once',
+  // once_on = today — migration 0015). It's a real sop_tasks row, so it's
+  // ticked off exactly like any other task, but housekeeping_today_checklist
+  // stops returning it once the day passes rather than carrying it forward
+  // like a real recurring cadence would.
+  async function addOneOffTask(roomId: string, name: string, nameSi?: string | null): Promise<NivaError | null> {
+    const { error: dbError } = await supabase.rpc('sop_task_add_for_today', {
+      p_room_id: roomId,
+      p_name: name,
+      p_name_si: nameSi ?? null,
+    })
+
+    if (dbError) return toNivaError(dbError)
+    revision.value++
+    return null
+  }
+
+  return { rooms, loading, error, revision, load, complete, uncomplete, markInspected, skipTask, unskipTask, addOneOffTask }
 }
