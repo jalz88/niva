@@ -12,7 +12,7 @@ import { useToastStore } from '@/stores/toastStore'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import type { NivaError } from '@/lib/errors'
-import type { Room, RoomType, SopTask, SopCadenceType } from '@/types/database'
+import type { Room, RoomType, SopTask, SopCadenceType, SopOccupancyScope } from '@/types/database'
 
 const { t, tm } = useI18n()
 const { localizedName } = useLocale()
@@ -96,6 +96,16 @@ const CADENCE_PICKER_OPTIONS = computed<Record<Exclude<SopCadenceType, 'once'>, 
   quarterly: t('hk.rooms.cadence.quarterly'),
 }))
 const WEEKDAY_SHORT = computed<string[]>(() => tm('hk.rooms.weekdaysShort') as unknown as string[])
+// Booking-linked checklist (2026-08-27) — alongside cadence, an
+// administrator/manager can narrow when a task applies by the room's
+// booking status for the day. 'always' is the default and preserves prior
+// behavior exactly; see docs/09-wireframes.md's "Booking-linked checklist"
+// note for the full decision.
+const OCCUPANCY_SCOPE_OPTIONS = computed<Record<SopOccupancyScope, string>>(() => ({
+  always: t('hk.rooms.occupancy.always'),
+  occupied: t('hk.rooms.occupancy.occupied'),
+  checkout_only: t('hk.rooms.occupancy.checkout_only'),
+}))
 
 // ---- Add/Edit room sheet ---------------------------------------------------
 
@@ -192,6 +202,7 @@ const taskNameSi = ref('')
 const taskCadence = ref<SopCadenceType>('daily')
 const taskDayOfWeek = ref(1)
 const taskDayOfMonth = ref(1)
+const taskOccupancyScope = ref<SopOccupancyScope>('always')
 const taskSubmitting = ref(false)
 const taskSubmitError = ref<NivaError | null>(null)
 
@@ -202,6 +213,7 @@ function openAddTask() {
   taskCadence.value = 'daily'
   taskDayOfWeek.value = 1
   taskDayOfMonth.value = 1
+  taskOccupancyScope.value = 'always'
   taskSubmitError.value = null
   showTaskForm.value = true
 }
@@ -212,6 +224,7 @@ function openEditTask(task: SopTask) {
   taskCadence.value = task.cadence_type
   taskDayOfWeek.value = task.cadence_day_of_week ?? 1
   taskDayOfMonth.value = task.cadence_day_of_month ?? 1
+  taskOccupancyScope.value = task.occupancy_scope
   taskSubmitError.value = null
   showTaskForm.value = true
 }
@@ -229,6 +242,7 @@ async function submitTaskForm() {
     cadenceType: taskCadence.value,
     cadenceDayOfWeek: taskCadence.value === 'weekly' ? taskDayOfWeek.value : null,
     cadenceDayOfMonth: taskCadence.value === 'monthly' || taskCadence.value === 'quarterly' ? taskDayOfMonth.value : null,
+    occupancyScope: taskOccupancyScope.value,
   }
 
   taskSubmitting.value = true
@@ -375,7 +389,15 @@ async function confirmArchiveTask() {
       <div v-else class="flex flex-col gap-2">
         <div v-for="task in tasks" :key="task.id" class="flex cursor-pointer items-center justify-between gap-3 rounded-md bg-white p-3.5 shadow-sm hover:shadow-md" @click="openEditTask(task)">
           <p class="truncate text-body-sm font-medium text-neutral-900">{{ localizedName(task.name, task.name_si) }}</p>
-          <span class="shrink-0 rounded-pill bg-neutral-100 px-2.5 py-1 text-caption font-semibold text-neutral-500">{{ CADENCE_LABELS[task.cadence_type] }}</span>
+          <div class="flex shrink-0 gap-1.5">
+            <span
+              v-if="task.occupancy_scope !== 'always'"
+              class="rounded-pill bg-info-50 px-2.5 py-1 text-caption font-semibold text-info-600"
+            >
+              {{ OCCUPANCY_SCOPE_OPTIONS[task.occupancy_scope] }}
+            </span>
+            <span class="rounded-pill bg-neutral-100 px-2.5 py-1 text-caption font-semibold text-neutral-500">{{ CADENCE_LABELS[task.cadence_type] }}</span>
+          </div>
         </div>
       </div>
     </template>
@@ -491,6 +513,21 @@ async function confirmArchiveTask() {
         <div v-if="taskCadence === 'monthly' || taskCadence === 'quarterly'" class="mb-4 flex items-center justify-between rounded-md bg-white p-3.5 shadow-sm">
           <span class="text-body-sm text-neutral-500">{{ $t('hk.rooms.onDay') }}</span>
           <input v-model.number="taskDayOfMonth" type="number" min="1" max="31" class="w-16 border-0 bg-transparent text-right text-body font-semibold text-neutral-900 outline-none" />
+        </div>
+        <div class="mb-4">
+          <p class="mb-2 text-body-sm text-neutral-500">{{ $t('hk.rooms.appliesLabel') }}</p>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="(label, value) in OCCUPANCY_SCOPE_OPTIONS"
+              :key="value"
+              type="button"
+              class="rounded-pill px-4 py-2.5 text-body-sm"
+              :class="taskOccupancyScope === value ? 'bg-accent-100 font-semibold text-accent-700 shadow-none' : 'bg-white font-medium text-neutral-700 shadow-sm'"
+              @click="taskOccupancyScope = value as SopOccupancyScope"
+            >
+              {{ label }}
+            </button>
+          </div>
         </div>
 
         <p v-if="taskSubmitError" class="mt-1 text-caption text-negative-600">{{ taskSubmitError.message }}</p>

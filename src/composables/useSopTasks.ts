@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { toNivaError, type NivaError } from '@/lib/errors'
-import type { SopTask, SopCadenceType } from '@/types/database'
+import type { SopTask, SopCadenceType, SopOccupancyScope } from '@/types/database'
 
 export interface SopTaskPayload {
   name: string
@@ -9,6 +9,9 @@ export interface SopTaskPayload {
   cadenceType: SopCadenceType
   cadenceDayOfWeek: number | null
   cadenceDayOfMonth: number | null
+  // Booking-linked checklist (2026-08-27) — defaults to 'always' at the call
+  // sites below rather than here, so every existing caller keeps working.
+  occupancyScope: SopOccupancyScope
 }
 
 function toDbFields(roomId: string, payload: SopTaskPayload) {
@@ -19,6 +22,7 @@ function toDbFields(roomId: string, payload: SopTaskPayload) {
     cadence_type: payload.cadenceType,
     cadence_day_of_week: payload.cadenceDayOfWeek,
     cadence_day_of_month: payload.cadenceDayOfMonth,
+    occupancy_scope: payload.occupancyScope,
   }
 }
 

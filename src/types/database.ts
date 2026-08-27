@@ -150,6 +150,13 @@ export type RoomType = 'bedroom' | 'bathroom' | 'common_area' | 'outdoor'
 // out of the admin cadence chip picker in RoomsView.vue and only ever
 // created via the Today checklist's "add for today" action.
 export type SopCadenceType = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'once'
+// Booking-linked checklist (migration sop_task_occupancy_scope, 2026-08-27):
+// 'always' preserves prior behavior — every task defaults to it. 'occupied'
+// applies whenever a guest is physically present (checkout day or stayover).
+// 'checkout_only' is the heavy turnover-specific work that only makes sense
+// the day a guest actually leaves. See docs/09-wireframes.md's "Booking-
+// linked checklist" note.
+export type SopOccupancyScope = 'always' | 'occupied' | 'checkout_only'
 export type CrewRole = 'housekeeper' | 'gardener' | 'maintenance' | 'other'
 
 export interface Room {
@@ -189,6 +196,8 @@ export interface SopTask {
   // Set only when cadence_type is 'once' — the single day this ad hoc task
   // is due (migration 0015). Never set by the Rooms admin form.
   once_on: string | null
+  // Booking-linked checklist (2026-08-27) — see SopOccupancyScope above.
+  occupancy_scope: SopOccupancyScope
   is_active: boolean
   created_by: string
   created_at: string
@@ -220,6 +229,15 @@ export interface TodayChecklistRow {
   completed_at: string | null
   inspected_by: string | null
   inspected_at: string | null
+  // Booking-linked checklist (2026-08-27, sop_task_occupancy_overrides).
+  // occupancy_scope is the task's own setting; occupancy_excluded is whether
+  // that scope actually hides it today given the room's booking status;
+  // is_force_included is whether an administrator/manager already pulled it
+  // back in for today via sop_task_include_today. A task is hidden from a
+  // caretaker's Today view exactly when occupancy_excluded && !is_force_included.
+  occupancy_scope: SopOccupancyScope
+  occupancy_excluded: boolean
+  is_force_included: boolean
 }
 
 export interface WorkforceMember {

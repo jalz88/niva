@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { toNivaError, type NivaError } from '@/lib/errors'
-import type { TodayChecklistRow } from '@/types/database'
+import type { TodayChecklistRow, SopOccupancyScope } from '@/types/database'
 
 export interface TodayTask {
   taskId: string
@@ -15,6 +15,13 @@ export interface TodayTask {
   isSkipped: boolean
   completedBy: string | null
   completedAt: string | null
+  // Booking-linked checklist (2026-08-27) — see TodayChecklistRow. A task is
+  // hidden from a caretaker's view exactly when occupancyExcluded is true and
+  // isForceIncluded is false; an admin/manager still sees it, in a "not
+  // needed today" disclosure, with the option to include it anyway.
+  occupancyScope: SopOccupancyScope
+  occupancyExcluded: boolean
+  isForceIncluded: boolean
 }
 
 export interface RoomToday {
@@ -62,6 +69,9 @@ function groupRooms(rows: TodayChecklistRow[]): RoomToday[] {
       isSkipped: row.is_skipped,
       completedBy: row.completed_by,
       completedAt: row.completed_at,
+      occupancyScope: row.occupancy_scope,
+      occupancyExcluded: row.occupancy_excluded,
+      isForceIncluded: row.is_force_included,
     })
   }
   for (const room of byRoom.values()) {
@@ -182,5 +192,42 @@ export function useHousekeepingToday() {
     return null
   }
 
-  return { rooms, loading, error, revision, load, complete, uncomplete, markInspected, skipTask, unskipTask, addOneOffTask }
+  // Booking-linked checklist (2026-08-27): pulls a task the automatic
+  // occupancy rule hid back into today's list, without changing the task's
+  // stored occupancy_scope — mirrors skipTask/unskipTask's shape but for the
+  // opposite direction (force-include rather than force-exclude).
+  // sop_task_include_today is SECURITY DEFINER with its own administrator/
+  // manager check, same as the skip RPCs — sop_task_occupancy_overrides has
+  // no direct client write policy at all.
+  async function includeTaskToday(taskId: string, dueOn: string): Promise<NivaError | null> {
+    const { error: dbError } = await supabase.rpc('sop_task_include_today', { p_task_id: taskId, p_due_on: dueOn })
+
+    if (dbError) return toNivaError(dbError)
+    revision.value++
+    return null
+  }
+
+  async function unincludeTaskToday(taskId: string, dueOn: string): Promise<NivaError | null> {
+    const { error: dbError } = await supabase.rpc('sop_task_uninclude_today', { p_task_id: taskId, p_due_on: dueOn })
+
+    if (dbError) return toNivaError(dbError)
+    revision.value++
+    return null
+  }
+
+  return {
+    rooms,
+    loading,
+    error,
+    revision,
+    load,
+    complete,
+    uncomplete,
+    markInspected,
+    skipTask,
+    unskipTask,
+    addOneOffTask,
+    includeTaskToday,
+    unincludeTaskToday,
+  }
 }

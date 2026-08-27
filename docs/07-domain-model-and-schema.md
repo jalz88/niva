@@ -246,6 +246,7 @@ The cleaning checklist for a room, admin-defined per room rather than per room *
 | cadence_day_of_week | smallint, null | 0 (Sunday) – 6 (Saturday); set only when `cadence_type = 'weekly'` |
 | cadence_day_of_month | smallint, null | 1–31; set only when `cadence_type` is `monthly` or `quarterly` |
 | once_on | date, null | migration 0015; set only when `cadence_type = 'once'` — the single day this ad hoc task is due |
+| occupancy_scope | text, not null | migration `sop_task_occupancy_scope` (2026-08-27); check in (`always`,`occupied`,`checkout_only`), default `always` |
 | is_active | boolean, not null | default `true`; archive rather than delete once a task has completion history |
 | created_by / created_at / updated_by / updated_at | | standard audit columns |
 
@@ -268,6 +269,22 @@ Append-only, one row per occurrence an administrator/manager explicitly decided 
 | skipped_at | timestamptz, not null | default `now()` |
 
 Unique on `(task_id, due_on)`. A skipped occurrence is excluded from `roomProgress()`'s totals client-side (`TodayView.vue`) — it doesn't drag a room's completion percentage down for something already decided not to matter today.
+
+### `sop_task_occupancy_overrides` (migration `sop_task_occupancy_scope`, 2026-08-27)
+
+Append-only, the mirror image of `sop_task_skips` above — a row here means an administrator/manager deliberately pulled an occupancy-hidden task back into a specific day's list, rather than deliberately hiding a task that would otherwise show. Part of the "booking-linked checklist" decision (see `docs/09-wireframes.md`): `sop_tasks.occupancy_scope` (`always`/`occupied`/`checkout_only`) lets a task's default visibility follow the room's booking status for the day automatically, and this table is the escape hatch when that automatic default is wrong for one specific day. No direct client write policy at all — the only writers are `sop_task_include_today(p_task_id, p_due_on)` / `sop_task_uninclude_today(p_task_id, p_due_on)`, both `SECURITY DEFINER` with their own administrator/manager check, same pattern as `sop_task_skip_today`/`sop_task_unskip_today`.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | uuid, pk | |
+| workspace_id | uuid, not null, fk → workspaces.id | |
+| room_id | uuid, not null, fk → rooms.id | denormalized off the task, same reasoning as `sop_task_skips.room_id` |
+| task_id | uuid, not null, fk → sop_tasks.id | |
+| due_on | date, not null | the occurrence's due date, passed explicitly by the client |
+| included_by | uuid, not null, fk → auth.users.id | |
+| included_at | timestamptz, not null | default `now()` |
+
+Unique on `(task_id, due_on)`. `housekeeping_today_checklist` returns `is_force_included` (whether an override row exists for today) alongside `occupancy_excluded` (whether the task's scope would hide it today absent an override) — a task is hidden from a caretaker's Today view exactly when `occupancy_excluded` is true and `is_force_included` is false; an administrator/manager still sees it, in a "not needed today" disclosure, with the option to include it anyway.
 
 ### `sop_task_completions` (migration 0012)
 
@@ -417,6 +434,7 @@ Policy pattern applied per table (illustrative, not exhaustive):
 | `room_bookings` | any member of the workspace | administrator (or the service role, for the daily cron sync — bypasses RLS entirely, see §11) | n/a — delete + reinsert, not updated in place | administrator (or the service role) |
 | `sop_task_completions` | any member of the workspace | administrator, manager, staff | n/a — append-only | the completing user (own same-day rows only); administrator/manager may delete any |
 | `sop_task_skips` | any member of the workspace | none — RPC-only (`sop_task_skip_today`) | n/a | none — RPC-only (`sop_task_unskip_today`) |
+| `sop_task_occupancy_overrides` | any member of the workspace | none — RPC-only (`sop_task_include_today`) | n/a | none — RPC-only (`sop_task_uninclude_today`) |
 | `room_inspections` | any member of the workspace | administrator, manager | n/a — append-only | administrator, manager |
 | `workforce_members`, `workforce_days_off`, `room_assignments` | any member of the workspace | administrator, manager | administrator, manager | administrator, manager |
 
@@ -446,7 +464,7 @@ Two more, added by migration 0012, same `is_workspace_member` guard and `authent
 
 - `housekeeping_completion_summary(p_workspace_id, p_period_start, p_period_end)` — per-day counts of tasks due, completed, completed-on-time, and completed-late, grouped by `due_on`. The Dashboard glance line and the Reports trend chart read from the same function, just at different granularities — today only vs. the selected period.
 - `housekeeping_attention_rooms(p_workspace_id)` — one row per room currently overdue or un-inspected for more than a day, with `last_completed_at` and days-since. Backs the "Areas needing attention" list. Deliberately has no per-person breakdown — Jalie was explicit this isn't meant to be a staff performance metric (§11).
-- `housekeeping_today_checklist(p_workspace_id, p_as_of default current_date)` — one row per (room, task) with that task's current occurrence's due date and done/not-done state, already joined against the day's completion and inspection rows. Backs Today / Today's schedule directly, so the cadence math (`sop_task_current_due_on`) lives in one place instead of being duplicated in the client. Signature extended by migration 0014 (2026-08-26) to also return `room_name_si`/`task_name_si` alongside the existing name columns, so the client can render the Sinhala name without a second round-trip. Extended again by migration 0015 (same day) to also return `is_skipped` (joined against `sop_task_skips`) and to exclude a `once`-cadence task once its `once_on` day has passed — see `sop_task_skips` above.
+- `housekeeping_today_checklist(p_workspace_id, p_as_of default current_date)` — one row per (room, task) with that task's current occurrence's due date and done/not-done state, already joined against the day's completion and inspection rows. Backs Today / Today's schedule directly, so the cadence math (`sop_task_current_due_on`) lives in one place instead of being duplicated in the client. Signature extended by migration 0014 (2026-08-26) to also return `room_name_si`/`task_name_si` alongside the existing name columns, so the client can render the Sinhala name without a second round-trip. Extended again by migration 0015 (same day) to also return `is_skipped` (joined against `sop_task_skips`) and to exclude a `once`-cadence task once its `once_on` day has passed — see `sop_task_skips` above. Extended a third time by migration `sop_task_occupancy_scope` (2026-08-27) to also return `occupancy_scope`, `occupancy_excluded`, and `is_force_included` — see `sop_task_occupancy_overrides` below. The exclusion check is computed inline against a `room_bookings` lookup for `p_as_of` (the same "checkout the day `ends_on` matches, stayover any other day within range" rule the client already used for the Today badges), rather than a separate function, since it's only ever needed here.
 
 ## 9. Open items for Phase 1 implementation
 

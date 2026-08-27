@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIVA — Booking-linked checklist (Model A+)</title>
+<style>
+  :root {
+    --color-accent-50: #FBEEE7; --color-accent-100: #F5D6C4; --color-accent-500: #B5542A; --color-accent-600: #954423; --color-accent-700: #74351C;
+    --color-neutral-50: #FAF8F6; --color-neutral-100: #F3EFEA; --color-neutral-200: #E6DFD7; --color-neutral-300: #D3C8BC; --color-neutral-400: #A99C8E; --color-neutral-500: #7D7266; --color-neutral-700: #453F37; --color-neutral-900: #1C1916;
+    --color-positive-50: #EAF4EF; --color-positive-600: #2F7D5A;
+    --color-info-50: #EAF0F8; --color-info-600: #2E5FA3;
+    --color-warn-50: #FCF3E3; --color-warn-600: #A9711C;
+    --color-negative-50: #FBEAE9; --color-negative-600: #B3261E;
+    --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px; --radius-pill: 9999px;
+    --shadow-sm: 0 1px 2px rgba(28,25,22,.06); --shadow-md: 0 4px 12px rgba(28,25,22,.10);
+    --font-sans: -apple-system,"Segoe UI",Roboto,Inter,sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--color-neutral-200); font-family: var(--font-sans); color: var(--color-neutral-900); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding-bottom: 30px; }
+  .note { max-width: 420px; width: 100%; padding: 16px 20px 4px; font-size: 12px; line-height: 1.5; color: var(--color-neutral-500); text-align: center; box-sizing: border-box; }
+  .note b { color: var(--color-neutral-700); }
+  .research-note { max-width: 420px; width: 100%; padding: 12px 16px; margin: 10px 0 0; box-sizing: border-box; background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); font-size: 11.5px; line-height: 1.55; color: var(--color-neutral-700); text-align: left; }
+  .research-note b { color: var(--color-neutral-900); }
+  .research-note ul { margin: 6px 0 0; padding-left: 18px; }
+  .research-note li { margin-bottom: 3px; }
+
+  .demo-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--color-neutral-400); max-width: 420px; width: 100%; padding: 0 20px; box-sizing: border-box; margin: 14px 0 -2px; }
+  .demo-row { display: flex; gap: 8px; max-width: 420px; width: 100%; padding: 8px 20px; box-sizing: border-box; }
+  .demo-btn { flex: 1; border: none; background: #fff; box-shadow: var(--shadow-sm); border-radius: var(--radius-pill); padding: 9px 6px; font-size: 12px; font-weight: 600; color: var(--color-neutral-700); cursor: pointer; }
+  .demo-btn.active { background: var(--color-accent-500); color: #fff; }
+  .demo-row.persona .demo-btn.active { background: var(--color-neutral-900); }
+
+  .phone { width: 390px; max-width: 100%; background: #fff; border-radius: 28px; box-shadow: var(--shadow-md); overflow: hidden; display: flex; flex-direction: column; height: 700px; margin: 10px 0 20px; position: relative; }
+  .app-header { flex-shrink: 0; padding: 14px 18px 12px; border-bottom: 1px solid var(--color-neutral-100); }
+  .app-header h1 { font-size: 18px; font-weight: 600; margin: 0; }
+  .app-header p { font-size: 11px; color: var(--color-neutral-500); margin: 2px 0 0; }
+  .app-content { flex: 1; overflow-y: auto; background: var(--color-neutral-50); padding: 16px 18px 24px; }
+
+  .room-header-card { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 13px 15px; margin-bottom: 12px; }
+  .room-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+  .room-name { font-size: 15px; font-weight: 600; margin: 0; }
+  .room-sub { font-size: 11px; color: var(--color-neutral-500); margin: 2px 0 0; }
+  .room-badge { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: var(--radius-pill); flex-shrink: 0; white-space: nowrap; }
+  .room-badge.checkout { background: var(--color-warn-50); color: var(--color-warn-600); }
+  .room-badge.stayover { background: var(--color-info-50); color: var(--color-info-600); }
+  .room-badge.vacant { background: var(--color-neutral-100); color: var(--color-neutral-500); }
+  .progress-track { height: 7px; border-radius: var(--radius-pill); background: var(--color-neutral-100); overflow: hidden; margin-top: 8px; }
+  .progress-fill { height: 100%; background: var(--color-accent-500); border-radius: var(--radius-pill); }
+  .progress-fill.complete { background: var(--color-positive-600); }
+  .progress-label { font-size: 11px; color: var(--color-neutral-500); margin-top: 5px; }
+
+  .section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--color-neutral-400); margin: 4px 0 6px; }
+
+  .task-row { display: flex; align-items: flex-start; gap: 11px; padding: 10px 0; border-bottom: 1px solid var(--color-neutral-200); }
+  .task-row:last-of-type { border-bottom: none; }
+  .task-row.hidden-task { opacity: .55; }
+  .check { width: 20px; height: 20px; border-radius: var(--radius-sm); border: 2px solid var(--color-neutral-300); flex-shrink: 0; display: flex; align-items: center; justify-content: center; margin-top: 1px; cursor: pointer; }
+  .check.done { background: var(--color-positive-600); border-color: var(--color-positive-600); }
+  .check svg { display: none; color: #fff; }
+  .check.done svg { display: block; }
+  .task-name { font-size: 13px; font-weight: 500; margin: 0; }
+  .task-name.done { text-decoration: line-through; color: var(--color-neutral-400); }
+  .task-meta-row { display: flex; align-items: center; gap: 6px; margin-top: 3px; flex-wrap: wrap; }
+  .scope-tag { font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: var(--radius-pill); background: var(--color-neutral-100); color: var(--color-neutral-500); flex-shrink: 0; }
+  .scope-tag.checkout-only { background: var(--color-warn-50); color: var(--color-warn-600); }
+  .scope-tag.occupied-only { background: var(--color-info-50); color: var(--color-info-600); }
+  .hidden-reason { font-size: 10px; color: var(--color-neutral-500); font-style: italic; }
+  .mini-btn { border: none; background: var(--color-neutral-100); border-radius: var(--radius-pill); padding: 4px 10px; font-size: 10px; font-weight: 600; color: var(--color-neutral-700); cursor: pointer; margin-top: 5px; }
+
+  .disclosure-btn { display: flex; align-items: center; gap: 5px; border: none; background: none; color: var(--color-neutral-500); font-size: 11px; font-weight: 600; padding: 8px 0 2px; cursor: pointer; font-family: var(--font-sans); }
+  .disclosure-btn svg { transition: transform .15s; }
+  .disclosure-btn.open svg { transform: rotate(90deg); }
+
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); background: var(--color-neutral-900); color: #fff; padding: 10px 16px; border-radius: var(--radius-md); font-size: 12px; display: flex; align-items: center; gap: 8px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; max-width: 90vw; z-index: 50; text-align: left; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast svg { flex-shrink: 0; color: #6FCF97; }
+  svg { display: block; }
+
+  .admin-panel { width: 390px; max-width: 100%; background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 14px 16px 16px; margin-top: 4px; }
+  .admin-panel h3 { font-size: 13px; font-weight: 700; margin: 0 0 2px; }
+  .admin-panel .sub { font-size: 11px; color: var(--color-neutral-500); margin: 0 0 12px; line-height: 1.5; }
+  .admin-task-row { padding: 10px 0; border-top: 1px solid var(--color-neutral-100); }
+  .admin-task-row:first-of-type { border-top: none; }
+  .admin-task-name { font-size: 12.5px; font-weight: 600; margin: 0 0 6px; }
+  .segmented { display: flex; background: var(--color-neutral-100); border-radius: var(--radius-pill); padding: 2px; gap: 2px; }
+  .segmented button { flex: 1; border: none; background: none; padding: 6px 4px; font-size: 10px; font-weight: 600; color: var(--color-neutral-500); border-radius: var(--radius-pill); cursor: pointer; font-family: var(--font-sans); }
+  .segmented button.on { background: #fff; color: var(--color-neutral-900); box-shadow: var(--shadow-sm); }
+</style>
+</head>
+<body>
+
+<div class="note">Prototype only — not wired to real data. This builds on <b>Model A</b> (already decided with Maria: skip/add overrides) by adding the piece she asked about — <b>linking the checklist to the booking calendar</b> — so the default list adjusts itself by occupancy instead of the manager skipping the same tasks by hand every time. Flip the booking status below to see the same room's list change on its own.</div>
+
+<div class="research-note">
+  <b>How real turnover-management tools do this</b> (Turno, Breezeway, Properly — all built for exactly this problem):
+  <ul>
+    <li>The booking calendar creates the day's cleaning task automatically — no manual daily assignment for the standard case.</li>
+    <li>A guest departing gets the full turnover clean; a guest staying (stayover) gets a lighter "refresh" list — trash, towels, tidy — not the full checklist.</li>
+    <li>The heaviest tasks (deep-clean items) run on their own slower cadence, not every single turnover — this is already how NIVA's weekly/monthly cadence works.</li>
+    <li>The manager can always override a specific day — the automatic list is a smart default, never a hard rule.</li>
+  </ul>
+</div>
+
+<p class="demo-label">Booking status for this room, today</p>
+<div class="demo-row" id="statusRow">
+  <button class="demo-btn active" data-status="checkout" type="button">Checkout today</button>
+  <button class="demo-btn" data-status="stayover" type="button">Stayover</button>
+  <button class="demo-btn" data-status="vacant" type="button">Vacant</button>
+</div>
+<p class="demo-label">Signed in as</p>
+<div class="demo-row persona" id="personaRow">
+  <button class="demo-btn active" data-persona="admin" type="button">Admin (Mom / Jalie)</button>
+  <button class="demo-btn" data-persona="jane" type="button">Jane — caretaker</button>
+</div>
+
+<div class="phone">
+  <div class="app-header">
+    <h1>Today</h1>
+    <p id="headerSub">Coconut | CBR — checklist adjusts to booking status automatically</p>
+  </div>
+  <div class="app-content" id="appContent"></div>
+</div>
+
+<div class="admin-panel">
+  <h3>Rooms admin — task settings (one-time setup)</h3>
+  <p class="sub">Set once per task, per room. This is what drives the automatic filtering above — no daily manager work needed for the normal case.</p>
+  <div id="adminTaskList"></div>
+</div>
+
+<div class="toast" id="toast">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+  <span id="toastText"></span>
+</div>
+
+<script>
+var status = 'checkout'; // 'checkout' | 'stayover' | 'vacant'
+var persona = 'admin'; // 'admin' | 'jane'
+var showHidden = false;
+
+// scope: 'always' (every day regardless), 'occupied' (checkout OR stayover — a guest is physically there),
+// 'checkout' (only on the day a guest leaves — the deep/turnover-specific work)
+function freshTasks() {
+  return [
+    { id: 't1', name: 'Empty trash & reline bins', scope: 'occupied', done: false },
+    { id: 't2', name: 'Tidy up & fluff cushions', scope: 'occupied', done: false },
+    { id: 't3', name: 'Remove & replace all linen', scope: 'checkout', done: false },
+    { id: 't4', name: 'Deep-clean bathroom & restock amenities', scope: 'checkout', done: false },
+    { id: 't5', name: 'Vacuum & mop floor', scope: 'checkout', done: false },
+    { id: 't6', name: 'Check smoke alarm & safety kit', scope: 'always', done: false },
+    { id: 't7', name: 'Water in-room plants', scope: 'always', done: false }
+  ];
+}
+var tasks = freshTasks();
+
+function showToast(text) {
+  var t = document.getElementById('toast');
+  document.getElementById('toastText').textContent = text;
+  t.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2400);
+}
+
+function appliesToday(task) {
+  if (task.scope === 'always') return true;
+  if (task.scope === 'occupied') return status === 'checkout' || status === 'stayover';
+  if (task.scope === 'checkout') return status === 'checkout';
+  return true;
+}
+
+function hiddenReason(task) {
+  if (task.scope === 'checkout') return 'Not needed — no checkout today';
+  if (task.scope === 'occupied') return 'Not needed — room is vacant';
+  return '';
+}
+
+function scopeLabel(scope) {
+  if (scope === 'checkout') return 'Checkout only';
+  if (scope === 'occupied') return 'When occupied';
+  return 'Every day';
+}
+
+function statusBadge() {
+  if (status === 'checkout') return '<span class="room-badge checkout">Checkout today</span>';
+  if (status === 'stayover') return '<span class="room-badge stayover">Stayover</span>';
+  return '<span class="room-badge vacant">Vacant</span>';
+}
+
+function render() {
+  var visible = tasks.filter(appliesToday);
+  var hidden = tasks.filter(function (t) { return !appliesToday(t); });
+  var done = visible.filter(function (t) { return t.done; }).length;
+  var pct = visible.length ? Math.round((done / visible.length) * 100) : 0;
+
+  var html = '<div class="room-header-card">' +
+    '<div class="room-top"><div><p class="room-name">Coconut | CBR</p><p class="room-sub">Bedroom</p></div>' + statusBadge() + '</div>' +
+    '<div class="progress-track"><div class="progress-fill ' + (pct === 100 ? 'complete' : '') + '" style="width:' + pct + '%"></div></div>' +
+    '<p class="progress-label">' + done + ' of ' + visible.length + ' tasks' + (visible.length === 0 ? ' — nothing needed today' : '') + '</p>' +
+    '</div>';
+
+  visible.forEach(function (t) {
+    html += '<div class="task-row">' +
+      '<div class="check ' + (t.done ? 'done' : '') + '" onclick="toggleTask(\'' + t.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>' +
+      '<div style="flex:1"><p class="task-name ' + (t.done ? 'done' : '') + '">' + t.name + '</p>' +
+      '<div class="task-meta-row"><span class="scope-tag ' + (t.scope === 'checkout' ? 'checkout-only' : t.scope === 'occupied' ? 'occupied-only' : '') + '">' + scopeLabel(t.scope) + '</span></div>' +
+      '</div></div>';
+  });
+
+  if (persona === 'admin' && hidden.length) {
+    html += '<button class="disclosure-btn ' + (showHidden ? 'open' : '') + '" onclick="toggleHidden()">' +
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>' +
+      (showHidden ? 'Hide' : 'Show') + ' ' + hidden.length + ' task' + (hidden.length === 1 ? '' : 's') + ' not needed today</button>';
+    if (showHidden) {
+      hidden.forEach(function (t) {
+        html += '<div class="task-row hidden-task"><div class="check" style="visibility:hidden"></div>' +
+          '<div style="flex:1"><p class="task-name">' + t.name + '</p>' +
+          '<div class="task-meta-row"><span class="scope-tag ' + (t.scope === 'checkout' ? 'checkout-only' : 'occupied-only') + '">' + scopeLabel(t.scope) + '</span>' +
+          '<span class="hidden-reason">' + hiddenReason(t) + '</span></div>' +
+          '<button class="mini-btn" onclick="addAnyway(\'' + t.id + '\')">Add anyway, just for today</button>' +
+          '</div></div>';
+      });
+    }
+  }
+
+  document.getElementById('appContent').innerHTML = html;
+  document.getElementById('headerSub').textContent = persona === 'jane'
+    ? 'Coconut | CBR'
+    : 'Coconut | CBR — checklist adjusts to booking status automatically';
+}
+
+function toggleTask(id) {
+  var t = tasks.find(function (x) { return x.id === id; });
+  t.done = !t.done;
+  render();
+}
+function toggleHidden() {
+  showHidden = !showHidden;
+  render();
+}
+function addAnyway(id) {
+  var t = tasks.find(function (x) { return x.id === id; });
+  // Demo-only: force it into today's visible list without changing its stored scope.
+  t._forced = true;
+  var original = t.scope;
+  t.scope = 'always';
+  render();
+  showToast('Added to today\'s list — won\'t repeat tomorrow unless it\'s needed again.');
+  t.scope = original; // scope setting itself is untouched; only today's instance was forced
+}
+
+function renderAdmin() {
+  var html = '';
+  tasks.forEach(function (t) {
+    html += '<div class="admin-task-row"><p class="admin-task-name">' + t.name + '</p>' +
+      '<div class="segmented">' +
+      '<button class="' + (t.scope === 'always' ? 'on' : '') + '" onclick="setScope(\'' + t.id + '\',\'always\')">Every day</button>' +
+      '<button class="' + (t.scope === 'occupied' ? 'on' : '') + '" onclick="setScope(\'' + t.id + '\',\'occupied\')">When occupied</button>' +
+      '<button class="' + (t.scope === 'checkout' ? 'on' : '') + '" onclick="setScope(\'' + t.id + '\',\'checkout\')">Checkout only</button>' +
+      '</div></div>';
+  });
+  document.getElementById('adminTaskList').innerHTML = html;
+}
+function setScope(id, scope) {
+  var t = tasks.find(function (x) { return x.id === id; });
+  t.scope = scope;
+  renderAdmin();
+  render();
+  showToast('Updated — applies from the next time this room is cleaned.');
+}
+
+document.getElementById('statusRow').addEventListener('click', function (e) {
+  var btn = e.target.closest('.demo-btn');
+  if (!btn) return;
+  status = btn.dataset.status;
+  Array.prototype.forEach.call(document.getElementById('statusRow').children, function (b) { b.classList.toggle('active', b === btn); });
+  render();
+});
+document.getElementById('personaRow').addEventListener('click', function (e) {
+  var btn = e.target.closest('.demo-btn');
+  if (!btn) return;
+  persona = btn.dataset.persona;
+  Array.prototype.forEach.call(document.getElementById('personaRow').children, function (b) { b.classList.toggle('active', b === btn); });
+  showHidden = false;
+  render();
+});
+
+renderAdmin();
+render();
+</script>
+</body>
+</html>

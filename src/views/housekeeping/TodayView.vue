@@ -13,7 +13,7 @@ import { useToastStore } from '@/stores/toastStore'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import LanguageToggle from '@/components/ui/LanguageToggle.vue'
-import { Check, LogOut } from 'lucide-vue-next'
+import { Check, LogOut, ChevronRight } from 'lucide-vue-next'
 
 const { t } = useI18n()
 const { localizedName } = useLocale()
@@ -40,6 +40,8 @@ const {
   skipTask,
   unskipTask,
   addOneOffTask,
+  includeTaskToday,
+  unincludeTaskToday,
 } = useHousekeepingToday()
 const {
   members,
@@ -135,12 +137,31 @@ const dueRoomIds = computed(() => rooms.value.map((r) => r.roomId))
 const dayAssignments = computed(() => computeAssignments(dueRoomIds.value, todayIso))
 const onShiftHousekeepers = computed(() => members.value.filter((m) => m.crew_role === 'housekeeper' && m.is_active))
 
+// Booking-linked checklist (2026-08-27): a task the automatic occupancy rule
+// hides for today (occupancyExcluded) is left out of the checklist sheet's
+// main list entirely — unless an administrator/manager already pulled it
+// back in (isForceIncluded), in which case it's shown normally. Only
+// administrator/manager can even see the hidden set at all, via a disclosure
+// in the checklist sheet; a caretaker's own Today view never learns it
+// existed. See docs/09-wireframes.md's "Booking-linked checklist" note.
+function isHiddenByOccupancy(task: TodayTask): boolean {
+  return task.occupancyExcluded && !task.isForceIncluded
+}
+function visibleTasks(room: RoomToday) {
+  return room.tasks.filter((t) => !isHiddenByOccupancy(t))
+}
+function hiddenTasks(room: RoomToday) {
+  return room.tasks.filter((t) => isHiddenByOccupancy(t))
+}
+
 // A skipped task (Model A, migration 0015) isn't counted toward progress at
 // all — it's still shown in the checklist sheet (struck through, with an
 // "Undo skip" for admin/manager) but doesn't drag the room's percentage down
-// for something the manager already decided doesn't need doing today.
+// for something the manager already decided doesn't need doing today. An
+// occupancy-hidden task is excluded from progress the same way — nothing to
+// do today means nothing to count.
 function activeTasks(room: RoomToday) {
-  return room.tasks.filter((t) => !t.isSkipped)
+  return visibleTasks(room).filter((t) => !t.isSkipped)
 }
 function roomProgress(room: RoomToday) {
   const active = activeTasks(room)
@@ -201,9 +222,11 @@ function lastUpdate(room: RoomToday) {
 const openRoomId = ref<string | null>(null)
 const openRoom = computed(() => rooms.value.find((r) => r.roomId === openRoomId.value) ?? null)
 const oneOffName = ref('')
+const showHiddenTasks = ref(false)
 function openRoomSheet(roomId: string) {
   openRoomId.value = roomId
   oneOffName.value = ''
+  showHiddenTasks.value = false
 }
 
 const pendingUntick = ref<TodayTask | null>(null)
@@ -247,6 +270,26 @@ async function onSkipTask(task: TodayTask) {
 async function onUnskipTask(task: TodayTask) {
   const err = await unskipTask(task.taskId, task.dueOn)
   if (err) toast.show(err.message, { tone: 'error' })
+}
+
+// Booking-linked checklist (2026-08-27): pulls an occupancy-hidden task back
+// into today's list without touching its stored occupancy_scope — the
+// opposite direction of onSkipTask/onUnskipTask above, same admin/manager
+// gate (canInspect).
+async function onIncludeTask(task: TodayTask) {
+  const err = await includeTaskToday(task.taskId, task.dueOn)
+  if (err) toast.show(err.message, { tone: 'error' })
+  else toast.show(t('hk.today.includedToast'))
+}
+
+async function onUnincludeTask(task: TodayTask) {
+  const err = await unincludeTaskToday(task.taskId, task.dueOn)
+  if (err) toast.show(err.message, { tone: 'error' })
+  else toast.show(t('hk.today.unincludedToast'))
+}
+
+function hiddenReason(task: TodayTask): string {
+  return task.occupancyScope === 'checkout_only' ? t('hk.today.hiddenReasonCheckout') : t('hk.today.hiddenReasonOccupied')
 }
 
 async function onAddOneOff() {
@@ -426,7 +469,7 @@ const CADENCE_TAG_CLASS: Record<string, string> = {
     <BottomSheet :open="!!openRoom" :title="openRoom ? localizedName(openRoom.roomName, openRoom.roomNameSi) : ''" @close="openRoomId = null">
       <div v-if="openRoom" class="flex flex-col">
         <div
-          v-for="task in openRoom.tasks"
+          v-for="task in visibleTasks(openRoom)"
           :key="task.taskId"
           class="flex items-start gap-3 border-b border-neutral-200 py-2.5 last:border-b-0"
           @click="!task.isSkipped && onToggleTask(task)"
@@ -445,17 +488,53 @@ const CADENCE_TAG_CLASS: Record<string, string> = {
             </p>
             <p v-if="task.isDone && task.completedBy" class="text-caption text-positive-600">{{ memberName(task.completedBy) }} · {{ dayjs(task.completedAt).format('h:mm A') }}</p>
             <p v-if="task.isSkipped" class="text-caption font-semibold text-negative-600">{{ $t('hk.today.skippedToday') }}</p>
-            <button
-              v-if="canInspect && !task.isDone"
-              type="button"
-              class="mt-1 rounded-pill bg-neutral-100 px-2 py-0.5 text-caption font-medium text-neutral-600"
-              @click.stop="task.isSkipped ? onUnskipTask(task) : onSkipTask(task)"
-            >
-              {{ task.isSkipped ? $t('hk.today.undoSkip') : $t('hk.today.skipToday') }}
-            </button>
+            <p v-else-if="task.isForceIncluded" class="text-caption font-semibold text-info-600">{{ $t('hk.today.includedTag') }}</p>
+            <div class="mt-1 flex gap-1.5">
+              <button
+                v-if="canInspect && !task.isDone && !task.isForceIncluded"
+                type="button"
+                class="rounded-pill bg-neutral-100 px-2 py-0.5 text-caption font-medium text-neutral-600"
+                @click.stop="task.isSkipped ? onUnskipTask(task) : onSkipTask(task)"
+              >
+                {{ task.isSkipped ? $t('hk.today.undoSkip') : $t('hk.today.skipToday') }}
+              </button>
+              <button
+                v-if="canInspect && task.isForceIncluded"
+                type="button"
+                class="rounded-pill bg-neutral-100 px-2 py-0.5 text-caption font-medium text-neutral-600"
+                @click.stop="onUnincludeTask(task)"
+              >
+                {{ $t('hk.today.removeInclude') }}
+              </button>
+            </div>
           </div>
           <span class="shrink-0 self-start rounded-pill px-2 py-0.5 text-caption font-semibold" :class="CADENCE_TAG_CLASS[task.cadence]">{{ $t(`hk.today.cadence.${task.cadence}`) }}</span>
         </div>
+
+        <!-- Booking-linked checklist (2026-08-27): tasks the automatic
+             occupancy rule hid for today, visible only to admin/manager, so
+             a caretaker's own list stays exactly as clean as the automatic
+             rule intended. -->
+        <template v-if="canInspect && hiddenTasks(openRoom).length">
+          <button type="button" class="mt-2 flex items-center gap-1 text-caption font-semibold text-neutral-500" @click="showHiddenTasks = !showHiddenTasks">
+            <ChevronRight :size="14" class="transition-transform" :class="{ 'rotate-90': showHiddenTasks }" />
+            {{
+              $t(showHiddenTasks ? 'hk.today.hiddenTasksHide' : 'hk.today.hiddenTasksShow', {
+                count: hiddenTasks(openRoom).length,
+                noun: hiddenTasks(openRoom).length === 1 ? $t('hk.today.hiddenTaskOne') : $t('hk.today.hiddenTaskMany'),
+              })
+            }}
+          </button>
+          <div v-if="showHiddenTasks" class="mt-1 flex flex-col opacity-60">
+            <div v-for="task in hiddenTasks(openRoom)" :key="task.taskId" class="border-b border-neutral-200 py-2.5 last:border-b-0">
+              <p class="text-body-sm font-medium text-neutral-500">{{ localizedName(task.name, task.nameSi) }}</p>
+              <p class="text-caption text-neutral-400">{{ hiddenReason(task) }}</p>
+              <button type="button" class="mt-1 rounded-pill bg-neutral-100 px-2 py-0.5 text-caption font-medium text-neutral-600" @click="onIncludeTask(task)">
+                {{ $t('hk.today.includeAnyway') }}
+              </button>
+            </div>
+          </div>
+        </template>
 
         <div v-if="canInspect" class="mt-3 flex gap-2">
           <input
