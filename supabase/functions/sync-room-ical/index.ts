@@ -25,8 +25,15 @@
 
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2'
 
+// Hosting security review (2026-08-27): this was '*' (any origin). Because
+// verify_jwt is on for this function (Supabase platform setting), a forged
+// or missing Authorization header never reaches the code below regardless
+// of Origin, so '*' wasn't directly exploitable today. Tightened anyway as
+// defense-in-depth — the manual-call path (RoomsView.vue's "Sync now")
+// only ever runs from niva.h28ha.uk, so there's no legitimate reason for
+// any other origin to be allowed to read the response.
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://niva.h28ha.uk',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
