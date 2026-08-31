@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { ArrowLeft } from 'lucide-vue-next'
 import { useAuth } from '@/composables/useAuth'
 import { useTransactions } from '@/composables/useTransactions'
 import { useToastStore } from '@/stores/toastStore'
 import TransactionForm from '@/components/transactions/TransactionForm.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import type { TransactionFormValues, TransactionPayload } from '@/lib/schemas/transaction'
 import type { NivaError } from '@/lib/errors'
 import type { TransactionWithLabels } from '@/types/database'
@@ -15,6 +16,34 @@ const router = useRouter()
 const { workspaceId } = useAuth()
 const { get, update } = useTransactions()
 const toast = useToastStore()
+
+// Real-user feedback (owner acceptance, 2026-08-31): pressing Back while
+// editing silently discarded changes with no warning. onBeforeRouteLeave
+// catches every way of leaving this route — the in-page Back link below,
+// the browser/hardware back button, or navigating anywhere else — and
+// pauses on a confirm dialog if TransactionForm reports unsaved input.
+const formRef = ref<InstanceType<typeof TransactionForm> | null>(null)
+const showDiscardConfirm = ref(false)
+let resolveLeave: ((leave: boolean) => void) | null = null
+
+onBeforeRouteLeave(() => {
+  if (!formRef.value?.isDirty) return true
+  return new Promise<boolean>((resolve) => {
+    resolveLeave = resolve
+    showDiscardConfirm.value = true
+  })
+})
+
+function confirmLeave() {
+  showDiscardConfirm.value = false
+  resolveLeave?.(true)
+  resolveLeave = null
+}
+function cancelLeave() {
+  showDiscardConfirm.value = false
+  resolveLeave?.(false)
+  resolveLeave = null
+}
 
 const transaction = ref<TransactionWithLabels | null>(null)
 const loading = ref(true)
@@ -67,6 +96,12 @@ async function handleSubmit(payload: TransactionPayload): Promise<NivaError | nu
   if (error) return error
 
   toast.show('Transaction updated', { tone: 'success' })
+  // Mark clean *before* navigating — the router-leave guard above checks
+  // formRef.isDirty synchronously as soon as router.push() runs, which is
+  // before TransactionForm's own post-submit reset would otherwise fire.
+  // Without this, every successful save-and-return would wrongly trigger
+  // "Discard changes?" on its way out.
+  formRef.value?.markClean()
   router.push({ name: 'transaction-detail', params: { id: transaction.value.id } })
   return null
 }
@@ -93,6 +128,7 @@ async function handleSubmit(payload: TransactionPayload): Promise<NivaError | nu
       <h1 class="mb-4 text-h1 font-semibold text-neutral-900">{{ headerLabel }}</h1>
       <TransactionForm
         :key="formKey"
+        ref="formRef"
         mode="edit"
         :workspace-id="workspaceId"
         :initial-values="initialValues"
@@ -101,4 +137,13 @@ async function handleSubmit(payload: TransactionPayload): Promise<NivaError | nu
       />
     </template>
   </div>
+  <ConfirmDialog
+    :open="showDiscardConfirm"
+    title="Discard changes?"
+    description="Your edits haven't been saved. If you leave now, they'll be lost."
+    confirm-label="Discard"
+    danger
+    @confirm="confirmLeave"
+    @cancel="cancelLeave"
+  />
 </template>

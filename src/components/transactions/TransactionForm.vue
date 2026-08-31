@@ -88,6 +88,31 @@ watch(
   { immediate: true },
 )
 
+// ---- Unsaved-changes guard ------------------------------------------------
+// Real-user feedback (owner acceptance, 2026-08-31): tapping outside the
+// Quick Add sheet, or pressing Back while editing, silently discarded
+// whatever had been typed with no warning — confusing when it's not obvious
+// whether something was saved. Track "the user actually touched something"
+// separately from vee-validate's own dirty tracking, because the
+// defaultCurrency watcher below programmatically calls setFieldValue on
+// mount (auto-selecting the default currency) — if that counted as
+// "dirty," every fresh Quick Add would falsely prompt "discard changes?"
+// even when the user hadn't typed anything. touch() is called explicitly
+// from every real selection handler; the @input.capture/@change.capture
+// listener on the <form> below catches native typing/date/textarea edits
+// without needing to wire touch() into every v-model individually.
+const hasUserEdited = ref(false)
+function touch() {
+  hasUserEdited.value = true
+}
+// markClean() lets a consumer that navigates away as part of its own
+// onSubmit handler (EditTransactionView, after a successful save) clear the
+// dirty flag *before* it navigates — otherwise the router-leave guard would
+// still see hasUserEdited === true (this component's own post-submit reset
+// below runs only after onSubmit's promise resolves, which is too late if
+// onSubmit itself already triggered the navigation).
+defineExpose({ isDirty: computed(() => hasUserEdited.value), markClean: () => { hasUserEdited.value = false } })
+
 const [type] = defineField('type')
 const [amount, amountAttrs] = defineField('amount')
 const [currencyCode] = defineField('currencyCode')
@@ -155,14 +180,17 @@ const categoryMoreSelectedLabel = computed(() => {
 })
 
 function selectFavoriteCategory(id: string) {
+  touch()
   setFieldValue('categoryId', id)
   openPopover.value = ''
 }
 function selectMoreCategory(id: string) {
+  touch()
   setFieldValue('categoryId', id)
   openPopover.value = ''
 }
 function selectSubcategory(id: string) {
+  touch()
   setFieldValue('categoryId', currentSubcategoryId.value === id ? currentTopCategoryId.value : id)
 }
 
@@ -192,10 +220,12 @@ const paymentMoreSelectedLabel = computed(() => {
 })
 
 function selectFavoritePayment(id: string) {
+  touch()
   setFieldValue('paymentMethodId', id)
   openPopover.value = ''
 }
 function selectMorePayment(id: string) {
+  touch()
   setFieldValue('paymentMethodId', id)
   openPopover.value = ''
 }
@@ -205,6 +235,7 @@ function selectMorePayment(id: string) {
 const enabledCurrencies = computed(() => currencies.rows.value.filter((r) => r.enabled))
 
 function selectCurrency(code: string) {
+  touch()
   setFieldValue('currencyCode', code)
   openPopover.value = ''
 }
@@ -243,6 +274,7 @@ const platformOptions = computed(() => platforms.items.value.filter((p) => p.is_
 const platformName = computed(() => platformOptions.value.find((p) => p.id === platformId.value)?.name ?? '')
 
 function pickPlatform(id: string) {
+  touch()
   setFieldValue('platformId', id)
   closeDetail()
 }
@@ -255,14 +287,17 @@ const supplierOptions = computed(() => suppliers.items.value.filter((s) => s.is_
 const supplierMode = ref<'select' | 'new'>(props.initialValues?.supplierName ? 'new' : 'select')
 
 function pickSupplier(name: string) {
+  touch()
   setFieldValue('supplierName', name)
   closeDetail()
 }
 function startNewSupplier() {
+  touch()
   supplierMode.value = 'new'
   setFieldValue('supplierName', '')
 }
 function backToSupplierSelect() {
+  touch()
   supplierMode.value = 'select'
   setFieldValue('supplierName', '')
 }
@@ -343,6 +378,7 @@ const onFormSubmit = handleSubmit(async (formValues) => {
   }
 
   emit('success')
+  hasUserEdited.value = false
   if (props.mode === 'create') {
     // Keep last-used category/payment method/date/currency — only clear
     // what's specific to this one entry, per
@@ -356,7 +392,7 @@ const onFormSubmit = handleSubmit(async (formValues) => {
 </script>
 
 <template>
-  <form class="flex flex-col" @submit="onFormSubmit">
+  <form class="flex flex-col" @submit="onFormSubmit" @input.capture="touch" @change.capture="touch">
     <!-- Amount and type -->
     <div class="mb-5">
       <p class="mb-2.5 text-caption font-semibold uppercase tracking-wide text-neutral-400">Amount and type</p>
@@ -370,7 +406,7 @@ const onFormSubmit = handleSubmit(async (formValues) => {
           type="button"
           class="relative z-10 flex-1 py-3 text-body font-semibold"
           :class="type === 'income' ? 'text-white' : 'text-neutral-500'"
-          @click="setFieldValue('type', 'income')"
+          @click="touch(); setFieldValue('type', 'income')"
         >
           Income
         </button>
@@ -378,7 +414,7 @@ const onFormSubmit = handleSubmit(async (formValues) => {
           type="button"
           class="relative z-10 flex-1 py-3 text-body font-semibold"
           :class="type === 'expense' ? 'text-white' : 'text-neutral-500'"
-          @click="setFieldValue('type', 'expense')"
+          @click="touch(); setFieldValue('type', 'expense')"
         >
           Expense
         </button>

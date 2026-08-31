@@ -41,6 +41,7 @@ export default {
       undoDescription: '{name} "{task}" නිම කර ඇත. එය ඉවත් කරන්නද?',
       undoOnlyOwner: '{name} හෝ පරිපාලක/කළමනාකරුවෙකුට පමණක් මෙය ඉවත් කළ හැක.',
       checkoutToday: 'අද පිටවීම',
+      checkinToday: 'අද පැමිණීම',
       stayover: 'රැඳී සිටී',
       signOut: 'ඉවත් වන්න',
       signingOut: 'ඉවත් වෙමින්…',

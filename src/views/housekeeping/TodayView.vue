@@ -98,32 +98,54 @@ async function onSignOut() {
   router.push({ name: 'sign-in' })
 }
 
-// "Checkout today" / "Stayover" badge for booking-linked rooms, sourced from
-// room_bookings (migration 0013, populated by the iCal sync). A linked room
-// with no booking today (vacant) gets no badge. Unlinked rooms (common
-// areas) never get one — matches the original plan in
+// "Checkout today" / "Check-in today" / "Stayover" badges for booking-linked
+// rooms, sourced from room_bookings (migration 0013, populated by the iCal
+// sync). A linked room with no booking today (vacant) gets no badge.
+// Unlinked rooms (common areas) never get one — matches the original plan in
 // docs/housekeeping-in-app-prototype.html: the badge is context, not a
 // filter, so stayover rooms stay on the checklist (2026-08-25, confirmed
 // with Jalie rather than assumed).
-type BookingBadge = { label: string; tone: 'checkout' | 'stayover' } | null
-function bookingBadge(room: RoomToday): BookingBadge {
-  if (!room.linkedToBookings) return null
-  const booking = bookings.value.find((b) => b.room_id === room.roomId && b.starts_on <= todayIso && todayIso <= b.ends_on)
-  if (!booking) return null
-  return booking.ends_on === todayIso
-    ? { label: t('hk.today.checkoutToday'), tone: 'checkout' }
-    : { label: t('hk.today.stayover'), tone: 'stayover' }
+//
+// Real bug found 2026-08-31 (owner acceptance): a check-in day (a booking's
+// starts_on === today) fell into the `else` branch of the old two-way
+// checkout/stayover check and was mislabeled "Stayover" — there was no
+// third case at all. Also found while fixing it: a same-day turnover (one
+// booking's ends_on === today for the outgoing guest, a *different*
+// booking's starts_on === today for the next one, same room) needs BOTH
+// badges shown together, per Jalie's request — the old code only ever
+// looked at a single `.find()` result, so it would silently show only
+// whichever booking happened to match first. bookingBadges() now checks
+// every booking covering the room today (there can genuinely be two) and
+// returns however many badges actually apply.
+type BookingTone = 'checkout' | 'checkin' | 'stayover'
+type BookingBadgeInfo = { label: string; tone: BookingTone }
+function bookingBadges(room: RoomToday): BookingBadgeInfo[] {
+  if (!room.linkedToBookings) return []
+  const todaysBookings = bookings.value.filter((b) => b.room_id === room.roomId && b.starts_on <= todayIso && todayIso <= b.ends_on)
+  if (!todaysBookings.length) return []
+
+  const isCheckout = todaysBookings.some((b) => b.ends_on === todayIso)
+  const isCheckin = todaysBookings.some((b) => b.starts_on === todayIso)
+  const badges: BookingBadgeInfo[] = []
+  if (isCheckout) badges.push({ label: t('hk.today.checkoutToday'), tone: 'checkout' })
+  if (isCheckin) badges.push({ label: t('hk.today.checkinToday'), tone: 'checkin' })
+  if (!badges.length) badges.push({ label: t('hk.today.stayover'), tone: 'stayover' })
+  return badges
 }
 // Colors match the original prototype's .room-badge.checkout/.stayover
-// (docs/housekeeping-in-app-prototype.html). Real bug found 2026-08-26:
-// these referenced `warn-50`/`warn-600` (wrong token name — tailwind.css
-// only ever defined `warning-600`) and `info-50` (never defined at all, only
-// `info-600`), so neither badge has ever actually rendered in color since
-// this feature shipped — both silently fell back to unstyled text. Fixed by
-// adding the missing -50 tints to tailwind.css's @theme and correcting the
-// class names here.
-const BOOKING_BADGE_CLASS: Record<'checkout' | 'stayover', string> = {
+// (docs/housekeeping-in-app-prototype.html), plus a third tone for check-in
+// (positive-* — a new guest arriving reads as a good thing, distinct from
+// checkout's warning amber and stayover's neutral info blue). Real bug
+// found 2026-08-26 on the original two: these referenced `warn-50`/
+// `warn-600` (wrong token name — tailwind.css only ever defined
+// `warning-600`) and `info-50` (never defined at all, only `info-600`), so
+// neither badge had ever actually rendered in color since this feature
+// shipped — both silently fell back to unstyled text. Fixed by adding the
+// missing -50 tints to tailwind.css's @theme and correcting the class
+// names here.
+const BOOKING_BADGE_CLASS: Record<BookingTone, string> = {
   checkout: 'bg-warning-50 text-warning-600',
+  checkin: 'bg-positive-50 text-positive-600',
   stayover: 'bg-info-50 text-info-600',
 }
 
@@ -170,12 +192,17 @@ function roomProgress(room: RoomToday) {
 }
 
 // Checkout-today rooms need to be ready before the next guest arrives, so
-// they lead the list — ahead of stayovers, which lead everything else with
-// no booking badge. Requested 2026-08-26: a checkout room buried at the
-// bottom (alphabetically) is easy to miss until it's already late in the day.
-const BOOKING_URGENCY_RANK: Record<'checkout' | 'stayover' | 'none', number> = { checkout: 0, stayover: 1, none: 2 }
+// they lead the list — ahead of check-in/stayover, which lead everything
+// else with no booking badge. Requested 2026-08-26: a checkout room buried
+// at the bottom (alphabetically) is easy to miss until it's already late in
+// the day. A same-day turnover room now carries both a checkout and a
+// check-in badge (see bookingBadges() above) — it sorts by whichever tone
+// present is most urgent, so a turnover ranks with plain checkout rather
+// than needing a rank of its own.
+const BOOKING_URGENCY_RANK: Record<BookingTone | 'none', number> = { checkout: 0, checkin: 1, stayover: 1, none: 2 }
 function bookingUrgency(room: RoomToday): number {
-  return BOOKING_URGENCY_RANK[bookingBadge(room)?.tone ?? 'none']
+  const tones = bookingBadges(room).map((b) => b.tone)
+  return tones.length ? Math.min(...tones.map((tone) => BOOKING_URGENCY_RANK[tone])) : BOOKING_URGENCY_RANK.none
 }
 
 const visibleRooms = computed(() => {
@@ -410,13 +437,16 @@ const CADENCE_TAG_CLASS: Record<string, string> = {
               <p class="truncate text-body font-semibold text-neutral-900">{{ localizedName(room.roomName, room.roomNameSi) }}</p>
               <p class="truncate text-caption text-neutral-500">{{ room.roomType }}</p>
             </div>
-            <span
-              v-if="bookingBadge(room)"
-              class="shrink-0 rounded-pill px-2 py-0.5 text-caption font-semibold"
-              :class="BOOKING_BADGE_CLASS[bookingBadge(room)!.tone]"
-            >
-              {{ bookingBadge(room)!.label }}
-            </span>
+            <div v-if="bookingBadges(room).length" class="flex shrink-0 flex-wrap justify-end gap-1">
+              <span
+                v-for="badge in bookingBadges(room)"
+                :key="badge.tone"
+                class="rounded-pill px-2 py-0.5 text-caption font-semibold"
+                :class="BOOKING_BADGE_CLASS[badge.tone]"
+              >
+                {{ badge.label }}
+              </span>
+            </div>
           </div>
           <div class="my-1.5 h-1.5 overflow-hidden rounded-pill bg-neutral-100">
             <div

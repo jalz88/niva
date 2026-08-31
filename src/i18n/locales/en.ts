@@ -42,6 +42,7 @@ export default {
       undoDescription: '{name} marked "{task}" done. Undo it?',
       undoOnlyOwner: 'Only {name} or an administrator/manager can undo this.',
       checkoutToday: 'Checkout today',
+      checkinToday: 'Check-in today',
       stayover: 'Stayover',
       signOut: 'Sign out',
       signingOut: 'Signing out…',

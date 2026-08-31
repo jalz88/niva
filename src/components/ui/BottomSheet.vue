@@ -9,8 +9,20 @@ import { X } from 'lucide-vue-next'
 // centered fade/scale. Positioning is plain flexbox (items-end → items-
 // center at md), not translate-based centering, so it can't fight the
 // transition's own transform.
-defineProps<{ open: boolean; title: string }>()
-const emit = defineEmits<{ close: [] }>()
+// `dirty` lets a consumer opt in to an unsaved-changes guard (2026-08-31,
+// real-user feedback: tapping the backdrop or the X silently discarded
+// in-progress Quick Add/Edit transaction input with no warning). Default
+// false keeps every other existing usage of this component byte-for-byte
+// the same — attemptClose() falls straight through to `close` unless a
+// consumer explicitly passes `dirty`. When it is true, `close-blocked` is
+// emitted instead so the consumer can show its own "discard changes?"
+// confirm dialog and only then set `open` to false itself.
+const props = defineProps<{ open: boolean; title: string; dirty?: boolean }>()
+const emit = defineEmits<{ close: []; 'close-blocked': [] }>()
+function attemptClose() {
+  if (props.dirty) emit('close-blocked')
+  else emit('close')
+}
 </script>
 
 <template>
@@ -19,7 +31,7 @@ const emit = defineEmits<{ close: [] }>()
       <div
         v-if="open"
         class="fixed inset-0 z-40 flex items-end justify-center bg-neutral-900/40 md:items-center md:p-4"
-        @click.self="emit('close')"
+        @click.self="attemptClose"
       >
         <Transition name="sheet">
           <div v-if="open" class="max-h-[90vh] w-full overflow-y-auto rounded-t-lg bg-neutral-100 shadow-lg md:max-w-md md:rounded-md">
@@ -31,7 +43,7 @@ const emit = defineEmits<{ close: [] }>()
                   type="button"
                   aria-label="Close"
                   class="rounded-sm p-1 text-neutral-500 hover:bg-neutral-200/60"
-                  @click="emit('close')"
+                  @click="attemptClose"
                 >
                   <X :size="20" />
                 </button>

@@ -3,6 +3,7 @@ import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { toNivaError, type NivaError } from '@/lib/errors'
 import type { Role } from '@/types/database'
+import { i18n, LOCALE_STORAGE_KEY, type Locale } from '@/i18n'
 
 const session = ref<Session | null>(null)
 const currentRole = ref<Role | null>(null)
@@ -43,11 +44,24 @@ async function loadMembership(user: User) {
 }
 
 async function loadProfile(user: User) {
-  const { data } = await supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle()
+  const { data } = await supabase.from('profiles').select('display_name, locale').eq('id', user.id).maybeSingle()
   // handle_new_user (migration 0003) defaults display_name to the email
   // address — treat that as "no real name set yet" so the UI can prompt
   // for one instead of silently showing an email where a name belongs.
   currentDisplayName.value = data?.display_name && data.display_name !== user.email ? data.display_name : null
+
+  // Language preference moved from per-device (localStorage only) to
+  // per-user (migration 20260831090247) — real-user feedback that a
+  // shared/rotating staff device should show each signed-in person's own
+  // language, not whoever last touched the toggle on that physical device.
+  // The profile's own value wins on sign-in; also refresh the localStorage
+  // cache so the next cold boot on this device paints correctly before the
+  // profile round-trip resolves.
+  const profileLocale = data?.locale as Locale | undefined
+  if (profileLocale === 'en' || profileLocale === 'si') {
+    i18n.global.locale.value = profileLocale
+    localStorage.setItem(LOCALE_STORAGE_KEY, profileLocale)
+  }
 }
 
 // Shared across every useAuth() call so concurrent callers (the router
