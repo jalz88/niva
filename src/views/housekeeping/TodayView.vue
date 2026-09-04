@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
@@ -42,6 +42,8 @@ const {
   addOneOffTask,
   includeTaskToday,
   unincludeTaskToday,
+  subscribeToChanges,
+  unsubscribeFromChanges,
 } = useHousekeepingToday()
 const {
   members,
@@ -83,6 +85,14 @@ async function loadAll() {
 watch(workspaceId, loadAll, { immediate: true })
 watch(todayRevision, loadAll)
 watch(wfRevision, loadAll)
+
+// Real bug found 2026-08-31, live multi-device testing: without this, one
+// device completing a task never reached anyone else's phone until they
+// manually closed and reopened the app. See useHousekeepingToday.ts's
+// subscribeToChanges() — it bumps todayRevision above from a Realtime
+// event, so this is the only wiring needed here.
+watch(workspaceId, (id) => id && subscribeToChanges(id), { immediate: true })
+onUnmounted(unsubscribeFromChanges)
 
 // Kiosk mode (a staff/caretaker account, AppShell.vue's isKiosk) renders no
 // chrome at all around this view, so it's the only place a caretaker can

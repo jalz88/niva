@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { toNivaError, type NivaError } from '@/lib/errors'
 import type { TodayChecklistRow, SopOccupancyScope } from '@/types/database'
@@ -82,8 +83,51 @@ function groupRooms(rows: TodayChecklistRow[]): RoomToday[] {
 
 // Bumped on complete/uncomplete/markInspected — Today and Today's schedule
 // both watch this to know when to refetch, same pattern as every other
-// composable's revision counter.
+// composable's revision counter. Also bumped by the Realtime subscription
+// below, so a *different device's* change reaches this same watcher with
+// zero changes needed at the call site (TodayView.vue already does
+// `watch(todayRevision, loadAll)`).
 const revision = ref(0)
+
+// Real bug found 2026-08-31, live multi-device testing: this ref alone only
+// ever changes from this browser tab's own actions — it did nothing for a
+// second person's phone completing a task at the same time, who had to
+// manually close and reopen the app to see it. Fixed with a Realtime
+// subscription (migration 20260904055820 enables it on the four tables
+// below) that bumps the same `revision` ref whenever a relevant row changes
+// for this workspace, from any device. Module-scoped like `revision`
+// itself — one channel per workspace, not one per component instance, so
+// switching between the Today and Today's schedule routes (same
+// composable) doesn't open a second connection.
+let channel: RealtimeChannel | null = null
+let subscribedWorkspaceId: string | null = null
+
+function subscribeToChanges(workspaceId: string) {
+  if (subscribedWorkspaceId === workspaceId && channel) return
+  if (channel) supabase.removeChannel(channel)
+
+  subscribedWorkspaceId = workspaceId
+  const bump = () => {
+    revision.value++
+  }
+  channel = supabase
+    .channel(`housekeeping-today-${workspaceId}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'sop_task_completions', filter: `workspace_id=eq.${workspaceId}` }, bump)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'sop_task_skips', filter: `workspace_id=eq.${workspaceId}` }, bump)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'sop_task_occupancy_overrides', filter: `workspace_id=eq.${workspaceId}` },
+      bump,
+    )
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'room_inspections', filter: `workspace_id=eq.${workspaceId}` }, bump)
+    .subscribe()
+}
+
+function unsubscribeFromChanges() {
+  if (channel) supabase.removeChannel(channel)
+  channel = null
+  subscribedWorkspaceId = null
+}
 
 export function useHousekeepingToday() {
   const rooms = ref<RoomToday[]>([])
@@ -229,5 +273,7 @@ export function useHousekeepingToday() {
     addOneOffTask,
     includeTaskToday,
     unincludeTaskToday,
+    subscribeToChanges,
+    unsubscribeFromChanges,
   }
 }

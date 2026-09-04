@@ -29,6 +29,12 @@ Four things came back from Jalie and her mother's first real session (her mother
 3. **Fixed — check-in day mislabeled "Stayover," no Check-in badge.** `TodayView.vue`'s booking badge only ever checked for checkout day, everything else fell through to "Stayover." Now distinguishes Checkout / Check-in / Stayover, and shows both Checkout and Check-in badges together on a same-day turnover. Found and fixed the same bug's more serious sibling while in there: the `housekeeping_today_checklist` RPC could have silently duplicated a room's entire task list on a turnover day (two bookings covering one room/day, no aggregation) — fixed in migration `20260831090718`, never actually confirmed to have hit production data but a real latent bug.
 4. **Investigated, not a code bug — occasional sign-outs.** Most likely cause: Supabase's refresh-token reuse protection terminates a session if it detects the same session's token used from two places within a short window — the common trigger is having NIVA open in more than one place at once (e.g. a browser tab left open behind the installed home-screen icon), which can race on token refresh. Practical mitigation: close any other open NIVA tab/window before relying on the installed app icon. Not something fixable in app code without weakening a real security protection Supabase recommends keeping on; flagged as a known limitation rather than a bug.
 
+### Second live round — 2026-09-04
+
+First genuinely simultaneous multi-device use (Jalie, her mother, and the housekeeper Subashani — Android and iPhone, at the same time). One finding:
+
+5. **Fixed — no live sync across devices.** Subashani completing a task on her phone didn't reach her mother's phone until it was manually closed and reopened. Realtime had never actually been turned on for any table in the project. Enabled it for the four tables the Today checklist depends on (`sop_task_completions`, `sop_task_skips`, `sop_task_occupancy_overrides`, `room_inspections` — migration `20260904055820`) and wired a subscription into `useHousekeepingToday.ts` that refreshes the checklist the moment any of those change, from any device. Room-booking and staff-assignment changes don't have this yet (lower priority — they change far less often mid-shift); worth doing if it turns out to matter.
+
 ## Operational readiness
 
 - [x] Custom domain (`niva.h28ha.uk`), TLS valid and auto-renewing.
