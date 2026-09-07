@@ -53,6 +53,7 @@ const {
   loadAssignments,
   setAssignment,
   computeAssignments,
+  isOff,
 } = useWorkforce()
 const { items: bookings, load: loadBookings } = useRoomBookings()
 // Resolves an auth user id (task.completedBy/inspectedBy — see migration
@@ -167,7 +168,15 @@ const canInspect = computed(() => role.value === 'administrator' || role.value =
 const myWorkforceMemberId = computed(() => members.value.find((m) => m.membership_id === membershipId.value)?.id ?? null)
 const dueRoomIds = computed(() => rooms.value.map((r) => r.roomId))
 const dayAssignments = computed(() => computeAssignments(dueRoomIds.value, todayIso))
-const onShiftHousekeepers = computed(() => members.value.filter((m) => m.crew_role === 'housekeeper' && m.is_active))
+// Real bug found 2026-09-07, live use: the header said "Subashani on shift"
+// even though she had a workforce_days_off row for that exact day — this
+// filter checked crew_role/is_active only and never called isOff() at all,
+// unlike computeAssignments() below (which already excludes an off-today
+// housekeeper correctly, which is why the room cards themselves already
+// showed "Unassigned" — only this header text was wrong).
+const onShiftHousekeepers = computed(() =>
+  members.value.filter((m) => m.crew_role === 'housekeeper' && m.is_active && !isOff(m.id, todayIso)),
+)
 
 // Booking-linked checklist (2026-08-27): a task the automatic occupancy rule
 // hides for today (occupancyExcluded) is left out of the checklist sheet's

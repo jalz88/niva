@@ -28,11 +28,13 @@ Migrations live in `supabase/migrations/`, one file per entry in the live projec
 | `npm run format` | Prettier |
 | `npm run test:unit` | Vitest |
 | `npm run test:e2e` | Playwright (needs a running app + Supabase project) |
+| `npm run test:db` | pgTAP RLS/permission suite (needs Docker — spins up a local Postgres via the Supabase CLI) |
+| `npm run audit` | `npm audit --audit-level=high` |
 
-CI (`.github/workflows/ci.yml`) runs lint, typecheck, unit tests, build, and the Playwright E2E suite (sign-in, add/edit/archive transactions) against an isolated RLS-scoped test workspace on every push.
+CI (`.github/workflows/ci.yml`) runs a dependency vulnerability audit, lint, typecheck, unit tests, build, the pgTAP RLS/permission suite against a fresh local Postgres container, and the Playwright E2E suite (sign-in, add/edit/archive transactions) against an isolated RLS-scoped test workspace — on every push.
 
 ## Status
 
-**v1.11.1**, Release 1 readiness in progress. All five roadmap phases (`docs/06-development-roadmap.md`) have shipped their core scope — technical foundation, configuration screens, core transactions, dashboard/reports, and Housekeeping (rooms, checklists, staff roster) — plus a full white-hat security audit of both the database (RLS/permissions/Edge Functions, `docs/11-coding-standards-and-test-strategy.md` §7) and the Cloudflare Pages hosting layer (security headers, CSP, HTTPS redirect, cache policy). See `docs/release-checklist.md` for the exact remaining items before Release 1 is called done.
+**v1.11.3**, Release 1 readiness in progress. All five roadmap phases (`docs/06-development-roadmap.md`) have shipped their core scope — technical foundation, configuration screens, core transactions, dashboard/reports, and Housekeeping (rooms, checklists, staff roster) — plus a full white-hat security audit of both the database (RLS/permissions/Edge Functions, `docs/11-coding-standards-and-test-strategy.md` §7) and the Cloudflare Pages hosting layer (security headers, CSP, HTTPS redirect, cache policy). See `docs/release-checklist.md` for the exact remaining items before Release 1 is called done.
 
 Known limitations at this release: no receipt uploads/OCR, no multi-currency conversion (reports group by currency plus an approximate combined total, never a blended real total), no offline transaction queueing (by design — Quick Add disables saving while offline, reads still work from cache), no monitoring/error-reporting service (deliberately skipped for now, given the small, trusted user base — see `docs/06-development-roadmap.md` Phase 5), and occasional unexpected sign-outs when the app is open in more than one place at once (e.g. a browser tab left open behind the installed home-screen icon) — a Supabase session-security protection, not a bug; closing other open tabs/windows avoids it. See `docs/06-development-roadmap.md` → "Post-release priorities" for what's next.

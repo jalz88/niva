@@ -20,6 +20,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Dependency vulnerability audit
+        run: npm run audit
+
       - name: Lint
         run: npm run lint:eslint -- --max-warnings=0
 
@@ -31,6 +34,24 @@ jobs:
 
       - name: Build
         run: npm run build-only
+
+  # pgTAP RLS/permission suite — see docs/11-coding-standards-and-test-strategy.md
+  # §7/§11. Runs entirely against a fresh, throwaway local Postgres container that
+  # `supabase start` spins up from supabase/migrations/ — never the real project,
+  # no secrets needed. Closes the gap the null-role-bypass bug (2026-08-27) exposed:
+  # a policy/SECURITY DEFINER regression like that one is now caught automatically
+  # on every PR instead of depending on the next manual audit.
+  db-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start local Supabase (applies supabase/migrations/)
+        run: supabase start
+      - name: Run pgTAP suite
+        run: supabase test db
 
   # Playwright critical-flow suite — see docs/11-coding-standards-and-test-strategy.md §7.
   # Runs against the real Supabase project, but against a dedicated

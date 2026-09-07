@@ -48,3 +48,8 @@ playwright-report/
 # Weekly Supabase data export (scheduled task) — real workspace data,
 # regenerated automatically, not something to keep in git history.
 backups/
+
+# Supabase CLI local state (`supabase start`/`supabase test db`) — machine-
+# local cache, not project config.
+supabase/.temp/
+supabase/.branches/

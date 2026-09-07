@@ -34,6 +34,7 @@ Four things came back from Jalie and her mother's first real session (her mother
 First genuinely simultaneous multi-device use (Jalie, her mother, and the housekeeper Subashani — Android and iPhone, at the same time). One finding:
 
 5. **Fixed — no live sync across devices.** Subashani completing a task on her phone didn't reach her mother's phone until it was manually closed and reopened. Realtime had never actually been turned on for any table in the project. Enabled it for the four tables the Today checklist depends on (`sop_task_completions`, `sop_task_skips`, `sop_task_occupancy_overrides`, `room_inspections` — migration `20260904055820`) and wired a subscription into `useHousekeepingToday.ts` that refreshes the checklist the moment any of those change, from any device. Room-booking and staff-assignment changes don't have this yet (lower priority — they change far less often mid-shift); worth doing if it turns out to matter.
+6. **Fixed — "on shift" header ignored days off.** Today's schedule said "Subashani on shift" even with a day off logged for her that exact day (confirmed in the database — the day-off row was there and correct). `TodayView.vue`'s `onShiftHousekeepers` only checked `crew_role`/`is_active`, never `isOff()` — unlike `computeAssignments()`, which already excluded her correctly (that's why every room already, correctly, showed "Unassigned" — no other housekeeper existed to pick up the work). Now both checks agree.
 
 ## Operational readiness
 
