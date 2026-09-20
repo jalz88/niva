@@ -151,7 +151,10 @@ export default {
       tabCalendar: 'Work calendar',
       tabRoster: 'Roster',
       calendarEmpty: 'Add someone to the roster to track their days off.',
-      weekdayInitials: ['S', 'M', 'T', 'W', 'T', 'F', 'S'],
+      // Monday-first (M T W T F S S) so the weekend (Sat+Sun, shaded in
+      // StaffView.vue) lands together at the end of the row, matching the
+      // week convention Jalie's household/staff actually use.
+      weekdayInitials: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
       offCountLabel: '{count} {dayNoun} off in {month}.',
       dayNounOne: 'day',
       dayNounMany: 'days',

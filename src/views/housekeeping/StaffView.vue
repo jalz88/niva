@@ -176,15 +176,17 @@ const todayIso = dayjs().format('YYYY-MM-DD')
 
 const calendarCells = computed(() => {
   const start = calendarMonth.value.startOf('month')
-  const lead = start.day()
+  // dayjs().day() is always 0 = Sunday .. 6 = Saturday, regardless of locale.
+  // The grid itself is Monday-first (weekdayInitials is M T W T F S S), so
+  // the lead-blank count needs day() re-based to 0 = Monday .. 6 = Sunday.
+  const lead = (start.day() + 6) % 7
   const total = calendarMonth.value.daysInMonth()
   const cells: Array<{ iso: string; day: number; isWeekend: boolean } | null> = []
   for (let i = 0; i < lead; i++) cells.push(null)
   for (let d = 1; d <= total; d++) {
     const date = start.date(d)
-    // dayjs().day(): 0 = Sunday, 6 = Saturday — the weekend for this app's
-    // audience, not the Friday/Saturday weekend some calendar libraries
-    // default to. weekdayInitials (below) is ordered Sun-first to match.
+    // Weekend is still Saturday/Sunday (date.day() 6/0) — the re-basing
+    // above only affects where blanks go, not what day() itself returns.
     cells.push({ iso: date.format('YYYY-MM-DD'), day: d, isWeekend: date.day() === 0 || date.day() === 6 })
   }
   return cells
@@ -272,7 +274,7 @@ const weekdayInitials = computed<string[]>(() => tm('hk.staff.weekdayInitials') 
             </button>
           </div>
           <div class="mb-1 grid grid-cols-7 text-center text-caption font-semibold text-neutral-400">
-            <span v-for="(d, i) in weekdayInitials" :key="i" :class="i === 0 || i === 6 ? 'text-neutral-500' : ''">{{ d }}</span>
+            <span v-for="(d, i) in weekdayInitials" :key="i" :class="i === 5 || i === 6 ? 'text-neutral-500' : ''">{{ d }}</span>
           </div>
           <div class="grid grid-cols-7 gap-1">
             <template v-for="(cell, idx) in calendarCells" :key="idx">

@@ -150,7 +150,8 @@ export default {
       tabCalendar: 'වැඩ දින දර්ශනය',
       tabRoster: 'සේවක ලැයිස්තුව',
       calendarEmpty: 'නිවාඩු දින ලුහුබැඳීමට කෙනෙකු ලැයිස්තුවට එකතු කරන්න.',
-      weekdayInitials: ['ඉ', 'ස', 'අ', 'බ', 'බ්‍ර', 'සි', 'සෙ'],
+      // Reordered to Monday-first to match en.ts — see the comment there.
+      weekdayInitials: ['ස', 'අ', 'බ', 'බ්‍ර', 'සි', 'සෙ', 'ඉ'],
       offCountLabel: '{month} හි {dayNoun} {count}ක් නිවාඩු.',
       dayNounOne: 'දිනය',
       dayNounMany: 'දින',
