@@ -178,9 +178,15 @@ const calendarCells = computed(() => {
   const start = calendarMonth.value.startOf('month')
   const lead = start.day()
   const total = calendarMonth.value.daysInMonth()
-  const cells: Array<{ iso: string; day: number } | null> = []
+  const cells: Array<{ iso: string; day: number; isWeekend: boolean } | null> = []
   for (let i = 0; i < lead; i++) cells.push(null)
-  for (let d = 1; d <= total; d++) cells.push({ iso: start.date(d).format('YYYY-MM-DD'), day: d })
+  for (let d = 1; d <= total; d++) {
+    const date = start.date(d)
+    // dayjs().day(): 0 = Sunday, 6 = Saturday — the weekend for this app's
+    // audience, not the Friday/Saturday weekend some calendar libraries
+    // default to. weekdayInitials (below) is ordered Sun-first to match.
+    cells.push({ iso: date.format('YYYY-MM-DD'), day: d, isWeekend: date.day() === 0 || date.day() === 6 })
+  }
   return cells
 })
 
@@ -266,7 +272,7 @@ const weekdayInitials = computed<string[]>(() => tm('hk.staff.weekdayInitials') 
             </button>
           </div>
           <div class="mb-1 grid grid-cols-7 text-center text-caption font-semibold text-neutral-400">
-            <span v-for="(d, i) in weekdayInitials" :key="i">{{ d }}</span>
+            <span v-for="(d, i) in weekdayInitials" :key="i" :class="i === 0 || i === 6 ? 'text-neutral-500' : ''">{{ d }}</span>
           </div>
           <div class="grid grid-cols-7 gap-1">
             <template v-for="(cell, idx) in calendarCells" :key="idx">
@@ -277,7 +283,11 @@ const weekdayInitials = computed<string[]>(() => tm('hk.staff.weekdayInitials') 
                 class="relative aspect-square rounded-sm text-body-sm font-medium"
                 :class="[
                   cell.iso === todayIso ? 'ring-2 ring-accent-500' : '',
-                  selectedMemberId && isOff(selectedMemberId, cell.iso) ? 'bg-negative-600/10 text-negative-600' : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100',
+                  selectedMemberId && isOff(selectedMemberId, cell.iso)
+                    ? 'bg-negative-600/10 text-negative-600'
+                    : cell.isWeekend
+                      ? 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                      : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100',
                 ]"
                 @click="onToggleDay(cell.iso)"
               >
