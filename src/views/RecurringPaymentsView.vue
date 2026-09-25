@@ -4,7 +4,7 @@ import dayjs from 'dayjs'
 import { Plus } from 'lucide-vue-next'
 import { useAuth } from '@/composables/useAuth'
 import { useConfigItems } from '@/composables/useConfigItems'
-import { useCategories, topLevelCategories } from '@/composables/useCategories'
+import { useCategories, topLevelCategories, subcategoriesOf } from '@/composables/useCategories'
 import { usePaymentMethods } from '@/composables/usePaymentMethods'
 import { useCurrencies } from '@/composables/useCurrencies'
 import { useRecurringPayments, type RecurringPaymentPayload } from '@/composables/useRecurringPayments'
@@ -98,17 +98,40 @@ const formAmountDisplay = computed({
   },
 })
 
+// Category: favorite chips + "more" + optional sub-category row — same
+// pattern as TransactionForm.vue (docs/12-ux-options-review.md). formCategoryId
+// can point at either a top-level category or a leaf subcategory; everything
+// else derives from that plus the loaded category list, so prefilling Edit
+// with a subcategory already selected "just works".
+const currentCategory = computed(() => categories.items.value.find((c) => c.id === formCategoryId.value) ?? null)
+const currentTopCategoryId = computed(() =>
+  currentCategory.value ? (currentCategory.value.parent_category_id ?? currentCategory.value.id) : '',
+)
+const currentSubcategoryId = computed(() => (currentCategory.value?.parent_category_id ? currentCategory.value.id : ''))
+
 const expenseCategories = computed(() => topLevelCategories(categories.items.value, 'expense'))
 const favoriteCategories = computed(() => expenseCategories.value.filter((c) => c.is_favorite))
 const moreCategories = computed(() =>
-  expenseCategories.value.filter((c) => !c.is_favorite && (c.is_active || c.id === formCategoryId.value)),
+  expenseCategories.value.filter((c) => !c.is_favorite && (c.is_active || c.id === currentTopCategoryId.value)),
 )
+const subcategoryOptions = computed(() =>
+  currentTopCategoryId.value
+    ? subcategoriesOf(categories.items.value, currentTopCategoryId.value).filter(
+        (c) => c.is_active || c.id === currentSubcategoryId.value,
+      )
+    : [],
+)
+const showSubcategoryRow = computed(() => subcategoryOptions.value.length > 0)
 const categoryMoreSelectedLabel = computed(() => {
-  if (!formCategoryId.value) return ''
-  if (favoriteCategories.value.some((c) => c.id === formCategoryId.value)) return ''
-  const match = moreCategories.value.find((c) => c.id === formCategoryId.value) ?? categories.items.value.find((c) => c.id === formCategoryId.value)
+  if (!currentTopCategoryId.value) return ''
+  if (favoriteCategories.value.some((c) => c.id === currentTopCategoryId.value)) return ''
+  const match = moreCategories.value.find((c) => c.id === currentTopCategoryId.value) ?? categories.items.value.find((c) => c.id === currentTopCategoryId.value)
   return match?.name ?? ''
 })
+
+function selectSubcategory(id: string) {
+  formCategoryId.value = currentSubcategoryId.value === id ? currentTopCategoryId.value : id
+}
 
 const favoritePaymentMethods = computed(() => paymentMethods.items.value.filter((p) => p.is_favorite))
 const morePaymentMethods = computed(() =>
@@ -431,7 +454,7 @@ async function confirmMarkPaid() {
           <ChipPicker
             :favorites="favoriteCategories"
             :more-options="moreCategories"
-            :selected-id="formCategoryId"
+            :selected-id="currentTopCategoryId"
             :more-selected-label="categoryMoreSelectedLabel"
             :open="openPopover === 'category'"
             group-label="Category"
@@ -439,6 +462,20 @@ async function confirmMarkPaid() {
             @select-more="formCategoryId = $event; openPopover = ''"
             @toggle-more="togglePopover('category')"
           />
+
+          <div v-if="showSubcategoryRow" class="mt-2 flex flex-wrap gap-1.5">
+            <button
+              v-for="c in subcategoryOptions"
+              :key="c.id"
+              type="button"
+              :aria-pressed="currentSubcategoryId === c.id"
+              class="rounded-pill px-3 py-1.5 text-caption"
+              :class="currentSubcategoryId === c.id ? 'bg-accent-100 font-semibold text-accent-700' : 'bg-neutral-50 font-medium text-neutral-500'"
+              @click="selectSubcategory(c.id)"
+            >
+              {{ c.name }}
+            </button>
+          </div>
         </div>
 
         <div class="mb-4">
