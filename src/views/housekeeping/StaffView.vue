@@ -197,6 +197,37 @@ const offCountThisMonth = computed(() => {
   return calendarCells.value.filter((c) => c && isOff(selectedMemberId.value!, c.iso)).length
 })
 
+// Dates before the start of the current (Monday-first) week are history —
+// changing one by accident quietly rewrites past records, and Jalie's mom was
+// brushing them by mistake — so those need an explicit "yes". This week and
+// anything upcoming still toggles on a single tap.
+const weekStartIso = dayjs().subtract((dayjs().day() + 6) % 7, 'day').format('YYYY-MM-DD')
+const pendingDay = ref<string | null>(null)
+
+const pendingDayWillBeOff = computed(() =>
+  pendingDay.value && selectedMemberId.value ? !isOff(selectedMemberId.value, pendingDay.value) : false,
+)
+const pendingDayTitle = computed(() => {
+  if (!pendingDay.value) return ''
+  const date = dayjs(pendingDay.value).format('dddd, D MMMM')
+  return t(pendingDayWillBeOff.value ? 'hk.staff.confirmDayOffTitle' : 'hk.staff.confirmDayWorkTitle', { date })
+})
+const pendingDayDesc = computed(() => {
+  const name = members.value.find((m) => m.id === selectedMemberId.value)?.name ?? ''
+  return t('hk.staff.confirmDayDesc', { name })
+})
+
+function onDayClick(iso: string) {
+  if (iso < weekStartIso) pendingDay.value = iso
+  else void onToggleDay(iso)
+}
+
+async function confirmPendingDay() {
+  const iso = pendingDay.value
+  pendingDay.value = null
+  if (iso) await onToggleDay(iso)
+}
+
 async function onToggleDay(iso: string) {
   if (!workspaceId.value || !selectedMemberId.value) return
   const wasOff = isOff(selectedMemberId.value, iso)
@@ -217,7 +248,7 @@ const weekdayInitials = computed<string[]>(() => tm('hk.staff.weekdayInitials') 
           {{ $t('hk.staff.backToHub') }}
         </RouterLink>
         <h1 class="text-h1 font-semibold text-neutral-900">{{ $t('hk.staff.title') }}</h1>
-        <p class="text-body-sm text-neutral-500">{{ $t('hk.staff.subtitle') }}</p>
+        <p class="text-body text-neutral-700">{{ $t('hk.staff.subtitle') }}</p>
       </div>
       <button v-if="activeTab === 'roster'" type="button" class="flex items-center gap-1.5 rounded-pill bg-white px-4 py-2 text-body-sm font-medium text-neutral-700 shadow-sm" @click="openAddMember">
         <Plus :size="16" />
@@ -286,15 +317,15 @@ const weekdayInitials = computed<string[]>(() => tm('hk.staff.weekdayInitials') 
                 :class="[
                   cell.iso === todayIso ? 'ring-2 ring-accent-500' : '',
                   selectedMemberId && isOff(selectedMemberId, cell.iso)
-                    ? 'bg-negative-600/10 text-negative-600'
+                    ? 'bg-negative-600 font-bold text-white shadow-sm'
                     : cell.isWeekend
                       ? 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
                       : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100',
                 ]"
-                @click="onToggleDay(cell.iso)"
+                @click="onDayClick(cell.iso)"
               >
                 {{ cell.day }}
-                <span v-if="isBooked(cell.iso)" class="absolute bottom-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-accent-500" :aria-label="$t('hk.staff.bookedDot')" />
+                <span v-if="isBooked(cell.iso)" class="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-neutral-400" :aria-label="$t('hk.staff.bookedDot')" />
               </button>
             </template>
           </div>
@@ -308,9 +339,9 @@ const weekdayInitials = computed<string[]>(() => tm('hk.staff.weekdayInitials') 
             }}
           </p>
         </div>
-        <p class="mt-3 text-caption text-neutral-400">
+        <p class="mt-3 text-body-sm text-neutral-600">
           {{ $t('hk.staff.tapHint') }}
-          <span class="inline-flex items-center gap-1"><span class="inline-block h-1.5 w-1.5 rounded-full bg-accent-500" /> {{ $t('hk.staff.bookedLegend') }}</span>
+          <span class="inline-flex items-center gap-1"><span class="inline-block h-1.5 w-1.5 rounded-full bg-neutral-400" /> {{ $t('hk.staff.bookedLegend') }}</span>
           {{ $t('hk.staff.yearlyLeaveNote') }}
         </p>
       </template>
@@ -455,6 +486,15 @@ const weekdayInitials = computed<string[]>(() => tm('hk.staff.weekdayInitials') 
         </button>
       </form>
     </BottomSheet>
+
+    <ConfirmDialog
+      :open="!!pendingDay"
+      :title="pendingDayTitle"
+      :description="pendingDayDesc"
+      :confirm-label="$t('hk.staff.confirmDayYes')"
+      @confirm="confirmPendingDay"
+      @cancel="pendingDay = null"
+    />
 
     <ConfirmDialog
       :open="!!pendingDeactivate"
