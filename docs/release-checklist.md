@@ -18,7 +18,7 @@ Concrete, checkable version of the Phase 5 exit criteria in `06-development-road
 - [x] Hosting-level security: HTTPS redirect enabled (Cloudflare dashboard, done 2026-08-27), security headers + CSP shipped (`public/_headers`), CORS tightened on `sync-room-ical`, hashed-asset cache headers fixed (`/assets/*` now `immutable`).
 - [x] `supabase/migrations/` reconciled — every migration applied to the live project has a matching local file, timestamp-named to match `supabase_migrations.schema_migrations` exactly (2026-08-27; eight had drifted out of sync — see the deployment runbook §10 for the rule going forward).
 - [x] Mobile-browser check on a real device — done as part of the 2026-08-31 acceptance round below (Jalie's phone + her mother's iPad).
-- [x] Owner acceptance session actually run (script: `docs/owner-acceptance-script.md`) — first round done 2026-08-31 (Jalie + her mother; Maria's part still to come). Findings below, task #79 stays open until a second pass confirms the fixes and Maria's part is done.
+- [x] Owner acceptance session actually run (script: `docs/owner-acceptance-script.md`) — first round 2026-08-31 (Jalie + her mother), then a live multi-device round 2026-09-04. **Closed 2026-11-07:** Maria and Jalie's mother have both used it in daily operation since, with no outstanding complaints. Findings below.
 
 ### First acceptance round — 2026-08-31
 
@@ -42,8 +42,8 @@ First genuinely simultaneous multi-device use (Jalie, her mother, and the housek
 - [x] Backup safety net: weekly JSON export (Supabase Free plan has no automated backup product) — restore actually tested once, task #78.
 - [x] Rollback path documented: Cloudflare Pages instant rollback for the app; forward-only migrations for the database (`11-coding-standards-and-test-strategy.md` §9).
 - [x] Monitoring/error reporting: deliberately skipped for Release 1 (small, trusted user base) — decided 2026-08-27. Revisit if the user base grows beyond Jalie's own household/staff.
-- [ ] Known limitations documented and shared with Jalie before go-live sign-off (drafted in `README.md` → Status; confirm nothing's missing once the acceptance session surfaces anything unexpected).
+- [x] Known limitations documented and shared with Jalie before go-live sign-off (`README.md` → Status). Accepted as part of the 2026-11-07 sign-off below.
 
 ## Sign-off
 
-- [ ] Jalie confirms Release 1 is ready to rely on for real day-to-day use (this is the actual exit criterion — everything above is in service of this one checkbox).
+- [x] Jalie confirms Release 1 is ready to rely on for real day-to-day use — **signed off 2026-11-07**: NIVA is in daily use by Jalie, her mother, and Maria, and the household relies on it.
