@@ -15,7 +15,7 @@
     "lint": "run-s \"lint:*\"",
     "lint:oxlint": "oxlint . --fix",
     "lint:eslint": "eslint . --fix --cache",
-    "audit": "npm audit --audit-level=high",
+    "audit": "node scripts/audit-check.mjs",
     "format": "prettier --write --experimental-cli src/",
     "deploy": "npm run build && wrangler deploy"
   },
