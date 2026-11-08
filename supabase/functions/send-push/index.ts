@@ -1,9 +1,12 @@
 // Daily Web Push sender. Called once each morning by pg_cron (service role
 // key as bearer, from Vault) — never by a browser.
 //
-// Auth: verify_jwt is OFF for this function (deploy with --no-verify-jwt
-// equivalent) and the function checks the bearer == SUPABASE_SERVICE_ROLE_KEY
-// itself, so a signed-in user's JWT cannot trigger a send.
+// Auth: verify_jwt is ON (the platform checks the JWT signature), and the
+// function additionally requires the token's role claim to be service_role, so a
+// signed-in user's own JWT passes the platform check but cannot trigger a send.
+// (Same pattern as sync-room-ical. Comparing against the SUPABASE_SERVICE_ROLE_KEY
+// env var instead failed 2026-11-08: the Vault key and the env key are different
+// strings for the same role.)
 //
 // Body (all optional): { dry_run?: boolean, only_user_id?: string, test?: boolean }
 //   dry_run — compute who would get what, send nothing.
@@ -23,12 +26,13 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 }
 
-// Constant-time-ish comparison; both are secrets of fixed length.
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  let diff = 0
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
-  return diff === 0
+function jwtRole(token: string): string | null {
+  try {
+    const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    return JSON.parse(atob(payload)).role ?? null
+  } catch {
+    return null
+  }
 }
 
 // Sri Lanka is UTC+05:30 with no DST; the job fires at 02:30 UTC = 08:00 local,
@@ -41,7 +45,7 @@ function sriLankaToday(): string {
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405)
   const bearer = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '')
-  if (!bearer || !safeEqual(bearer, SERVICE_KEY)) return json({ error: 'unauthorized' }, 401)
+  if (jwtRole(bearer) !== 'service_role') return json({ error: 'unauthorized' }, 401)
   if (!VAPID_PUBLIC || !VAPID_PRIVATE) return json({ error: 'vapid_not_configured' }, 500)
 
   let opts: { dry_run?: boolean; only_user_id?: string; test?: boolean } = {}
