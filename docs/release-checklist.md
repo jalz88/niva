@@ -47,3 +47,11 @@ First genuinely simultaneous multi-device use (Jalie, her mother, and the housek
 ## Sign-off
 
 - [x] Jalie confirms Release 1 is ready to rely on for real day-to-day use — **signed off 2026-11-07**: NIVA is in daily use by Jalie, her mother, and Maria, and the household relies on it.
+
+## Post-release: Web Push (v1.12.0) — manual device checks
+
+- [ ] Account → Notifications → "Turn on notifications" on Android Chrome; permission prompt appears; button flips to "Turn off on this device".
+- [ ] Same on an iPhone/iPad with NIVA added to the Home Screen (in plain Safari it shows the install hint instead).
+- [ ] A `send-push` test run (`{"test": true, "only_user_id": ...}` with the service key) delivers a notification; tapping it opens NIVA.
+- [ ] Tomorrow 08:00 Sri Lanka time the first real morning push arrives on a device that has housekeeping or payments to report.
+

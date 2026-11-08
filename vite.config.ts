@@ -40,6 +40,8 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         navigateFallbackDenylist: [/^\/api/],
+        // Web Push handlers (public/push-sw.js) — see that file.
+        importScripts: ['push-sw.js'],
       },
       manifest: {
         name: 'NIVA — Property Operating System',
